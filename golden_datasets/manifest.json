@@ -1,0 +1,5292 @@
+{
+  "suite_version": "1.0",
+  "datawork_target_version": "0.4.9",
+  "generated_with": {
+    "python": "3.13",
+    "numpy": "2.3.5",
+    "pandas": "2.2.3",
+    "scipy": "1.17.0",
+    "statsmodels": "0.14.6"
+  },
+  "principles": [
+    "Frozen deterministic CSV inputs",
+    "Expected values computed outside DataWork execution functions",
+    "Core statistics checked with SciPy/statsmodels or explicit formulas",
+    "All registered methods retain separate API/workflow regression tests"
+  ],
+  "cases": [
+    {
+      "case_id": "descriptive_statistics_default",
+      "method": "descriptive_statistics",
+      "dataset": "data/one_sample.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ]
+      },
+      "reference": "pandas direct summary",
+      "checks": [
+        {
+          "collection": "descriptive_stats",
+          "field": "mean",
+          "expected": 9.941666666666665,
+          "atol": 5e-07,
+          "rtol": 1e-07,
+          "match": {
+            "variable": "y"
+          }
+        },
+        {
+          "collection": "descriptive_stats",
+          "field": "sd",
+          "expected": 0.9519915329391743,
+          "atol": 5e-07,
+          "rtol": 1e-07,
+          "match": {
+            "variable": "y"
+          }
+        },
+        {
+          "collection": "descriptive_stats",
+          "field": "median",
+          "expected": 9.95,
+          "atol": 5e-07,
+          "rtol": 1e-07,
+          "match": {
+            "variable": "y"
+          }
+        }
+      ],
+      "dataset_sha256": "1bf9979c789a299124736ae4ad8c63f11e2f0c8037903839ea46ae95295e1df5"
+    },
+    {
+      "case_id": "one_sample_ttest_default",
+      "method": "one_sample_ttest",
+      "dataset": "data/one_sample.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "test_value": 10
+      },
+      "reference": "scipy.stats.ttest_1samp",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": -0.21226301623975377,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.8357838818909754,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 11.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "1bf9979c789a299124736ae4ad8c63f11e2f0c8037903839ea46ae95295e1df5"
+    },
+    {
+      "case_id": "welch_ttest_default",
+      "method": "welch_ttest",
+      "dataset": "data/independent_groups.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ]
+      },
+      "reference": "scipy.stats.ttest_ind(equal_var=False)",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": -8.070280493991273,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 5.704960569450731e-07,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 15.675839837138508,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "247ed4091af9d6cbc5776fa489cb133dc97914cafca22e8193097115b2c6227e"
+    },
+    {
+      "case_id": "independent_ttest_default",
+      "method": "independent_ttest",
+      "dataset": "data/independent_groups.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ]
+      },
+      "reference": "scipy.stats.ttest_ind(equal_var=True)",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": -7.9816287225083675,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 5.713272189584483e-07,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 16.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "247ed4091af9d6cbc5776fa489cb133dc97914cafca22e8193097115b2c6227e"
+    },
+    {
+      "case_id": "paired_ttest_default",
+      "method": "paired_ttest",
+      "dataset": "data/paired.csv",
+      "plan": {
+        "dependent_variables": [
+          "before",
+          "after"
+        ]
+      },
+      "reference": "scipy.stats.ttest_rel",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": -13.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 5.08848807212823e-08,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 11.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "c79a616818f677137066388aafffaed9345dfdace676f886b012038705f96ebb"
+    },
+    {
+      "case_id": "mann_whitney_u_default",
+      "method": "mann_whitney_u",
+      "dataset": "data/independent_groups.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ]
+      },
+      "reference": "scipy.stats.mannwhitneyu",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 4.570592805886923e-05,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "247ed4091af9d6cbc5776fa489cb133dc97914cafca22e8193097115b2c6227e"
+    },
+    {
+      "case_id": "wilcoxon_signed_rank_default",
+      "method": "wilcoxon_signed_rank",
+      "dataset": "data/paired.csv",
+      "plan": {
+        "dependent_variables": [
+          "before",
+          "after"
+        ]
+      },
+      "reference": "scipy.stats.wilcoxon",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.00048828125,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "c79a616818f677137066388aafffaed9345dfdace676f886b012038705f96ebb"
+    },
+    {
+      "case_id": "oneway_anova_default",
+      "method": "oneway_anova",
+      "dataset": "data/three_groups.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "method_parameters": {
+          "posthoc_methods": [
+            "tukey"
+          ]
+        }
+      },
+      "reference": "scipy.stats.f_oneway",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 178.07653511536915,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.3804120003943451e-12,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 18.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "group"
+          }
+        }
+      ],
+      "dataset_sha256": "f95bc54a27346ab3fc3de1732829497ec261f7480dafdd44a9a07710285f07fc"
+    },
+    {
+      "case_id": "welch_anova_default",
+      "method": "welch_anova",
+      "dataset": "data/three_groups.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "method_parameters": {
+          "posthoc_methods": [
+            "games_howell"
+          ]
+        }
+      },
+      "reference": "statsmodels.stats.oneway.anova_oneway",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 150.74111853166235,
+          "atol": 0.0002,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.0564505036794666e-08,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 10.96574345239389,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "group"
+          }
+        }
+      ],
+      "dataset_sha256": "f95bc54a27346ab3fc3de1732829497ec261f7480dafdd44a9a07710285f07fc"
+    },
+    {
+      "case_id": "kruskal_wallis_default",
+      "method": "kruskal_wallis",
+      "dataset": "data/three_groups.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ]
+      },
+      "reference": "scipy.stats.kruskal",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 17.727272727272734,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.00014143980133897135,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "f95bc54a27346ab3fc3de1732829497ec261f7480dafdd44a9a07710285f07fc"
+    },
+    {
+      "case_id": "factorial_anova_legacy_migration",
+      "method": "factorial_anova",
+      "dataset": "data/factorial_two.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "A",
+          "B"
+        ],
+        "method_parameters": {
+          "factor_model_order": "2",
+          "posthoc_methods": [
+            "tukey"
+          ]
+        }
+      },
+      "reference": "statsmodels OLS + Type III ANOVA",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 106.06813604350207,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.2938045216218155e-11,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 30.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 20.946335278184378,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 7.676432296022502e-05,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 30.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 7.2888853899679225,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.011290075253400682,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 30.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B"
+          }
+        }
+      ],
+      "dataset_sha256": "71b4b7e7bf60b35dcd0e00589882e0bd7504285f7f461b9b48e192a1bd293f94"
+    },
+    {
+      "case_id": "twoway_anova_default",
+      "method": "twoway_anova",
+      "dataset": "data/factorial_two.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "A",
+          "B"
+        ],
+        "method_parameters": {
+          "posthoc_methods": [
+            "tukey"
+          ]
+        }
+      },
+      "reference": "statsmodels OLS + Type III ANOVA",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 106.06813604350207,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.2938045216218155e-11,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 30.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 20.946335278184378,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 7.676432296022502e-05,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 30.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 7.2888853899679225,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.011290075253400682,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 30.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B"
+          }
+        }
+      ],
+      "dataset_sha256": "71b4b7e7bf60b35dcd0e00589882e0bd7504285f7f461b9b48e192a1bd293f94"
+    },
+    {
+      "case_id": "threeway_anova_default",
+      "method": "threeway_anova",
+      "dataset": "data/factorial_three.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "A",
+          "B",
+          "C"
+        ],
+        "method_parameters": {
+          "posthoc_methods": [
+            "tukey"
+          ]
+        }
+      },
+      "reference": "statsmodels OLS + Type III ANOVA",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 76.11011120864997,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.8127417970002194e-11,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 48.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 20.44634372773366,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.020885450413855e-05,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 48.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 6.4006241995067965,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.014744226512230015,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 48.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 3.645470336528817,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.06220917561848593,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 48.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.458212739033234,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.5017098005990819,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 48.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.09659986627367863,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.7572944325590942,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 48.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.21473097955452522,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.6451786969188192,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 48.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C"
+          }
+        }
+      ],
+      "dataset_sha256": "de079e43fc612ee7ee6201a44889c4e3cc6c9967421eb5d00046f91e96f6523e"
+    },
+    {
+      "case_id": "ancova_default",
+      "method": "ancova",
+      "dataset": "data/ancova.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "covariates": [
+          "baseline"
+        ]
+      },
+      "reference": "statsmodels OLS + Type III ANCOVA",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 88.5962046074795,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C(Q(\"group\"), Sum)"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 8.98803815452896e-14,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C(Q(\"group\"), Sum)"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C(Q(\"group\"), Sum)"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 32.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C(Q(\"group\"), Sum)"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 185.93317432360465,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "Q(\"baseline\")"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 7.038970057175069e-15,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "Q(\"baseline\")"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "Q(\"baseline\")"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 32.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "Q(\"baseline\")"
+          }
+        },
+        {
+          "collection": "coefficients",
+          "field": "estimate",
+          "expected": 0.8963456922019417,
+          "atol": 1e-07,
+          "rtol": 1e-06,
+          "match": {
+            "term": "Q(\"baseline\")"
+          }
+        },
+        {
+          "collection": "coefficients",
+          "field": "p_value",
+          "expected": 7.038970057175069e-15,
+          "atol": 1e-09,
+          "rtol": 1e-05,
+          "match": {
+            "term": "Q(\"baseline\")"
+          }
+        }
+      ],
+      "dataset_sha256": "81313d1bd024317265fd1e68a42e585f4ef6ad51e88a6ca380c202f7626af809"
+    },
+    {
+      "case_id": "pearson_correlation_default",
+      "method": "pearson_correlation",
+      "dataset": "data/correlation.csv",
+      "plan": {
+        "dependent_variables": [
+          "x",
+          "y"
+        ]
+      },
+      "reference": "scipy.stats.pearsonr",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.9980458310996295,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 2.2375960153598366e-47,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "cbe2be4eeba40dde48c89d25088550c7a61d02c68ae0ad0b2f47778b8cc852fe"
+    },
+    {
+      "case_id": "spearman_correlation_default",
+      "method": "spearman_correlation",
+      "dataset": "data/correlation.csv",
+      "plan": {
+        "dependent_variables": [
+          "x",
+          "y"
+        ]
+      },
+      "reference": "scipy.stats.spearmanr",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.0,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "cbe2be4eeba40dde48c89d25088550c7a61d02c68ae0ad0b2f47778b8cc852fe"
+    },
+    {
+      "case_id": "kendall_correlation_default",
+      "method": "kendall_correlation",
+      "dataset": "data/correlation.csv",
+      "plan": {
+        "dependent_variables": [
+          "x",
+          "y"
+        ]
+      },
+      "reference": "scipy.stats.kendalltau",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 2.451234878256772e-48,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "cbe2be4eeba40dde48c89d25088550c7a61d02c68ae0ad0b2f47778b8cc852fe"
+    },
+    {
+      "case_id": "linear_regression_default",
+      "method": "linear_regression",
+      "dataset": "data/linear_regression.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "covariates": [
+          "x"
+        ]
+      },
+      "reference": "statsmodels OLS",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 5933.792568026876,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 7.308023694731955e-67,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "coefficients",
+          "field": "estimate",
+          "expected": 1.698305419878547,
+          "atol": 1e-07,
+          "rtol": 1e-06,
+          "match": {
+            "term": "Q(\"x\")"
+          }
+        },
+        {
+          "collection": "coefficients",
+          "field": "p_value",
+          "expected": 3.237534135135647e-67,
+          "atol": 1e-09,
+          "rtol": 1e-05,
+          "match": {
+            "term": "Q(\"x\")"
+          }
+        },
+        {
+          "collection": "fit_statistics",
+          "field": "value",
+          "expected": 0.9952199594912815,
+          "atol": 1e-07,
+          "rtol": 1e-06,
+          "match": {
+            "name": "R-squared"
+          }
+        }
+      ],
+      "dataset_sha256": "97e0eb6da8ce852b500b958d84b17fd1df028048d9de3bb3ac661b078b5f663c"
+    },
+    {
+      "case_id": "logistic_regression_default",
+      "method": "logistic_regression",
+      "dataset": "data/logistic.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "covariates": [
+          "x"
+        ],
+        "method_parameters": {
+          "success_level": "1"
+        }
+      },
+      "reference": "statsmodels GLM Binomial",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 47.06318605424198,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 6.030578817777229e-11,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "coefficients",
+          "field": "estimate",
+          "expected": 1.093165982121038,
+          "atol": 1e-07,
+          "rtol": 1e-06,
+          "match": {
+            "term": "Q(\"x\")"
+          }
+        },
+        {
+          "collection": "coefficients",
+          "field": "p_value",
+          "expected": 1.3101467160879793e-07,
+          "atol": 1e-09,
+          "rtol": 1e-05,
+          "match": {
+            "term": "Q(\"x\")"
+          }
+        },
+        {
+          "collection": "fit_statistics",
+          "field": "value",
+          "expected": 0.3395871163074975,
+          "atol": 1e-07,
+          "rtol": 1e-06,
+          "match": {
+            "name": "McFadden pseudo R-squared"
+          }
+        }
+      ],
+      "dataset_sha256": "24311a2c8f85172560730c2eef3199053237d4b24fd9108d90946c7bf966ae69"
+    },
+    {
+      "case_id": "chi_square_independence_default",
+      "method": "chi_square_independence",
+      "dataset": "data/contingency_2x2.csv",
+      "plan": {
+        "fixed_factors": [
+          "a",
+          "b"
+        ]
+      },
+      "reference": "scipy.stats.chi2_contingency(Yates)",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 5.497737556561086,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.019041093611085053,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "22a192c25ff2be7bf4cf06846d3d9ee770d46d58231bdc21e9a19d973a4574eb"
+    },
+    {
+      "case_id": "fisher_exact_default",
+      "method": "fisher_exact",
+      "dataset": "data/contingency_2x2.csv",
+      "plan": {
+        "fixed_factors": [
+          "a",
+          "b"
+        ]
+      },
+      "reference": "scipy.stats.fisher_exact",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.24242424242424243,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.018243850221470598,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "22a192c25ff2be7bf4cf06846d3d9ee770d46d58231bdc21e9a19d973a4574eb"
+    },
+    {
+      "case_id": "chi_square_goodness_of_fit_default",
+      "method": "chi_square_goodness_of_fit",
+      "dataset": "data/goodness_of_fit.csv",
+      "plan": {
+        "fixed_factors": [
+          "cat"
+        ],
+        "expected_proportions": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ]
+      },
+      "reference": "scipy.stats.chisquare",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 6.666666666666667,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.035673993347252395,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "516815f4cdaa899c689a981cccbfba4580ce3014be0f3e0d719e0138b959a297"
+    },
+    {
+      "case_id": "mcnemar_test_default",
+      "method": "mcnemar_test",
+      "dataset": "data/paired_binary.csv",
+      "plan": {
+        "dependent_variables": [
+          "pre",
+          "post"
+        ]
+      },
+      "reference": "statsmodels.stats.contingency_tables.mcnemar exact",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 6.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.454498291015625,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "3ed8da07483fc608f2543ed29b33b117251f7898c5c63faccb940b2aae929dee"
+    },
+    {
+      "case_id": "exact_binomial_test_default",
+      "method": "exact_binomial_test",
+      "dataset": "data/one_binary.csv",
+      "plan": {
+        "fixed_factors": [
+          "flag"
+        ],
+        "method_parameters": {
+          "success_level": "yes"
+        }
+      },
+      "reference": "scipy.stats.binomtest",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.5666666666666667,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.36629400670329104,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "ee2be0295b4b5d3af06e4bcd50de43a1a31d477124040918bef979a4bf6fab81"
+    },
+    {
+      "case_id": "one_sample_proportion_ztest_default",
+      "method": "one_sample_proportion_ztest",
+      "dataset": "data/one_binary.csv",
+      "plan": {
+        "fixed_factors": [
+          "flag"
+        ],
+        "method_parameters": {
+          "success_level": "yes"
+        }
+      },
+      "reference": "statsmodels.stats.proportion.proportions_ztest",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 1.042100211437812,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.29736522057154946,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "ee2be0295b4b5d3af06e4bcd50de43a1a31d477124040918bef979a4bf6fab81"
+    },
+    {
+      "case_id": "two_proportion_ztest_default",
+      "method": "two_proportion_ztest",
+      "dataset": "data/proportions_two.csv",
+      "plan": {
+        "dependent_variables": [
+          "outcome"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "method_parameters": {
+          "success_level": "yes"
+        }
+      },
+      "reference": "statsmodels proportions_ztest",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": -2.6005201560520184,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.009308255071568568,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "05389128e0516b73b041c9c21fbafb42c390e97d88f582612bd942c2c37dff12"
+    },
+    {
+      "case_id": "k_proportion_chi_square_default",
+      "method": "k_proportion_chi_square",
+      "dataset": "data/proportions_three.csv",
+      "plan": {
+        "dependent_variables": [
+          "outcome"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "method_parameters": {
+          "success_level": "yes"
+        }
+      },
+      "reference": "statsmodels proportions_chisquare",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 16.33928571428571,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.00028311911235909715,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "b1ee7e69a2d70796a34bfac304210bfc78061c0b41ebfd9eead57e443fd612b0"
+    },
+    {
+      "case_id": "barnard_exact_default",
+      "method": "barnard_exact",
+      "dataset": "data/contingency_2x2.csv",
+      "plan": {
+        "fixed_factors": [
+          "a",
+          "b"
+        ]
+      },
+      "reference": "scipy.stats.barnard_exact",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": -2.60525052859453,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.00993218536893675,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "22a192c25ff2be7bf4cf06846d3d9ee770d46d58231bdc21e9a19d973a4574eb"
+    },
+    {
+      "case_id": "boschloo_exact_default",
+      "method": "boschloo_exact",
+      "dataset": "data/contingency_2x2.csv",
+      "plan": {
+        "fixed_factors": [
+          "a",
+          "b"
+        ]
+      },
+      "reference": "scipy.stats.boschloo_exact",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.009121925110735297,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.011233301226550984,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "22a192c25ff2be7bf4cf06846d3d9ee770d46d58231bdc21e9a19d973a4574eb"
+    },
+    {
+      "case_id": "cochran_q_test_default",
+      "method": "cochran_q_test",
+      "dataset": "data/cochran_q.csv",
+      "plan": {
+        "dependent_variables": [
+          "q1",
+          "q2",
+          "q3"
+        ]
+      },
+      "reference": "statsmodels cochrans_q",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.6,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.740818220681718,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "99e5c6a127d465a3748c28ca7cee9b6d391505fa39de220e4bcaa72e10adaa4f"
+    },
+    {
+      "case_id": "bowker_symmetry_default",
+      "method": "bowker_symmetry",
+      "dataset": "data/paired_multiclass.csv",
+      "plan": {
+        "dependent_variables": [
+          "r1",
+          "r2"
+        ]
+      },
+      "reference": "statsmodels SquareTable.symmetry",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 1.2333333333333334,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.7450212005481858,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 3.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "a6a83c8ad0e21b73b6e247381b0351a85659530a9f7de09bb3d318178aa6eb8d"
+    },
+    {
+      "case_id": "stuart_maxwell_default",
+      "method": "stuart_maxwell",
+      "dataset": "data/paired_multiclass.csv",
+      "plan": {
+        "dependent_variables": [
+          "r1",
+          "r2"
+        ]
+      },
+      "reference": "statsmodels SquareTable.homogeneity",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 1.2089552238806014,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.5463597639217991,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "a6a83c8ad0e21b73b6e247381b0351a85659530a9f7de09bb3d318178aa6eb8d"
+    },
+    {
+      "case_id": "cochran_mantel_haenszel_default",
+      "method": "cochran_mantel_haenszel",
+      "dataset": "data/stratified.csv",
+      "plan": {
+        "dependent_variables": [
+          "outcome"
+        ],
+        "fixed_factors": [
+          "exposure",
+          "strata"
+        ],
+        "method_parameters": {
+          "success_level": "1",
+          "exposed_level": "1"
+        }
+      },
+      "reference": "statsmodels StratifiedTable",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 17.805834899254204,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 2.4463189125190077e-05,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "143756d39ba6bff6bcee8a4a405a0f7ffc7ba817625726282f64dfff76d36bab"
+    },
+    {
+      "case_id": "breslow_day_default",
+      "method": "breslow_day",
+      "dataset": "data/stratified.csv",
+      "plan": {
+        "dependent_variables": [
+          "outcome"
+        ],
+        "fixed_factors": [
+          "exposure",
+          "strata"
+        ],
+        "method_parameters": {
+          "success_level": "1",
+          "exposed_level": "1"
+        }
+      },
+      "reference": "statsmodels StratifiedTable",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.33893862303084205,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.9525462687057997,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 3.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "143756d39ba6bff6bcee8a4a405a0f7ffc7ba817625726282f64dfff76d36bab"
+    },
+    {
+      "case_id": "cohen_kappa_default",
+      "method": "cohen_kappa",
+      "dataset": "data/paired_multiclass.csv",
+      "plan": {
+        "dependent_variables": [
+          "r1",
+          "r2"
+        ]
+      },
+      "reference": "statsmodels cohens_kappa",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.60646521433591,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 1.476488299309839e-14,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "a6a83c8ad0e21b73b6e247381b0351a85659530a9f7de09bb3d318178aa6eb8d"
+    },
+    {
+      "case_id": "fleiss_kappa_default",
+      "method": "fleiss_kappa",
+      "dataset": "data/ratings.csv",
+      "plan": {
+        "dependent_variables": [
+          "r1",
+          "r2",
+          "r3"
+        ]
+      },
+      "reference": "statsmodels fleiss_kappa point estimate (no p-value)",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.7988264878457668,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": null,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "5edac507e57174433f83ba7eb7c6e3fe3292065e188b3e5a0ab9d7a391ab1da4"
+    },
+    {
+      "case_id": "cochran_armitage_trend_default",
+      "method": "cochran_armitage_trend",
+      "dataset": "data/trend.csv",
+      "plan": {
+        "dependent_variables": [
+          "outcome"
+        ],
+        "fixed_factors": [
+          "dose"
+        ],
+        "method_parameters": {
+          "success_level": "yes",
+          "level_order": "low,mid,high",
+          "scores": "0,1,2"
+        }
+      },
+      "reference": "independent Cochran-Armitage score-test formula",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 4.930318013504373,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 8.209586385871647e-07,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "175d986768a8fabaec9ddcf6b1b90594bd6495363ab0b8306e339a2b7b68ae18"
+    },
+    {
+      "case_id": "multinomial_logistic_regression_default",
+      "method": "multinomial_logistic_regression",
+      "dataset": "data/multiclass_regression.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "covariates": [
+          "x"
+        ]
+      },
+      "reference": "statsmodels MNLogit",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 234.54542044885747,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 1.386735458472164e-49,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 4.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "fit_statistics",
+          "field": "value",
+          "expected": 0.9044401652874864,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "name": "Pseudo R-squared"
+          }
+        }
+      ],
+      "dataset_sha256": "afe124b574034f3650f832d23e920f170b13b2e9d5bb28248f295cb897a47e1d"
+    },
+    {
+      "case_id": "ordinal_logistic_regression_default",
+      "method": "ordinal_logistic_regression",
+      "dataset": "data/multiclass_regression.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "covariates": [
+          "x"
+        ],
+        "method_parameters": {
+          "level_order": "low,mid,high"
+        }
+      },
+      "reference": "statsmodels OrderedModel logit",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 234.54540781276623,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 1.1724972035614199e-51,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "coefficients",
+          "field": "estimate",
+          "expected": 12.639251394659416,
+          "atol": 0.0002,
+          "rtol": 1e-06,
+          "match": {
+            "term": "x"
+          }
+        },
+        {
+          "collection": "coefficients",
+          "field": "p_value",
+          "expected": 0.00043128964147447457,
+          "atol": 1e-09,
+          "rtol": 1e-05,
+          "match": {
+            "term": "x"
+          }
+        }
+      ],
+      "dataset_sha256": "afe124b574034f3650f832d23e920f170b13b2e9d5bb28248f295cb897a47e1d"
+    },
+    {
+      "case_id": "repeated_measures_anova_default",
+      "method": "repeated_measures_anova",
+      "dataset": "data/repeated.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "subject_id": "subject",
+        "repeated_factor": "time"
+      },
+      "reference": "statsmodels AnovaRM",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 4558.812499999986,
+          "atol": 1e-05,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.571944985679517e-29,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 22.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "time"
+          }
+        }
+      ],
+      "dataset_sha256": "74a40fab08ed5be4704536dd15a13ee8004e6ea7e53a7d1c0615dd0dabba55ea"
+    },
+    {
+      "case_id": "friedman_test_default",
+      "method": "friedman_test",
+      "dataset": "data/repeated.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "subject_id": "subject",
+        "repeated_factor": "time"
+      },
+      "reference": "scipy.stats.friedmanchisquare",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 24.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 6.144212353328207e-06,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "74a40fab08ed5be4704536dd15a13ee8004e6ea7e53a7d1c0615dd0dabba55ea"
+    },
+    {
+      "case_id": "linear_mixed_model_default",
+      "method": "linear_mixed_model",
+      "dataset": "data/mixed_model.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "condition"
+        ],
+        "covariates": [
+          "time"
+        ],
+        "random_factors": [
+          "cluster"
+        ],
+        "method_parameters": {
+          "reml": false,
+          "optimizer": "lbfgs",
+          "max_iterations": 500
+        }
+      },
+      "reference": "statsmodels MixedLM ML",
+      "checks": [
+        {
+          "collection": "coefficients",
+          "field": "estimate",
+          "expected": 0.5527296910460174,
+          "atol": 2e-05,
+          "rtol": 1e-06,
+          "match": {
+            "term": "Q(\"time\")"
+          }
+        },
+        {
+          "collection": "coefficients",
+          "field": "p_value",
+          "expected": 0.0,
+          "atol": 1e-09,
+          "rtol": 1e-05,
+          "match": {
+            "term": "Q(\"time\")"
+          }
+        },
+        {
+          "collection": "fit_statistics",
+          "field": "value",
+          "expected": 39.357501498697644,
+          "atol": 2e-05,
+          "rtol": 1e-06,
+          "match": {
+            "name": "Log-likelihood"
+          }
+        },
+        {
+          "collection": "fit_statistics",
+          "field": "value",
+          "expected": 0.009833223218467527,
+          "atol": 2e-05,
+          "rtol": 1e-06,
+          "match": {
+            "name": "Residual variance"
+          }
+        }
+      ],
+      "dataset_sha256": "ba255676cc0ffe9143a99b218825a5662cc5cf3932cf62d07a27c5444c90c8e9"
+    },
+    {
+      "case_id": "oneway_manova_default",
+      "method": "oneway_manova",
+      "dataset": "data/manova_one.csv",
+      "plan": {
+        "dependent_variables": [
+          "y1",
+          "y2"
+        ],
+        "fixed_factors": [
+          "g"
+        ],
+        "method_parameters": {
+          "multivariate_test": "all",
+          "follow_up_mode": "none",
+          "covariance_test": false,
+          "normality_test": false,
+          "correlation_diagnostics": false
+        }
+      },
+      "reference": "statsmodels MANOVA.mv_test",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 24.116658747272474,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.6556594283688367e-14,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 4.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 102.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.9721194194116594,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 124.72320048071649,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 5.787316093721861e-38,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 4.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 100.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.027880580588340642,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 433.0943415696374,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 5.677328238974011e-43,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 4.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 58.975609756097526,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 34.867258819502105,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 889.1150998973037,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.265667837263045e-40,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 34.867258819502105,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Roy 最大根"
+          }
+        }
+      ],
+      "dataset_sha256": "74df950fa24ec7aaeb0e421498d80deb4b0424c1d29dcf381c445e7cb3a54bf7"
+    },
+    {
+      "case_id": "twoway_manova_default",
+      "method": "twoway_manova",
+      "dataset": "data/manova_two.csv",
+      "plan": {
+        "dependent_variables": [
+          "y1",
+          "y2"
+        ],
+        "fixed_factors": [
+          "A",
+          "B"
+        ],
+        "method_parameters": {
+          "multivariate_test": "all",
+          "follow_up_mode": "none",
+          "covariance_test": false,
+          "normality_test": false,
+          "correlation_diagnostics": false
+        }
+      },
+      "reference": "statsmodels MANOVA.mv_test",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 1062.7003760678338,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.6958664491339413e-42,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.9765668156703426,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 1062.7003760678338,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.6958664491339413e-42,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.023433184329657353,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 1062.7003760678338,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.695866449133725e-42,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.00000000000006,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 41.67452455167975,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 1062.7003760678338,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.6958664491339413e-42,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 41.67452455167975,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 542.1940694223625,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.333696474511861e-35,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.9550814402096068,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 542.1940694223625,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.333696474511861e-35,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.044918559790393164,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 542.1940694223625,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.333696474511598e-35,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.00000000000006,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 21.262512526367157,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 542.1940694223625,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.333696474511861e-35,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 21.262512526367157,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 35.851199692417666,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.8935927506093207e-10,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.5843602060294916,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 35.851199692417666,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.8935927506093207e-10,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.41563979397050843,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 35.851199692417666,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.8935927506093057e-10,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.00000000000006,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 1.4059293997026536,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 35.851199692417666,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.8935927506093207e-10,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 51.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 1.4059293997026536,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        }
+      ],
+      "dataset_sha256": "7704768dfcd77abba6ba67483002dbd5211a75329146168e541ab4801ea52351"
+    },
+    {
+      "case_id": "threeway_manova_default",
+      "method": "threeway_manova",
+      "dataset": "data/manova_three.csv",
+      "plan": {
+        "dependent_variables": [
+          "y1",
+          "y2"
+        ],
+        "fixed_factors": [
+          "A",
+          "B",
+          "C"
+        ],
+        "method_parameters": {
+          "multivariate_test": "all",
+          "follow_up_mode": "none",
+          "covariance_test": false,
+          "normality_test": false,
+          "correlation_diagnostics": false
+        }
+      },
+      "reference": "statsmodels MANOVA.mv_test",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 45.822619534004986,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.5554039358421758e-14,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.5130012954508167,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 45.822619534004986,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.5554039358421758e-14,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.48699870454918326,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 45.822619534004986,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.5554039358421474e-14,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.00000000000011,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 1.0533935525058618,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 45.822619534004986,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 2.5554039358421758e-14,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 1.0533935525058618,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 53.79546522496352,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 6.198043504376492e-16,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.5529082480933653,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 53.79546522496352,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 6.198043504376492e-16,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.44709175190663475,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 53.79546522496352,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 6.198043504376409e-16,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.00000000000011,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 1.2366773614934143,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 53.79546522496352,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 6.198043504376492e-16,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 1.2366773614934143,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 49.51868051234392,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.380060198711011e-15,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.5323519989704929,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 49.51868051234392,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.380060198711011e-15,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.4676480010295071,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 49.51868051234392,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.3800601987109575e-15,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.00000000000011,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 1.1383604715481361,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 49.51868051234392,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.380060198711011e-15,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 1.1383604715481361,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 2.238550222744558,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.11271935914355338,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.048942308224526686,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 2.2385502227445597,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.11271935914355319,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.9510576917754733,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 2.238550222744558,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.11271935914355334,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.00000000000011,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.05146092466079444,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 2.238550222744558,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.11271935914355338,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.05146092466079444,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 4.930485788863644,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.009367285910486075,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.1018054167442893,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 4.9304857888636455,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.009367285910486066,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.8981945832557107,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 4.930485788863645,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.009367285910486058,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.00000000000011,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.1133445008934171,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 4.930485788863644,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.009367285910486075,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.1133445008934171,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.938248562659203,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.395235600108233,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.021113536041733185,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.938248562659202,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.3952356001082334,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.9788864639582668,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.938248562659203,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.395235600108233,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.00000000000011,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.021568932474924207,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.938248562659203,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.395235600108233,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.021568932474924207,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.39572687306944565,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.674396057335759,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.009015157083826053,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.39572687306944565,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.674396057335759,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.990984842916174,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Wilks' Lambda"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.3957268730694457,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.6743960573357589,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.00000000000011,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.009097169495849326,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Hotelling–Lawley 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 0.39572687306944565,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 0.674396057335759,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 87.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.009097169495849326,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "A × B × C",
+            "statistic_name": "Roy 最大根"
+          }
+        }
+      ],
+      "dataset_sha256": "c0b62f559c4ee45dc81a6b6da5d00c13224f935bf15060a2c7296a92838f6c27"
+    },
+    {
+      "case_id": "mixed_anova_default",
+      "method": "mixed_anova",
+      "dataset": "data/mixed_anova.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "subject_id": "subject",
+        "repeated_factor": "time",
+        "method_parameters": {
+          "analysis_mode": "classical",
+          "posthoc_methods": [
+            "tukey"
+          ]
+        }
+      },
+      "reference": "independent classical split-plot sums-of-squares formula",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 163.4029404766843,
+          "atol": 1e-06,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.812414731146966e-10,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 1.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 18.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "group"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 13478.357611450358,
+          "atol": 1e-05,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.782406275373407e-52,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 36.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 253.69381367590142,
+          "atol": 1e-05,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "group × time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 6.046020203665232e-22,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "group × time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 2.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "group × time"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 36.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "group × time"
+          }
+        }
+      ],
+      "dataset_sha256": "f6e8b790835cd1a972bf51f33aae73fdcc4fd4c45f217aed5bca800de0a8d626"
+    },
+    {
+      "case_id": "oneway_multi_posthoc",
+      "method": "oneway_anova",
+      "dataset": "data/three_groups.csv",
+      "plan": {
+        "dependent_variables": [
+          "y"
+        ],
+        "fixed_factors": [
+          "group"
+        ],
+        "method_parameters": {
+          "posthoc_methods": [
+            "tukey",
+            "duncan"
+          ]
+        }
+      },
+      "reference": "statsmodels Tukey plus independent Duncan studentized-range calculation",
+      "checks": [
+        {
+          "collection": "contrasts",
+          "field": "p_adjusted",
+          "expected": 8.5003210914536e-08,
+          "atol": 2e-06,
+          "rtol": 1e-07,
+          "match": {
+            "contrast": "A - B",
+            "correction": "Tukey–Kramer HSD"
+          }
+        },
+        {
+          "collection": "significance_letters",
+          "field": "letters",
+          "expected": "c",
+          "atol": 0,
+          "rtol": 0,
+          "match": {
+            "method": "Tukey–Kramer HSD",
+            "group": "A"
+          }
+        },
+        {
+          "collection": "significance_letters",
+          "field": "letters",
+          "expected": "a",
+          "atol": 0,
+          "rtol": 0,
+          "match": {
+            "method": "Tukey–Kramer HSD",
+            "group": "C"
+          }
+        }
+      ],
+      "dataset_sha256": "f95bc54a27346ab3fc3de1732829497ec261f7480dafdd44a9a07710285f07fc"
+    },
+    {
+      "case_id": "cohen_kappa_linear",
+      "method": "cohen_kappa",
+      "dataset": "data/paired_multiclass.csv",
+      "plan": {
+        "dependent_variables": [
+          "r1",
+          "r2"
+        ],
+        "method_parameters": {
+          "weights": "linear"
+        }
+      },
+      "reference": "statsmodels cohens_kappa linear weights",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.6617336152219873,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 5.098780046973241e-14,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "a6a83c8ad0e21b73b6e247381b0351a85659530a9f7de09bb3d318178aa6eb8d"
+    },
+    {
+      "case_id": "mcnemar_asymptotic",
+      "method": "mcnemar_test",
+      "dataset": "data/paired_binary.csv",
+      "plan": {
+        "dependent_variables": [
+          "pre",
+          "post"
+        ],
+        "method_parameters": {
+          "mcnemar_mode": "asymptotic",
+          "continuity_correction": true
+        }
+      },
+      "reference": "statsmodels McNemar asymptotic with continuity correction",
+      "checks": [
+        {
+          "collection": "primary_tests",
+          "field": "statistic_value",
+          "expected": 0.5625,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "index": 0
+        },
+        {
+          "collection": "primary_tests",
+          "field": "p_value",
+          "expected": 0.4532547047537363,
+          "atol": 1e-10,
+          "rtol": 1e-07,
+          "index": 0
+        }
+      ],
+      "dataset_sha256": "3ed8da07483fc608f2543ed29b33b117251f7898c5c63faccb940b2aae929dee"
+    },
+    {
+      "case_id": "manova_recommended_default",
+      "method": "oneway_manova",
+      "dataset": "data/manova_one.csv",
+      "plan": {
+        "dependent_variables": [
+          "y1",
+          "y2"
+        ],
+        "fixed_factors": [
+          "g"
+        ],
+        "method_parameters": {
+          "follow_up_mode": "none",
+          "covariance_test": false,
+          "normality_test": false,
+          "correlation_diagnostics": false
+        }
+      },
+      "reference": "statsmodels MANOVA Pillai recommended default",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 24.116658747272474,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 4.6556594283688367e-14,
+          "atol": 1e-10,
+          "rtol": 1e-06,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_num",
+          "expected": 4.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "df_den",
+          "expected": 102.0,
+          "atol": 1e-08,
+          "rtol": 1e-07,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.9721194194116594,
+          "atol": 1e-09,
+          "rtol": 1e-08,
+          "match": {
+            "effect": "g",
+            "statistic_name": "Pillai 轨迹"
+          }
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "__len__",
+          "expected": 1.0,
+          "atol": 0,
+          "rtol": 0
+        }
+      ],
+      "dataset_sha256": "74df950fa24ec7aaeb0e421498d80deb4b0424c1d29dcf381c445e7cb3a54bf7"
+    },
+    {
+      "case_id": "multifactor_anova_default",
+      "method": "multifactor_anova",
+      "dataset": "data/factorial_four_multivariate_v2.csv",
+      "plan": {
+        "dependent_variables": ["y1"],
+        "fixed_factors": ["A", "B", "C", "D"],
+        "method_parameters": {"factor_model_order": "4"},
+        "diagnostic_plots": false
+      },
+      "reference": "statsmodels OLS + Sum contrasts + Type III ANOVA",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 886.5334285714287,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {"effect": "A"}
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.3352173255740206e-32,
+          "atol": 1e-36,
+          "rtol": 1e-06,
+          "match": {"effect": "A"}
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "__len__",
+          "expected": 15.0,
+          "atol": 0,
+          "rtol": 0
+        }
+      ],
+      "dataset_sha256": "5e57a22ba57bdf7b07df7dd44825deed8c227ae880661780ddc132e865787438"
+    },
+    {
+      "case_id": "multifactor_manova_default",
+      "method": "multifactor_manova",
+      "dataset": "data/factorial_four_multivariate_v2.csv",
+      "plan": {
+        "dependent_variables": ["y1", "y2"],
+        "fixed_factors": ["A", "B", "C", "D"],
+        "method_parameters": {
+          "factor_model_order": "4",
+          "multivariate_test": "pillai",
+          "follow_up_mode": "none",
+          "covariance_test": false,
+          "normality_test": false,
+          "correlation_diagnostics": false
+        },
+        "diagnostic_plots": false
+      },
+      "reference": "statsmodels MANOVA.mv_test with Sum contrasts",
+      "checks": [
+        {
+          "collection": "omnibus_tests",
+          "field": "statistic_value",
+          "expected": 0.9562775176509867,
+          "atol": 1e-10,
+          "rtol": 1e-08,
+          "match": {"effect": "A", "statistic_name": "Pillai 轨迹"}
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "f_value",
+          "expected": 513.9809191393114,
+          "atol": 1e-08,
+          "rtol": 1e-06,
+          "match": {"effect": "A", "statistic_name": "Pillai 轨迹"}
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "p_value",
+          "expected": 1.1391031708684507e-32,
+          "atol": 1e-36,
+          "rtol": 1e-06,
+          "match": {"effect": "A", "statistic_name": "Pillai 轨迹"}
+        },
+        {
+          "collection": "omnibus_tests",
+          "field": "__len__",
+          "expected": 15.0,
+          "atol": 0,
+          "rtol": 0
+        }
+      ],
+      "dataset_sha256": "5e57a22ba57bdf7b07df7dd44825deed8c227ae880661780ddc132e865787438"
+    }
+  ]
+}

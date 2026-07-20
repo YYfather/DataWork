@@ -1,0 +1,13 @@
+batch,group,response_a,response_b
+one,A,1,10
+one,A,2,11
+one,A,3,12
+one,B,4,15
+one,B,5,16
+one,B,6,17
+two,A,2,11
+two,A,3,12
+two,A,4,13
+two,B,5,16
+two,B,6,17
+two,B,7,18
