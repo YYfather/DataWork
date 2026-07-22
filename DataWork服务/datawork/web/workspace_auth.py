@@ -80,4 +80,3 @@ class WorkspaceAuthService:
             self.config.iterations,
         )
         return hmac.compare_digest(candidate, self.config.digest)
-

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 from datawork.core.errors import IssueSeverity, ValidationIssue
 from datawork.core.method_registry import get_method
 from datawork.core.plan import AnalysisPlan
-from datawork.core.splitting import build_split_groups
+from datawork.core.splitting import SPLIT_TASK_HARD_LIMIT, SPLIT_TASK_WARNING_THRESHOLD, build_split_groups, projected_split_group_count
 from datawork.core.validation import validate_plan_dataframe
 from datawork.application.analysis_service import AnalysisService
 
@@ -67,6 +67,7 @@ class PreflightService:
             "emm_factors": _clean_list(raw_plan.get("emm_factors")),
             "split_by": list(dict.fromkeys([*_clean_list(raw_plan.get("split_by")), *[item for item in rule_columns if item]])),
             "split_rules": split_rules,
+            "derived_columns": raw_plan.get("derived_columns") if isinstance(raw_plan.get("derived_columns"), list) else [],
             "subject_id": _clean_scalar(raw_plan.get("subject_id")),
             "repeated_factor": _clean_scalar(raw_plan.get("repeated_factor")),
             "method_parameters": raw_plan.get("method_parameters") if isinstance(raw_plan.get("method_parameters"), dict) else {},
@@ -128,6 +129,8 @@ class PreflightService:
             for right in names[index + 1:]:
                 overlap = sorted(role_sets[left] & role_sets[right])
                 if overlap:
+                    if {left, right} == {"fixed_factors", "split_by"} and normalized.get("interface_mode") == "professional":
+                        continue
                     issues.append(ValidationIssue(code="overlapping_roles", field="split_by" if "split_by" in {left, right} else right, message=f"这些列被重复分配到冲突角色: {overlap}", details={"columns": overlap, "roles": [left, right]}))
 
         plan: AnalysisPlan | None = None
@@ -139,10 +142,27 @@ class PreflightService:
                     location = list(item.get("loc") or [])
                     field = str(location[0]) if location else None
                     issues.append(ValidationIssue(code="invalid_plan_value", field=field, message=str(item.get("msg") or "分析计划配置无效"), details={"location": location}))
+        inspection_frame = frame
         if plan is not None:
-            issues.extend(validate_plan_dataframe(plan, frame).issues)
+            try:
+                inspection_frame, _transformation_log, transformation_warnings = AnalysisService.prepare_frame(frame, plan)
+                for message in transformation_warnings:
+                    issues.append(ValidationIssue(
+                        code="derived_column_invalid_values",
+                        severity=IssueSeverity.WARNING,
+                        field="derived_columns",
+                        message=message,
+                    ))
+                issues.extend(validate_plan_dataframe(plan, inspection_frame).issues)
+            except (ValueError, RuntimeError) as exc:
+                issues.append(ValidationIssue(
+                    code="invalid_derived_column",
+                    field="derived_columns",
+                    message=str(exc),
+                ))
+                plan = None
 
-        batch_summary = self._batch_summary(frame, plan, issues) if plan and plan.is_batch else {
+        batch_summary = self._batch_summary(inspection_frame, plan, issues) if plan and plan.is_batch else {
             "enabled": False, "dimensions": [], "group_count": 0,
             "ready_group_count": 0, "problem_group_count": 0, "groups": [],
         }
@@ -160,14 +180,14 @@ class PreflightService:
             ([normalized["subject_id"]] if normalized["subject_id"] else []) +
             ([normalized["repeated_factor"]] if normalized["repeated_factor"] else [])
         ))
-        design_review = _build_design_review(frame, plan, issues)
+        design_review = _build_design_review(inspection_frame, plan, issues)
         return PreflightReport(
             ready=not any(issue.severity == IssueSeverity.ERROR for issue in issues),
             issues=issues, method=method_payload,
-            selections={key: normalized.get(key) for key in ["interface_mode", "dependent_variables", "fixed_factors", "covariates", "random_factors", "random_slopes", "subject_id", "repeated_factor", "split_by", "split_rules", "alpha", "ss_type", "test_value", "method_parameters", "factor_combinations_enabled", "factor_combination_order", "factor_combination_min_order", "factor_combination_max_order", "factor_combination_labels", "cross_model_p_adjust", "combination_p_adjust", "estimate_marginal_means", "emm_factors", "contrast_correction", "diagnostic_plots", "calibration_enabled", "calibration_method", "calibration_columns", "calibration_baseline_column", "calibration_baseline_value"]},
+            selections={key: normalized.get(key) for key in ["interface_mode", "dependent_variables", "fixed_factors", "covariates", "random_factors", "random_slopes", "subject_id", "repeated_factor", "split_by", "split_rules", "derived_columns", "alpha", "ss_type", "test_value", "method_parameters", "factor_combinations_enabled", "factor_combination_order", "factor_combination_min_order", "factor_combination_max_order", "factor_combination_labels", "cross_model_p_adjust", "combination_p_adjust", "estimate_marginal_means", "emm_factors", "contrast_correction", "diagnostic_plots", "calibration_enabled", "calibration_method", "calibration_columns", "calibration_baseline_column", "calibration_baseline_value"]},
             data_summary={
-                "rows": int(frame.shape[0]), "columns": int(frame.shape[1]),
-                "complete_rows_for_plan": int(frame[selected_columns].dropna().shape[0]) if selected_columns else int(len(frame)),
+                "rows": int(inspection_frame.shape[0]), "columns": int(inspection_frame.shape[1]),
+                "complete_rows_for_plan": int(inspection_frame[selected_columns].dropna().shape[0]) if selected_columns and all(column in inspection_frame.columns for column in selected_columns) else int(len(inspection_frame)),
             },
             batch_summary=batch_summary,
             design_review=design_review,
@@ -188,7 +208,35 @@ class PreflightService:
             factor_sets = [list(items) for order in range(plan.factor_combination_min_order, plan.factor_combination_max_order + 1) for items in combinations(plan.fixed_factors, order)]
         else:
             factor_sets = [list(plan.fixed_factors)]
-        group_items = build_split_groups(frame, plan)
+        projected_split_count = projected_split_group_count(frame, plan)
+        if projected_split_count > SPLIT_TASK_HARD_LIMIT:
+            return {
+                "enabled": True, "split_by": plan.split_by,
+                "factor_combinations_enabled": plan.factor_combinations_enabled,
+                "factor_combination_count": len(factor_sets),
+                "p_adjust": plan.cross_model_p_adjust or plan.combination_p_adjust,
+                "dimensions": plan.split_by, "group_count": projected_split_count,
+                "ready_group_count": 0, "problem_group_count": projected_split_count,
+                "skipped_group_count": 0,
+                "expanded_task_count": len(dependent_sets) * len(factor_sets) * projected_split_count,
+                "groups": [],
+            }
+        group_items = build_split_groups(frame, plan, include_empty=True)
+        expanded_task_count = len(dependent_sets) * len(factor_sets) * len(group_items)
+        issue_codes = {issue.code for issue in issues}
+        if expanded_task_count > SPLIT_TASK_HARD_LIMIT and "expanded_task_limit_exceeded" not in issue_codes:
+            issues.append(ValidationIssue(
+                code="expanded_task_limit_exceeded", field="split_by",
+                message=(f"当前计划会生成 {expanded_task_count} 个分析任务，超过安全上限 "
+                         f"{SPLIT_TASK_HARD_LIMIT}；请减少因变量、因素组合或拆分组"),
+                details={"task_count": expanded_task_count, "hard_limit": SPLIT_TASK_HARD_LIMIT},
+            ))
+        elif expanded_task_count > SPLIT_TASK_WARNING_THRESHOLD and "large_expanded_task_plan" not in issue_codes:
+            issues.append(ValidationIssue(
+                code="large_expanded_task_plan", severity=IssueSeverity.WARNING, field="split_by",
+                message=f"当前计划将生成 {expanded_task_count} 个分析任务，执行和报告生成可能较慢",
+                details={"task_count": expanded_task_count, "warning_threshold": SPLIT_TASK_WARNING_THRESHOLD},
+            ))
         groups = []
         ready_count = 0
         task_id = 0
@@ -211,6 +259,12 @@ class PreflightService:
                         }
                         if plan.factor_combination_labels:
                             labels["factor_columns"] = canonical_combination
+                    if raw_subset.empty:
+                        groups.append({
+                            "key": labels, "rows": 0, "ready": False, "skipped": True,
+                            "reasons": ["该拆分组合没有数据，已跳过"], "warnings": [],
+                        })
+                        continue
                     required = list(dict.fromkeys(dependent_set + factor_set + plan.covariates + plan.random_factors + plan.random_slopes + ([plan.subject_id] if plan.subject_id else []) + ([plan.repeated_factor] if plan.repeated_factor else [])))
                     subset = raw_subset.dropna(subset=required) if required else raw_subset
                     sub_plan = AnalysisService._build_combination_subplan(
@@ -225,7 +279,8 @@ class PreflightService:
                         "key": labels, "rows": int(len(subset)), "ready": ready,
                         "reasons": reasons, "warnings": warnings,
                     })
-        problem_count = len(groups) - ready_count
+        skipped_count = sum(bool(item.get("skipped")) for item in groups)
+        problem_count = len(groups) - ready_count - skipped_count
         if problem_count:
             severity = IssueSeverity.ERROR if ready_count == 0 else IssueSeverity.WARNING
             message = (f"全部 {problem_count} 个批量任务均无法执行，请调整变量或拆分条件" if ready_count == 0
@@ -236,7 +291,7 @@ class PreflightService:
             + (["factor_columns"] if plan.factor_combinations_enabled and plan.factor_combination_labels else [])
             if plan.factor_combinations_enabled else []
         ) + (["dependent_variable"] if spec.dependent_mode == "single" and len(dependent_sets) > 1 else []) + plan.split_by
-        return {"enabled": True, "split_by": plan.split_by, "factor_combinations_enabled": plan.factor_combinations_enabled, "factor_combination_count": len(factor_sets), "p_adjust": plan.cross_model_p_adjust or plan.combination_p_adjust, "dimensions": dimensions, "group_count": len(groups), "ready_group_count": ready_count, "problem_group_count": problem_count, "groups": groups[:200]}
+        return {"enabled": True, "split_by": plan.split_by, "factor_combinations_enabled": plan.factor_combinations_enabled, "factor_combination_count": len(factor_sets), "p_adjust": plan.cross_model_p_adjust or plan.combination_p_adjust, "dimensions": dimensions, "group_count": len(groups), "ready_group_count": ready_count, "problem_group_count": problem_count, "skipped_group_count": skipped_count, "expanded_task_count": expanded_task_count, "groups": groups[:200]}
 
 
 def _build_design_review(

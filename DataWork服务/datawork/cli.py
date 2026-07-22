@@ -512,23 +512,6 @@ def batch(
         raise typer.Exit(1) from exc
 
 
-@app.command()
-def ui(
-    port: int = typer.Option(8501, "--port", "-p", help="Web 服务端口"),
-):
-    """启动图形化界面 (Streamlit)。"""
-    import subprocess
-    ui_path = Path(__file__).parent / "ui.py"
-    console.print(f"[bold green]启动图形界面...[/bold green]")
-    console.print(f"  访问: [cyan]http://localhost:{port}[/cyan]")
-    console.print(f"  按 Ctrl+C 停止")
-    subprocess.run([
-        sys.executable, "-m", "streamlit", "run",
-        str(ui_path),
-        "--server.port", str(port),
-    ])
-
-
 # ─── AI 辅助函数 ───
 
 def _ai_goal_hint(ai: LLMProvider, design_summary: dict) -> str:

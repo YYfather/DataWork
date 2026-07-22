@@ -6,6 +6,7 @@ import json
 import logging
 import math
 import os
+from dataclasses import asdict
 from pathlib import Path
 import platform
 import re
@@ -34,14 +35,16 @@ from datawork.application.workspace_service import WorkspaceService
 from datawork.ai.provider import ProviderKind
 from datawork.ai.settings import AISettings, AISettingsService, PrivacyMode, SecretStorage
 from datawork.core.errors import DataWorkError, ErrorCode
+from datawork.core.formula import apply_derived_columns
 from datawork.core.method_registry import list_methods
-from datawork.core.plan import AnalysisPlan
+from datawork.core.plan import AnalysisPlan, DerivedColumn
+from datawork.io.profiler import profile_dataframe
 from datawork.engine.batch import BatchAnalysisResult
 from datawork.engine.result import StatisticalResult
 from datawork.infrastructure.paths import resolve_workspace_paths
 from datawork.web.schemas import (
     AIAnalysisExplainRequest, AIAssistantAskRequest, AIExplainRequest, AIResultExplainRequest, AIResultReportRequest, AISettingsUpdate, InstantReportCreate, PlanClone, PlanCreate,
-    PlanUpdate, ProjectCreate, ReportCreate, RunCompare, WorkspaceAuthLogin,
+    DerivedPreviewRequest, PlanUpdate, ProjectCreate, ReportCreate, RunCompare, WorkspaceAuthLogin,
 )
 from datawork.web.sessions import (
     CURRENT_SESSION,
@@ -791,6 +794,34 @@ def create_app(
             "preview": _records(loaded.frame.head(20)),
         })
 
+    @application.post("/api/derived/preview")
+    async def preview_derived_columns(
+        file: UploadFile = File(...),
+        derived_columns_json: str = Form(...),
+        sheet: str | None = Form(default=None),
+        percentage_scale: str = Form(default="percent_points"),
+    ) -> dict[str, Any]:
+        try:
+            raw = json.loads(derived_columns_json)
+            if not isinstance(raw, list):
+                raise ValueError("自定义列配置必须是数组")
+            definitions = [DerivedColumn.model_validate(item) for item in raw]
+        except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+            raise DataWorkError(ErrorCode.INVALID_PLAN, f"自定义列配置无效: {exc}", status_code=422) from exc
+        loaded = await _read_upload(dataset_service, file, sheet, percentage_scale)
+        try:
+            derived_frame, transformation_log, warnings = apply_derived_columns(loaded.frame, definitions)
+        except ValueError as exc:
+            raise DataWorkError(ErrorCode.INVALID_PLAN, str(exc), status_code=422) from exc
+        derived_profile = profile_dataframe(derived_frame, loaded.source_filename, loaded.selected_sheet)
+        return _sanitize({
+            "profile": asdict(derived_profile),
+            "columns": [str(column) for column in derived_frame.columns],
+            "preview": _records(derived_frame.head(20)),
+            "derived_log": transformation_log,
+            "warnings": warnings,
+        })
+
     @application.post("/api/preflight")
     async def preflight(
         file: UploadFile = File(...),
@@ -979,7 +1010,7 @@ def create_app(
     def get_project(project_id: str) -> dict[str, Any]:
         project = project_workspace.repository.get_project(project_id)
         project["datasets"] = project_workspace.repository.list_datasets(project_id)
-        project["plans"] = project_workspace.repository.list_plans(project_id)
+        project["plans"] = project_workspace.list_plans(project_id)
         project["runs"] = project_workspace.repository.list_runs(project_id)
         return _sanitize(project)
 
@@ -1010,6 +1041,23 @@ def create_app(
     @application.get("/api/datasets/{dataset_id}")
     def get_dataset(dataset_id: str) -> dict[str, Any]:
         return _sanitize(project_workspace.repository.get_dataset(dataset_id))
+
+    @application.post("/api/datasets/{dataset_id}/derived-preview")
+    def preview_workspace_derived_columns(dataset_id: str, request: DerivedPreviewRequest) -> dict[str, Any]:
+        _record, loaded = project_workspace.load_dataset(dataset_id)
+        try:
+            definitions = [DerivedColumn.model_validate(item) for item in request.derived_columns]
+            derived_frame, transformation_log, warnings = apply_derived_columns(loaded.frame, definitions)
+        except (ValidationError, ValueError) as exc:
+            raise DataWorkError(ErrorCode.INVALID_PLAN, f"自定义列配置无效: {exc}", status_code=422) from exc
+        derived_profile = profile_dataframe(derived_frame, loaded.source_filename, loaded.selected_sheet)
+        return _sanitize({
+            "profile": asdict(derived_profile),
+            "columns": [str(column) for column in derived_frame.columns],
+            "preview": _records(derived_frame.head(20)),
+            "derived_log": transformation_log,
+            "warnings": warnings,
+        })
 
     @application.get("/api/projects/{project_id}/plans")
     def list_plans(project_id: str) -> list[dict[str, Any]]:

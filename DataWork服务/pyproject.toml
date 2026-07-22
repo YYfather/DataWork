@@ -27,7 +27,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-legacy-ui = ["streamlit>=1.40"]
 legacy-excel = ["xlrd>=2.0"]
 desktop-build = ["pyinstaller>=6.10"]
 dev = [

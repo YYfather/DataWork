@@ -16,7 +16,7 @@ from datawork.application.dataset_service import DatasetService
 from datawork.application.preflight_service import PreflightService
 from datawork.application.report_service import ReportService
 from datawork.core.errors import DataWorkError, ErrorCode
-from datawork.core.plan import AnalysisPlan
+from datawork.core.plan import AnalysisPlan, migrate_saved_derived_roles
 from datawork.core.provenance import DatasetFingerprint, canonical_json_hash, sha256_bytes
 from datawork.core.validation import validate_plan_dataframe
 from datawork.engine.result import StatisticalResult
@@ -140,7 +140,8 @@ class WorkspaceService:
         if dataset["project_id"] != project["id"]:
             raise DataWorkError(ErrorCode.WORKSPACE_CONFLICT, "数据集不属于该项目")
         plan = AnalysisPlan.model_validate(plan_data)
-        validate_plan_dataframe(plan, loaded.frame).raise_for_errors()
+        prepared, _log, _warnings = self.analyses.prepare_frame(loaded.frame, plan)
+        validate_plan_dataframe(plan, prepared).raise_for_errors()
         return self.repository.create_plan(
             project_id=project_id,
             dataset_id=dataset_id,
@@ -154,7 +155,8 @@ class WorkspaceService:
         existing = self.repository.get_plan(plan_id)
         _dataset, loaded = self.load_dataset(existing["dataset_id"])
         plan = AnalysisPlan.model_validate(plan_data)
-        validate_plan_dataframe(plan, loaded.frame).raise_for_errors()
+        prepared, _log, _warnings = self.analyses.prepare_frame(loaded.frame, plan)
+        validate_plan_dataframe(plan, prepared).raise_for_errors()
         return self.repository.update_plan(
             plan_id,
             name=name.strip() or existing["name"],
@@ -162,8 +164,24 @@ class WorkspaceService:
             plan_sha256=canonical_json_hash(plan),
         )
 
+    def migrate_saved_plan(self, plan_record: dict[str, Any]) -> dict[str, Any]:
+        """Apply the one-way derived-role migration to a persisted plan."""
+        cleaned, warnings = migrate_saved_derived_roles(plan_record["plan_json"])
+        if warnings:
+            plan_record = self.repository.update_plan(
+                plan_record["id"],
+                name=plan_record["name"],
+                plan=cleaned,
+                plan_sha256=canonical_json_hash(cleaned),
+            )
+        plan_record["migration_warnings"] = warnings
+        return plan_record
+
+    def list_plans(self, project_id: str) -> list[dict[str, Any]]:
+        return [self.migrate_saved_plan(record) for record in self.repository.list_plans(project_id)]
+
     def clone_plan(self, plan_id: str, *, name: str | None = None) -> dict[str, Any]:
-        existing = self.repository.get_plan(plan_id)
+        existing = self.migrate_saved_plan(self.repository.get_plan(plan_id))
         return self.repository.create_plan(
             project_id=existing["project_id"],
             dataset_id=existing["dataset_id"],
@@ -174,17 +192,19 @@ class WorkspaceService:
         )
 
     def preflight_plan(self, plan_id: str) -> dict[str, Any]:
-        plan_record = self.repository.get_plan(plan_id)
+        plan_record = self.migrate_saved_plan(self.repository.get_plan(plan_id))
         _dataset_record, loaded = self.load_dataset(plan_record["dataset_id"])
         report = self.preflight.inspect(loaded.frame, plan_record["plan_json"])
         payload = report.model_dump(mode="json")
+        if plan_record["migration_warnings"]:
+            payload["migration_warnings"] = plan_record["migration_warnings"]
         payload["plan_id"] = plan_id
         payload["dataset_id"] = plan_record["dataset_id"]
         payload["prior_run_count"] = self.repository.count_plan_runs(plan_id)
         return payload
 
     def run_plan(self, plan_id: str) -> dict[str, Any]:
-        plan_record = self.repository.get_plan(plan_id)
+        plan_record = self.migrate_saved_plan(self.repository.get_plan(plan_id))
         dataset_record, loaded = self.load_dataset(plan_record["dataset_id"])
         run_record = self.repository.begin_run(
             plan_record["project_id"],
@@ -202,9 +222,25 @@ class WorkspaceService:
                     dataset_fingerprint=DatasetFingerprint.model_validate(dataset_record["fingerprint_json"]),
                     source_filename=dataset_record["original_filename"],
                     sheet_name=dataset_record["sheet_name"],
-                    cleaning_log=dataset_record["cleaning_log_json"],
+                    cleaning_log=[
+                        *dataset_record["cleaning_log_json"],
+                        *[
+                            {"operation": "saved_plan_migration", "message": message}
+                            for message in plan_record["migration_warnings"]
+                        ],
+                    ],
                 ),
             )
+            if plan_record["migration_warnings"]:
+                execution.warnings = list(dict.fromkeys([
+                    *execution.warnings,
+                    *plan_record["migration_warnings"],
+                ]))
+                if isinstance(execution.result, StatisticalResult):
+                    execution.result.warnings = list(dict.fromkeys([
+                        *execution.result.warnings,
+                        *plan_record["migration_warnings"],
+                    ]))
             payload = self.analyses.serialize_execution(execution)
             return self.repository.complete_run(
                 run_id,

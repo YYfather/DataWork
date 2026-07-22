@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from datawork.application.executors import get_executor
 from datawork.core.errors import DataWorkError, ErrorCode
+from datawork.core.formula import apply_derived_columns
 from datawork.core.method_registry import get_method
 from datawork.core.plan import AnalysisPlan
 from datawork.core.splitting import build_split_groups
@@ -66,7 +67,7 @@ class AnalysisService:
         *,
         context: ExecutionContext | None = None,
     ) -> AnalysisExecution:
-        execution_frame, calibration_log = self._apply_calibration(df, plan)
+        execution_frame, transformation_log, transformation_warnings = self.prepare_frame(df, plan)
         validation = validate_plan_dataframe(plan, execution_frame)
         validation.raise_for_errors()
         spec = get_method(plan.method)
@@ -92,7 +93,7 @@ class AnalysisService:
             run_id=run_id,
             plan_sha256=canonical_json_hash(plan),
             dataset=fingerprint,
-            cleaning_log=[*context.cleaning_log, *calibration_log],
+            cleaning_log=[*context.cleaning_log, *transformation_log],
             parameters={
                 **plan.model_dump(mode="json"),
                 **context.extra_parameters,
@@ -124,7 +125,10 @@ class AnalysisService:
                 details={"method": plan.method, "run_id": run_id},
             ) from exc
 
-        warning_messages = [issue.message for issue in validation.warnings]
+        warning_messages = list(dict.fromkeys([
+            *transformation_warnings,
+            *[issue.message for issue in validation.warnings],
+        ]))
         if isinstance(result, StatisticalResult):
             result.analysis_id = run_id
             result.warnings = list(dict.fromkeys(result.warnings + warning_messages))
@@ -141,6 +145,35 @@ class AnalysisService:
             provenance=provenance,
             warnings=warning_messages,
         )
+
+    @classmethod
+    def prepare_frame(
+        cls,
+        df: pd.DataFrame,
+        plan: AnalysisPlan,
+    ) -> tuple[pd.DataFrame, list[dict[str, Any]], list[str]]:
+        """应用计划级派生列与校正，供预检、工作区和正式执行共用。"""
+        derived, derived_log, derived_warnings = apply_derived_columns(df, plan.derived_columns)
+        # 自定义列预览覆盖完整数据，但正式计划中的质量计数只针对至少进入
+        # 一个拆分子任务的行。自定义列本身不能作为拆分列，因此可以安全地
+        # 在原始列上先确定分析范围，而不会形成依赖环。
+        if plan.derived_columns and plan.split_by:
+            assigned_indices: set[Any] = set()
+            for _labels, subset in build_split_groups(df, plan):
+                assigned_indices.update(subset.index.tolist())
+            if assigned_indices:
+                scoped = df.loc[df.index.isin(assigned_indices)]
+                _scoped_frame, derived_log, derived_warnings = apply_derived_columns(
+                    scoped, plan.derived_columns
+                )
+            else:
+                derived_warnings = []
+                derived_log = [
+                    {**item, "missing_result_count": 0, "invalid_operation_count": 0}
+                    for item in derived_log
+                ]
+        calibrated, calibration_log = cls._apply_calibration(derived, plan)
+        return calibrated, [*derived_log, *calibration_log], derived_warnings
 
     @staticmethod
     def _apply_calibration(df: pd.DataFrame, plan: AnalysisPlan) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
