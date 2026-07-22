@@ -1,0 +1,40 @@
+{
+    "groups": {
+        "文件": {
+            "ls": { "description": "列出项目目录文件", "directory": "", "commands": ["ls"] },
+            "ls-api": { "description": "列出 api 目录", "directory": "", "commands": ["ls api"] },
+            "pwd": { "description": "当前服务器工作目录", "directory": "", "commands": ["pwd"] },
+            "cat-composer": { "description": "查看 composer.json", "directory": "", "commands": ["cat composer.json"] },
+            "head-log": { "description": "查看错误日志前20行", "directory": "", "commands": ["head error.log"] },
+            "tail-log": { "description": "查看错误日志末尾", "directory": "", "commands": ["tail error.log"] }
+        },
+        "系统": {
+            "whoami": { "description": "当前 Web 用户身份", "directory": "", "commands": ["whoami"] },
+            "server": { "description": "服务器信息概览", "directory": "", "commands": ["server"] },
+            "php": { "description": "PHP 版本与扩展", "directory": "", "commands": ["php"] },
+            "disk": { "description": "磁盘使用情况", "directory": "", "commands": ["disk"] },
+            "du": { "description": "各目录磁盘占用", "directory": "", "commands": ["du"] },
+            "env": { "description": "环境变量信息", "directory": "", "commands": ["env"] },
+            "proc": { "description": "PHP 进程列表", "directory": "", "commands": ["proc"] }
+        },
+        "开发": {
+            "git": { "description": "Git 仓库状态", "directory": "", "commands": ["git"] },
+            "files": { "description": "文件统计与类型分布", "directory": "", "commands": ["files"] },
+            "db": { "description": "Vault 数据库概况", "directory": "", "commands": ["db"] },
+            "status": { "description": "前端系统诊断", "directory": "", "commands": ["status"] },
+            "test": { "description": "各子应用连通性测试", "directory": "", "commands": ["test"] }
+        },
+        "Linux": {
+            "df": { "description": "磁盘分区空间概况", "directory": "", "commands": ["df -h"] },
+            "free": { "description": "内存使用概况", "directory": "", "commands": ["free -h"] },
+            "ps": { "description": "运行进程列表", "directory": "", "commands": ["ps aux"] },
+            "uname": { "description": "系统内核版本信息", "directory": "", "commands": ["uname -a"] },
+            "uptime": { "description": "系统运行时长与负载", "directory": "", "commands": ["uptime"] },
+            "id": { "description": "当前用户身份信息", "directory": "", "commands": ["id"] },
+            "date": { "description": "系统当前日期时间", "directory": "", "commands": ["date"] },
+            "docker-ps": { "description": "Docker 运行容器列表", "directory": "", "commands": ["docker ps"] }
+        }
+    },
+    "active": "文件",
+    "_version": 2
+}

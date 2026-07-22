@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Wiki · 霡霂</title>
+<meta name="description" content="学习知识库">
+<meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../avatar.jpg">
+<link rel="apple-touch-icon" href="../avatar.jpg">
+<!-- marked.js v4: stable API -->
+<script src="./vendor/marked.min.js"></script>
+<!-- highlight.js: code syntax highlighting (本地化) -->
+<link rel="stylesheet" href="./vendor/github-dark.min.css" id="hljs-theme">
+<script src="./vendor/highlight.min.js"></script>
+<style>
+:root{--c-primary:#6366f1;--c-primary2:#a78bfa;--c-bg:#f8f7ff;--c-card:rgba(255,255,255,0.72);--c-text:#1e1b2e;--c-text2:#6b7280;--c-border:rgba(255,255,255,0.45);--shadow:0 8px 32px rgba(99,102,241,0.1);--radius:16px;--blur:20px}
+[data-theme="dark"]{--c-primary:#818cf8;--c-primary2:#c4b5fd;--c-bg:#08080f;--c-card:rgba(24,22,38,0.72);--c-text:#eae8f2;--c-text2:#9ca3af;--c-border:rgba(255,255,255,0.06);--shadow:0 8px 32px rgba(0,0,0,0.4)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'SF Pro Display','Segoe UI','Microsoft YaHei',system-ui,sans-serif;background:var(--c-bg);color:var(--c-text);min-height:100vh;min-height:100dvh;transition:background .5s,color .4s;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg-mesh{position:absolute;inset:0;background:
+  radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.15), transparent),
+  radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.12), transparent),
+  radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.08), transparent);
+animation:meshShift 25s ease-in-out infinite alternate}
+@keyframes meshShift{
+  0%{background-position:0% 0%,100% 100%,50% 50%}
+  50%{background-position:30% 20%,70% 80%,40% 60%}
+  100%{background-position:10% 40%,90% 30%,60% 40%}
+}
+.bg-grain{position:absolute;inset:0;opacity:.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:128px}
+[data-theme="dark"] .bg-mesh{background:
+  radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.08), transparent),
+  radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.06), transparent),
+  radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.04), transparent)}
+
+.page{position:relative;z-index:1;display:grid;grid-template-columns:1fr;gap:0;max-width:960px;margin:0 auto;padding:48px 24px calc(40px + env(safe-area-inset-bottom))}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;animation:fadeUp .5s ease-out}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--c-text2);text-decoration:none;transition:color .2s}
+.back:hover{color:var(--c-primary)}
+.topbar-actions{display:flex;gap:8px}
+
+.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:10px;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:12px;color:var(--c-text2);cursor:pointer;transition:all .2s;text-decoration:none}
+.btn:hover{border-color:var(--c-primary);color:var(--c-primary);transform:translateY(-1px)}
+
+.theme-btn{position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:none;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:18px;cursor:pointer;box-shadow:var(--shadow);transition:all .25s;display:flex;align-items:center;justify-content:center;z-index:100;border:1px solid var(--c-border)}
+.theme-btn:hover{transform:scale(1.1) rotate(20deg)}
+
+/* Markdown content container */
+.content{background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:var(--radius);padding:32px 28px;box-shadow:var(--shadow);animation:fadeUp .5s ease-out .1s both;line-height:1.75;font-size:15px}
+.content h1{font-size:1.8rem;font-weight:700;margin:0 0 16px;padding-bottom:12px;border-bottom:2px solid var(--c-border);letter-spacing:-.02em}
+.content h2{font-size:1.35rem;font-weight:700;margin:32px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--c-border);color:var(--c-primary)}
+.content h3{font-size:1.1rem;font-weight:600;margin:24px 0 8px}
+.content h4{font-size:1rem;font-weight:600;margin:20px 0 6px;color:var(--c-primary2)}
+.content p{margin:0 0 12px}
+.content a{color:var(--c-primary);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s}
+.content a:hover{border-bottom-color:var(--c-primary)}
+.content strong{font-weight:600}
+.content ul,.content ol{margin:0 0 12px;padding-left:24px}
+.content li{margin-bottom:4px}
+.content li>ul,.content li>ol{margin-top:4px}
+.content blockquote{margin:0 0 12px;padding:12px 16px;border-left:3px solid var(--c-primary);background:rgba(99,102,241,0.05);border-radius:0 8px 8px 0;color:var(--c-text2)}
+.content hr{border:none;border-top:1px solid var(--c-border);margin:24px 0}
+.content img{max-width:100%;border-radius:8px;margin:8px 0}
+
+/* Tables */
+.content table{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:14px}
+.content th{background:rgba(99,102,241,0.08);font-weight:600;text-align:left;padding:10px 14px;border:1px solid var(--c-border)}
+.content td{padding:8px 14px;border:1px solid var(--c-border)}
+.content tr:hover td{background:rgba(99,102,241,0.03)}
+
+/* Code blocks */
+.content pre{margin:0 0 16px;border-radius:12px;overflow:hidden;position:relative;background:#0d1117}
+[data-theme="light"] .content pre{background:#f6f8fa}
+[data-theme="light"] .content pre code{color:#24292f}
+.content pre code{display:block;padding:16px 20px;font-size:13px;line-height:1.6;overflow-x:auto;font-family:'SF Mono','Fira Code','JetBrains Mono','Cascadia Code',monospace}
+.content code:not(pre code){padding:2px 6px;border-radius:6px;background:rgba(99,102,241,0.1);font-size:13px;font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;color:var(--c-primary)}
+[data-theme="light"] .content code:not(pre code){color:#6366f1}
+
+/* Copy button for code blocks */
+.code-wrap{position:relative}
+.code-wrap .copy-btn{position:absolute;top:6px;right:6px;z-index:5;padding:3px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);font-size:11px;cursor:pointer;transition:all .15s;backdrop-filter:blur(6px)}
+[data-theme="light"] .code-wrap .copy-btn{border-color:rgba(0,0,0,0.1);background:rgba(0,0,0,0.04);color:rgba(0,0,0,0.4)}
+.code-wrap .copy-btn:hover{background:rgba(255,255,255,0.2);color:rgba(255,255,255,0.95);border-color:rgba(255,255,255,0.35)}
+[data-theme="light"] .code-wrap .copy-btn:hover{background:rgba(0,0,0,0.08);color:rgba(0,0,0,0.7)}
+.code-wrap .copy-btn.copied{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+
+/* Copy button for blockquotes (commands/formulas) */
+.content blockquote{position:relative}
+.content blockquote .copy-btn{position:absolute;top:6px;right:6px;z-index:5;padding:2px 8px;border-radius:5px;border:1px solid var(--c-border);background:var(--c-card);color:var(--c-text2);font-size:10px;cursor:pointer;opacity:0;transition:opacity .2s}
+.content blockquote:hover .copy-btn{opacity:1}
+.content blockquote .copy-btn:hover{color:var(--c-primary);border-color:var(--c-primary)}
+.content blockquote .copy-btn.copied{background:var(--c-primary);color:#fff;border-color:var(--c-primary);opacity:1}
+
+/* Error state */
+.error{text-align:center;padding:80px 20px;animation:fadeUp .5s ease-out}
+.error-icon{font-size:48px;margin-bottom:16px}
+.error h2{font-size:1.3rem;margin-bottom:8px}
+.error p{color:var(--c-text2);margin-bottom:20px}
+.encoding-warning{margin:0 0 22px;padding:12px 15px;border:1px solid rgba(245,158,11,.35);border-radius:12px;background:rgba(245,158,11,.09);color:#b45309;font-size:13px;line-height:1.6}
+[data-theme="dark"] .encoding-warning{color:#fbbf24}
+
+/* Loading */
+.loading{text-align:center;padding:80px 20px;color:var(--c-text2);animation:fadeUp .3s ease-out}
+.loading::after{content:'';display:block;width:24px;height:24px;margin:16px auto 0;border:2px solid var(--c-border);border-top-color:var(--c-primary);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TOC sidebar — base styles (mobile) */
+.toc{display:none;padding:14px;background:var(--c-card);backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:12px;font-size:12px;transition:width .25s ease,padding .25s ease;position:sticky;top:24px;align-self:start;max-height:calc(100vh - 120px);overflow-y:auto}
+.toc.visible{display:block}
+.toc-title{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--c-text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;font-weight:600}
+.toc-toggle{width:22px;height:22px;border-radius:6px;border:1px solid var(--c-border);background:var(--c-card);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;color:var(--c-text2);transition:transform .25s,color .2s;flex-shrink:0}
+.toc-toggle:hover{color:var(--c-primary)}
+.toc.collapsed .toc-toggle{transform:rotate(180deg)}
+.toc.collapsed #toc-list{display:none}
+.toc.collapsed .toc-title{margin-bottom:0}
+
+/* TOC list items */
+.toc a{display:block;padding:4px 0;color:var(--c-text2);text-decoration:none;border-left:2px solid transparent;padding-left:10px;transition:all .2s;line-height:1.4}
+.toc a:hover,.toc a.active{color:var(--c-primary);border-left-color:var(--c-primary)}
+.toc a.toc-h3{padding-left:22px;font-size:11px}
+
+/* TOC — mobile: show below content */
+@media(max-width:767px){
+  .page{display:block}
+  .toc{margin-top:24px}
+}
+
+/* TOC sidebar — tablet */
+@media(min-width:768px){
+  .page{grid-template-columns:1fr 180px;gap:20px}
+  .topbar{grid-column:1/-1}
+  .comments{grid-column:1/-1}
+  .toc{margin-top:0}
+}
+
+/* TOC sidebar — desktop */
+@media(min-width:1024px){
+  .page{grid-template-columns:1fr 220px;gap:24px}
+  .toc{padding:16px}
+  .toc.collapsed{width:44px;min-width:44px;padding:12px 0;display:flex;align-items:flex-start;justify-content:center}
+  .toc.collapsed .toc-title{justify-content:center;font-size:0}
+  .toc.collapsed .toc-title .toc-toggle{margin:0;font-size:14px}
+  .toc.collapsed .toc-title [data-en]{display:none}
+}
+
+/* ── Comments section ── */
+.comments{margin:24px 0 0;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:var(--radius);padding:24px 28px;box-shadow:var(--shadow);animation:fadeUp .5s ease-out .15s both}
+.comments-header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.comments-header h3{font-size:1rem;font-weight:600;margin:0}
+.comments-count{font-size:12px;color:var(--c-text2);background:rgba(99,102,241,0.08);padding:1px 8px;border-radius:8px}
+.comment-item{padding:12px 0;border-bottom:1px solid var(--c-border)}
+.comment-item:last-child{border-bottom:none}
+.comment-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px;color:var(--c-text2)}
+.comment-author{font-weight:500;color:var(--c-text)}
+.comment-time{font-size:11px}
+.comment-text{font-size:14px;line-height:1.6;margin-bottom:6px}
+.comment-labels{display:flex;gap:4px;flex-wrap:wrap}
+.comment-labels .cl{padding:1px 8px;border-radius:6px;font-size:10px;font-weight:500}
+.cl-todo{background:rgba(99,102,241,0.1);color:var(--c-primary)}
+.cl-q{background:rgba(245,158,11,0.1);color:#d97706}
+.cl-imp{background:rgba(239,68,68,0.1);color:#dc2626}
+.cl-done{background:rgba(16,185,129,0.1);color:#059669}
+
+.comment-form{margin-top:16px;padding-top:16px;border-top:1px solid var(--c-border)}
+.comment-form textarea{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--c-border);background:rgba(99,102,241,0.03);font-size:13px;color:var(--c-text);outline:none;transition:border-color .2s;font-family:inherit;resize:vertical;min-height:56px}
+.comment-form textarea:focus{border-color:var(--c-primary)}
+.comment-form-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px}
+.label-chk{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--c-text2);cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .15s;user-select:none}
+.label-chk:hover{background:rgba(99,102,241,0.06)}
+.label-chk input{accent-color:var(--c-primary);margin:0}
+.label-chk.checked{background:rgba(99,102,241,0.1);color:var(--c-primary)}
+.comment-form .btn-submit{display:inline-flex;align-items:center;gap:4px;padding:6px 18px;border-radius:10px;border:none;background:var(--c-primary);color:#fff;font-size:13px;cursor:pointer;transition:all .2s}
+.comment-form .btn-submit:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(99,102,241,0.3)}
+.comment-form .btn-submit:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.comments-empty{text-align:center;padding:24px;color:var(--c-text2);font-size:13px}
+
+@media(max-width:480px){
+  .comments{padding:16px}
+  .comment-form-footer{flex-direction:column;align-items:stretch}
+}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+@media(max-width:480px){
+  .page{padding:36px 16px calc(32px + env(safe-area-inset-bottom))}
+  .content{padding:20px 16px;font-size:14px}
+  .content h1{font-size:1.5rem}
+  .content h2{font-size:1.2rem}
+  .content pre code{font-size:12px;padding:12px 14px}
+}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* ── Jump Popup ── */
+.jump-overlay{position:fixed;inset:0;z-index:950;background:rgba(0,0,0,0.3);backdrop-filter:blur(4px);display:flex;justify-content:center;padding-top:120px}
+.jump-popup{width:360px;max-width:90vw;animation:scaleIn .2s ease-out}
+.jump-input{width:100%;padding:12px 16px;border-radius:12px;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(var(--blur));font-size:15px;color:var(--c-text);outline:none;font-family:inherit;box-shadow:0 8px 32px rgba(0,0,0,0.15)}
+.jump-input:focus{border-color:var(--c-primary)}
+.jump-list{margin-top:8px;max-height:300px;overflow-y:auto;border-radius:12px;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(var(--blur));box-shadow:0 8px 32px rgba(0,0,0,0.1);display:none}
+.jump-list a{display:block;padding:10px 16px;text-decoration:none;color:var(--c-text);font-size:14px;border-bottom:1px solid var(--c-border);transition:background .15s}
+.jump-list a:last-child{border-bottom:none}
+.jump-list a:hover{background:rgba(99,102,241,0.06)}
+.jump-list a .jump-desc{font-size:11px;color:var(--c-text2)}
+.jump-list a.active{background:rgba(99,102,241,0.08);color:var(--c-primary)}
+
+/* Navigation */
+.floating-back{position:fixed;bottom:24px;right:24px;width:48px;height:48px;border-radius:50%;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;z-index:90;transition:all .25s;color:var(--c-text2)}
+.floating-back:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(99,102,241,0.2);border-color:var(--c-primary);color:var(--c-primary)}
+@media(max-width:480px){.floating-back{bottom:calc(16px + env(safe-area-inset-bottom));right:16px;width:44px;height:44px;font-size:18px}}
+
+
+</style>
+</head>
+<body>
+
+
+<div class="bg"><div class="bg-mesh"></div><div class="bg-grain"></div></div>
+<button class="theme-btn" onclick="toggleTheme()" title="切换主题">🌓</button>
+
+<div class="page">
+<main id="main-content">
+  <div class="topbar">
+    <a class="back" href="../" data-en="← Back to Home">← 主页</a>
+    <span style="color:var(--c-text2);opacity:.4;margin:0 2px" data-en="›">›</span>
+    <a class="back" href="./" data-en="← Wiki Home">Wiki 首页</a>
+    <div class="topbar-actions">
+      <a class="btn" id="editBtn" href="#" style="display:none" data-en="Edit">✏️ 编辑</a>
+      <button class="btn" id="jumpBtn" onclick="toggleJump()" title="跳转页面">📖 跳转</button>
+      <a class="btn" id="github-link" href="#" target="_blank">📄 GitHub 源码</a>
+      <button class="btn" id="langBtn" onclick="toggleLang()" title="切换语言">EN</button>
+    </div>
+  </div>
+  <div class="content" id="article">
+    <div class="loading" data-en="Loading">加载中</div>
+  </div>
+
+  <!-- Comments -->
+  <div class="comments" id="commentsSection" style="display:none">
+    <div class="comments-header">
+      <h3>💬 评论</h3>
+      <span class="comments-count" id="commentsCount">0</span>
+    </div>
+    <div class="comments-list" id="commentsList">
+      <div class="comments-empty">暂无评论</div>
+    </div>
+    <div class="comment-form">
+      <textarea id="commentInput" placeholder="添加评论..." rows="2"></textarea>
+      <div class="comment-form-footer">
+        <div style="display:flex;flex-wrap:wrap;gap:2px" id="commentLabels">
+          <label class="label-chk"><input type="checkbox" value="待办"> 📋 待办</label>
+          <label class="label-chk"><input type="checkbox" value="疑问"> ❓ 疑问</label>
+          <label class="label-chk"><input type="checkbox" value="重要"> ⚠️ 重要</label>
+          <label class="label-chk"><input type="checkbox" value="已处理"> ✅ 已处理</label>
+        </div>
+        <button class="btn-submit" id="commentSubmitBtn" onclick="postComment()">发送</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+  <div class="toc" id="toc">
+    <div class="toc-title">
+      <span data-en="Table of Contents">目录</span>
+      <button class="toc-toggle" id="tocToggle" onclick="toggleTOC()" title="收起侧栏">◀</button>
+    </div>
+    <div id="toc-list"></div>
+  </div>
+</div>
+
+<!-- Page Jump Popup -->
+<div class="jump-overlay" id="jumpOverlay" style="display:none" onclick="toggleJump()">
+  <div class="jump-popup" onclick="event.stopPropagation()">
+    <input type="text" class="jump-input" id="jumpInput" placeholder="输入页面名跳转...">
+    <div class="jump-list" id="jumpList"></div>
+  </div>
+</div>
+
+<script>
+// Theme
+function toggleTheme(){
+  const b=document.body;
+  if(b.getAttribute('data-theme')==='dark'){
+    b.removeAttribute('data-theme');
+    localStorage.setItem('hp_theme','light');
+    document.getElementById('hljs-theme').href='./vendor/github.min.css';
+  }else{
+    b.setAttribute('data-theme','dark');
+    localStorage.setItem('hp_theme','dark');
+    document.getElementById('hljs-theme').href='./vendor/github-dark.min.css';
+  }
+}
+(function(){
+  if(localStorage.getItem('hp_theme')==='dark'){
+    document.body.setAttribute('data-theme','dark');
+    document.getElementById('hljs-theme').href='./vendor/github-dark.min.css';
+  }
+})();
+
+// Language toggle (zh ↔ en)
+var currentLang = localStorage.getItem('wiki_lang') || 'zh';
+function getLang(){return currentLang}
+function toggleLang(){
+  currentLang=(currentLang==='zh')?'en':'zh';
+  localStorage.setItem('wiki_lang',currentLang);
+  applyLang(currentLang);
+  document.getElementById('article').innerHTML='<div class="loading">'+(currentLang==='zh'?'加载中':'Loading')+'</div>';
+  document.getElementById('toc').classList.remove('visible'); document.getElementById('toc-list').innerHTML='';
+  loadPage();
+}
+function applyLang(lang){
+  document.getElementById('langBtn').textContent=(lang==='zh')?'EN':'中';
+  var nodes=document.querySelectorAll('[data-en]');
+  for(var i=0;i<nodes.length;i++){
+    var n=nodes[i];
+    if(lang==='en'&&n.getAttribute('data-en')){
+      n._zh=n._zh||n.innerHTML;
+      n.innerHTML=n.getAttribute('data-en');
+    }else if(lang==='zh'&&n._zh){
+      n.innerHTML=n._zh;
+    }
+  }
+}
+applyLang(currentLang);
+
+// Configure marked v4 (no highlight callback — we do it post-render)
+marked.setOptions({
+  gfm: true,
+  breaks: false
+});
+
+// Custom renderer: wrap code blocks for copy button
+const renderer = new marked.Renderer();
+renderer.code = function(code, lang, escaped) {
+  return '<div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">' + _t('复制','Copy') + '</button><pre><code class="hljs'
+    + (lang ? ' language-' + lang : '') + '">'
+    + (escaped ? code : escapeHtml(code)) + '</code></pre></div>';
+};
+marked.use({ renderer: renderer });
+
+// Escape HTML entities
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Post-render: apply highlight.js to all code blocks
+function highlightAll() {
+  if (typeof hljs !== 'undefined') {
+    document.querySelectorAll('#article pre code').forEach(function(block) {
+      hljs.highlightElement(block);
+    });
+  }
+}
+
+// Process wikilinks [[Page Name]] → <a href="?page=Page-Name">
+function processWikilinks(html) {
+  return html.replace(/\[\[([^\]]+)\]\]/g, function(match, p1) {
+    const page = p1.replace(/\s+/g, '-');
+    return '<a href="?page=' + page + '">' + p1 + '</a>';
+  });
+}
+
+// Copy code
+function copyCode(btn) {
+  const code = btn.parentElement.querySelector('code, pre');
+  const text = code ? code.textContent : btn.parentElement.textContent.replace(/^\s*复制\s*/,'').trim();
+  navigator.clipboard.writeText(text || btn.parentElement.textContent.trim()).then(function() {
+    btn.textContent = _t('已复制','Copied');
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = _t('复制','Copy'); btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+// Add copy buttons to blockquotes (for commands/formulas)
+function addBlockquoteCopyBtns(container) {
+  container.querySelectorAll('blockquote').forEach(function(bq) {
+    // Skip if already has a copy button
+    if (bq.querySelector('.copy-btn')) return;
+    // Only add if content looks like commands/formulas
+    var text = bq.textContent.trim();
+    if (!text) return;
+    var btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = _t('复制','Copy');
+    btn.onclick = function(e) {
+      e.stopPropagation();
+      navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = _t('已复制','Copied');
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = _t('复制','Copy'); btn.classList.remove('copied'); }, 1500);
+      });
+    };
+    bq.appendChild(btn);
+  });
+}
+
+// ── Experiment path resolution: auto-correct missing project folder ──
+var _expCache = null;
+async function resolveExperimentPath(page, lang) {
+  // extract bare id from page (e.g. "experiments/田间试验/2026-01-15-test" → "2026-01-15-test")
+  var parts = page.split('/');
+  var id = parts[parts.length - 1];
+  if (!id) return null;
+  try {
+    if (!_expCache) {
+      var resp = await fetch('./experiments/api.php');
+      if (!resp.ok) return null;
+      _expCache = await resp.json();
+    }
+    var exp = _expCache.find(function(e) { return e.id === id; });
+    if (!exp || !exp.path) return null;
+    var suffix = (lang === 'zh') ? '.zh.md' : '.md';
+    return './experiments/' + exp.path + suffix;
+  } catch(e) { return null; }
+}
+
+// Translation helper
+function _t(zh, en) {
+  return getLang() === 'zh' ? zh : en;
+}
+
+// Load and render
+async function loadPage() {
+  const params = new URLSearchParams(location.search);
+  const page = params.get('page');
+
+  if (!page) {
+    showError(_t('未指定页面','Page not specified'), _t('请从 Wiki 首页选择一个页面','Please select a page from the Wiki home'));
+    return;
+  }
+
+  // Validate the relative document path without unnecessarily rejecting spaces,
+  // parentheses or non-ASCII filenames. Traversal and URL-control characters remain blocked.
+  var segments = page.split('/');
+  var invalidPage = !page || page.charAt(0) === '/' || page.indexOf('\\') !== -1 ||
+    /[\u0000-\u001f<>:"|?*#]/.test(page) ||
+    segments.some(function(part) { return !part || part === '.' || part === '..'; });
+  if (invalidPage) {
+    showError(_t('页面名无效','Invalid page name'), _t('页面路径不安全或包含无效字符','Page path is unsafe or contains invalid characters'));
+    return;
+  }
+
+  function encodeDocPath(path) {
+    return path.split('/').map(encodeURIComponent).join('/');
+  }
+
+  // 根据索引中实际存在的版本选择文件；索引不可用时回退到约定文件名。
+  var lang = getLang();
+  var encodedPage = encodeDocPath(page);
+  var candidateUrls = [];
+  if (page.indexOf('experiments/') !== 0) {
+    await loadWikiPages();
+    var indexedDocument = wikiPages.find(function(doc) { return doc.name === page; });
+    if (indexedDocument && indexedDocument.versions) {
+      [lang, lang === 'zh' ? 'en' : 'zh'].forEach(function(versionLanguage) {
+        var versionPath = indexedDocument.versions[versionLanguage];
+        if (versionPath) candidateUrls.push('./' + encodeDocPath(versionPath));
+      });
+    }
+  }
+  if (!candidateUrls.length) {
+    var isExperiment = page.indexOf('experiments/') === 0;
+    var suffixes = lang === 'zh'
+      ? ['.zh.md', '_zh.md', '-zh.md', '.zh-cn.md', '_zh-cn.md', '-zh-cn.md', '.md', '.en.md', '_en.md', '-en.md']
+      : (isExperiment
+        ? ['.md', '.en.md', '_en.md', '-en.md', '.zh.md', '_zh.md', '-zh.md']
+        : ['.en.md', '_en.md', '-en.md', '.md', '.zh.md', '_zh.md', '-zh.md', '.zh-cn.md', '_zh-cn.md', '-zh-cn.md']);
+    candidateUrls = suffixes.map(function(suffix) { return './' + encodedPage + suffix; });
+  }
+
+  document.title = page.replace(/-/g, ' ') + ' · Wiki · 霡霂';
+  document.getElementById('github-link').href = 'https://github.com/YYfather/web/blob/main/wiki/' + encodedPage + '.md';
+
+  // Show edit button for experiment pages
+  var editBtn = document.getElementById('editBtn');
+  if (page.indexOf('experiments/') === 0) {
+    editBtn.href = './editor.html?path=' + encodeURIComponent(page) + '&lang=' + getLang();
+    editBtn.style.display = '';
+  } else {
+    editBtn.style.display = 'none';
+  }
+
+  try {
+    var resp = null;
+    for (var candidateIndex = 0; candidateIndex < candidateUrls.length; candidateIndex++) {
+      var candidateResponse = await fetch(candidateUrls[candidateIndex]);
+      if (candidateResponse.ok) {
+        resp = candidateResponse;
+        break;
+      }
+    }
+    if (!resp && page.indexOf('experiments/') === 0) {
+      var fixed = await resolveExperimentPath(page, lang);
+      if (fixed) {
+        var fixedResponse = await fetch(fixed);
+        if (fixedResponse.ok) resp = fixedResponse;
+      }
+    }
+    if (!resp) throw new Error('404');
+    let md = await resp.text();
+    var hasEncodingDamage = md.indexOf('\uFFFD') !== -1;
+    if (hasEncodingDamage) md = md.replace(/\uFFFD+/g, '');
+    let html = marked.parse(md);
+    // Process wikilinks after marked rendering
+    html = processWikilinks(html);
+    var el = document.getElementById('article');
+    var encodingNotice = hasEncodingDamage
+      ? '<div class="encoding-warning">' + escapeHtml(_t('检测到源文件存在编码损坏，已隐藏无法解码的字节；请将服务器上的 Markdown 重新保存为 UTF-8。','The source file contains damaged encoding. Undecodable bytes were hidden; please re-save the server Markdown as UTF-8.')) + '</div>'
+      : '';
+    el.innerHTML = encodingNotice + html;
+
+    // Apply syntax highlighting after render
+    highlightAll();
+
+    // Add copy buttons to blockquotes (commands/formulas)
+    addBlockquoteCopyBtns(el);
+
+    // Build TOC
+    buildTOC(el);
+  } catch(e) {
+    showError(_t('页面不存在','Page not found'), _t('找不到 ','File not found: ') + page + (getLang()==='zh'?'.md 文件（错误: ':'.md (error: ') + e.message + '）');
+  }
+}
+
+function showError(title, msg) {
+  var backText = _t('← 返回 Wiki 首页','← Back to Wiki Home');
+  document.getElementById('article').innerHTML =
+    '<div class="error"><div class="error-icon">📭</div><h2>' + escapeHtml(title) + '</h2><p>' + escapeHtml(msg) + '</p><a class="btn" href="./">' + escapeHtml(backText) + '</a></div>';
+}
+
+function buildTOC(container) {
+  var headings = container.querySelectorAll('h2, h3');
+  var tocEl = document.getElementById('toc');
+  var listEl = document.getElementById('toc-list');
+
+  if (headings.length < 2) {
+    tocEl.classList.remove('visible');
+    return;
+  }
+  tocEl.classList.add('visible');
+
+  headings.forEach(function(h, i) {
+    var id = 'heading-' + i;
+    h.id = id;
+    var a = document.createElement('a');
+    a.href = '#' + id;
+    a.textContent = h.textContent;
+    if (h.tagName === 'H3') a.className = 'toc-h3';
+    a.addEventListener('click', function(e) {
+      e.preventDefault();
+      h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      listEl.querySelectorAll('a').forEach(function(x) { x.classList.remove('active'); });
+      a.classList.add('active');
+    });
+    listEl.appendChild(a);
+  });
+
+  // Restore collapsed state
+  if (localStorage.getItem('toc_collapsed') === '1') tocEl.classList.add('collapsed');
+
+  // Scroll spy
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        var id = entry.target.id;
+        listEl.querySelectorAll('a').forEach(function(a) {
+          a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-80px 0px -60% 0px' });
+  headings.forEach(function(h) { observer.observe(h); });
+}
+
+// TOC collapse toggle
+function toggleTOC(){
+  var toc = document.getElementById('toc');
+  var collapsed = toc.classList.toggle('collapsed');
+  localStorage.setItem('toc_collapsed', collapsed ? '1' : '0');
+}
+
+// ── Page Jump ──
+var wikiPages = [];
+var wikiPagesLoaded = false;
+var wikiPagesPromise = null;
+
+function loadWikiPages() {
+  if (wikiPagesLoaded) return Promise.resolve();
+  if (wikiPagesPromise) return wikiPagesPromise;
+  wikiPagesPromise = (async function() {
+    try {
+      // 兼容已安装旧版 Service Worker 的浏览器，避免复用缓存的空响应。
+      var response = await fetch('./api-documents.php?_=' + Date.now(), { cache: 'no-store' });
+      var raw = await response.text();
+      if (!raw.trim()) throw new Error('文档接口返回为空（HTTP ' + response.status + '）');
+      var data;
+      try { data = JSON.parse(raw); }
+      catch (e) { throw new Error('文档接口返回的不是 JSON（HTTP ' + response.status + '）'); }
+      if (!response.ok || !data.ok) throw new Error(data.error || ('HTTP ' + response.status));
+      wikiPages = (data.documents || []).map(function(doc) {
+        return {
+          name: doc.page,
+          title: doc.title || doc.page,
+          desc: doc.description || '',
+          category: doc.category || '',
+          versions: doc.versions || {},
+          titles: doc.titles || {},
+          descriptions: doc.descriptions || {}
+        };
+      });
+    } catch (error) {
+      console.warn('无法自动读取文档列表：', error);
+      wikiPages = [];
+    } finally {
+      wikiPagesLoaded = true;
+    }
+  })();
+  return wikiPagesPromise;
+}
+
+var jumpOverlay = null, jumpInput = null, jumpList = null, jumpIdx = -1;
+
+async function toggleJump(){
+  if(!jumpOverlay){
+    jumpOverlay=document.getElementById('jumpOverlay');
+    jumpInput=document.getElementById('jumpInput');
+    jumpList=document.getElementById('jumpList');
+    jumpInput.addEventListener('input', filterJump);
+    jumpInput.addEventListener('keydown', function(e){
+      var items = jumpList.querySelectorAll('a');
+      if(e.key==='ArrowDown'){ e.preventDefault(); jumpIdx=Math.min(jumpIdx+1,items.length-1); highlightJump(items); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); jumpIdx=Math.max(jumpIdx-1,0); highlightJump(items); }
+      else if(e.key==='Enter'){ e.preventDefault(); if(jumpIdx>=0 && items[jumpIdx]) items[jumpIdx].click(); }
+      else if(e.key==='Escape'){ toggleJump(); }
+    });
+  }
+  var vis = jumpOverlay.style.display === 'flex';
+  jumpOverlay.style.display = vis ? 'none' : 'flex';
+  if(!vis){
+    jumpInput.value = '';
+    jumpInput.focus();
+    jumpList.innerHTML = '<div style="padding:14px 16px;color:var(--c-text2);font-size:13px">正在读取文档…</div>';
+    jumpList.style.display = 'block';
+    jumpIdx = -1;
+    await loadWikiPages();
+    filterJump(true);
+  }
+}
+
+function filterJump(showAll){
+  var q = jumpInput.value.trim().toLowerCase();
+  var filtered = wikiPages.filter(function(p){
+    if (!q && showAll !== true) return false;
+    var haystack = [p.name, p.title, p.desc, p.category]
+      .concat(Object.values(p.titles || {}), Object.values(p.descriptions || {})).join(' ').toLowerCase();
+    return !q || haystack.indexOf(q) !== -1;
+  });
+  if(filtered.length === 0){
+    jumpList.innerHTML = '<div style="padding:14px 16px;color:var(--c-text2);font-size:13px">' + (q ? _t('没有匹配的文档','No matching documents') : _t('暂无文档','No documents')) + '</div>';
+    jumpList.style.display='block';
+    jumpIdx = -1;
+    return;
+  }
+  jumpList.innerHTML = filtered.map(function(p,i){
+    var page = encodeURIComponent(p.name).replace(/%2F/gi, '/');
+    var displayTitle = (p.titles || {})[getLang()] || p.title || p.name;
+    var displayDescription = (p.descriptions || {})[getLang()] || p.desc;
+    var subtitle = [p.category, displayDescription].filter(Boolean).join(' · ');
+    return '<a href="?page=' + page + '" ' + (i===0?'class="active"':'') + ' onclick="toggleJump()">' + escHtml(displayTitle) + '<div class="jump-desc">' + escHtml(subtitle || p.name) + '</div></a>';
+  }).join('');
+  jumpList.style.display = 'block';
+  jumpIdx = 0;
+}
+
+function highlightJump(items){
+  items.forEach(function(a,i){ a.classList.toggle('active', i===jumpIdx); });
+  if(items[jumpIdx]) items[jumpIdx].scrollIntoView({block:'nearest'});
+}
+
+// Scroll position memory
+var scrollMemory = {};
+
+// Internal wiki links: intercept clicks and load via JS (SPA navigation)
+document.addEventListener('click', function(e) {
+  var link = e.target.closest('a[href*="?page="]');
+  if (link && link.origin === location.origin) {
+    e.preventDefault();
+    // Save current scroll position
+    scrollMemory[location.href] = window.scrollY;
+    history.pushState(null, '', link.href);
+    document.getElementById('article').innerHTML = '<div class="loading">' + _t('加载中','Loading') + '</div>';
+    document.getElementById('toc').classList.remove('visible');
+    document.getElementById('toc-list').innerHTML = '';
+    loadPage().then(function(){
+      var s = scrollMemory[link.href];
+      if(s) window.scrollTo({ top: s, behavior: 'instant' });
+      else window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+  }
+});
+window.addEventListener('popstate', function() {
+  scrollMemory[location.href] = window.scrollY;
+  document.getElementById('article').innerHTML = '<div class="loading">' + _t('加载中','Loading') + '</div>';
+  document.getElementById('toc').classList.remove('visible');
+  document.getElementById('toc-list').innerHTML = '';
+  loadPage().then(function(){
+    var s = scrollMemory[location.href];
+    if(s) window.scrollTo({ top: s, behavior: 'instant' });
+    else window.scrollTo({ top: 0, behavior: 'instant' });
+  });
+});
+
+// ── Comments ──
+var currentPageId = null;
+
+function getPageId(){
+  return new URLSearchParams(location.search).get('page') || '';
+}
+
+function getCommentExperimentId(){
+  var p = getPageId();
+  if(!p || p.indexOf('experiments/') !== 0) return null;
+  var rest = p.replace('experiments/', '');
+  // path format: 项目名/id → 提取 id（最后一个 / 之后的部分）
+  var parts = rest.split('/');
+  return parts[parts.length - 1];
+}
+
+async function loadComments(){
+  var expId = getCommentExperimentId();
+  if(!expId) { document.getElementById('commentsSection').style.display='none'; return; }
+  currentPageId = expId;
+
+  var sec = document.getElementById('commentsSection');
+  sec.style.display = 'block';
+
+  try{
+    var resp = await fetch('./experiments/api-comments.php?id=' + expId);
+    if(!resp.ok) throw new Error(resp.status);
+    var comments = await resp.json();
+    renderComments(comments);
+  }catch(e){
+    sec.style.display = 'none';
+  }
+}
+
+function renderComments(comments){
+  var list = document.getElementById('commentsList');
+  var count = document.getElementById('commentsCount');
+  count.textContent = comments.length;
+
+  if(comments.length === 0){
+    list.innerHTML = '<div class="comments-empty">暂无评论</div>';
+    return;
+  }
+
+  var labelMap = {'待办':'cl-todo','疑问':'cl-q','重要':'cl-imp','已处理':'cl-done'};
+  var html = '';
+  comments.forEach(function(c){
+    html += '<div class="comment-item">';
+    html += '<div class="comment-meta"><span class="comment-author">' + escHtml(c.author) + '</span><span class="comment-time">' + escHtml(c.createdAt.replace('T', ' ')) + '</span></div>';
+    html += '<div class="comment-text">' + escHtml(c.text) + '</div>';
+    if(c.labels && c.labels.length){
+      html += '<div class="comment-labels">';
+      c.labels.forEach(function(l){ var cls=labelMap[l]||'cl-todo'; html += '<span class="cl '+cls+'">#'+escHtml(l)+'</span>'; });
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  list.innerHTML = html;
+}
+
+function escHtml(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+async function postComment(){
+  var input = document.getElementById('commentInput');
+  var text = input.value.trim();
+  if(!text || !currentPageId) return;
+
+  var btn = document.getElementById('commentSubmitBtn');
+  btn.disabled = true;
+
+  var labels = [];
+  document.querySelectorAll('#commentLabels input:checked').forEach(function(cb){ labels.push(cb.value); });
+
+  try{
+    var resp = await fetch('./experiments/api-comments.php?id=' + currentPageId, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text: text, author: '默认', labels: labels})
+    });
+    if(!resp.ok) throw new Error(resp.status);
+    input.value = '';
+    document.querySelectorAll('#commentLabels input').forEach(function(cb){ cb.checked=false; });
+    loadComments();
+  }catch(e){
+    alert('评论发送失败: ' + e.message);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// Patch loadPage to also load comments
+var _origLoad = loadPage;
+loadPage = async function(){
+  await _origLoad();
+  await loadComments();
+};
+
+loadWikiPages();
+loadPage();
+
+// Escape key: navigate back to Wiki home
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    if (document.getElementById('jumpOverlay') && document.getElementById('jumpOverlay').style.display === 'flex') return;
+    window.location.href = './';
+  }
+});
+</script>
+<!-- Floating Back Button -->
+<button class="floating-back" onclick="window.location.href='./'" title="返回 Wiki 首页 (Esc)">←</button>
+</body>
+</html>

@@ -1,0 +1,29 @@
+DataWork 主页子项目部署检查清单
+================================
+
+[ ] E:\studywork\Web 的 index.html、sw.js、manifest.json 哈希与打包前一致
+[ ] 主页增量覆盖只包含 index.html 和 sw.js
+[ ] 宝塔站点仍为 PHP 项目，根目录为 /www/wwwroot/1490473838.cn
+[ ] 当前服务器主页入口和 Nginx 配置已经备份
+[ ] 服务器主页已出现 DataWork 项目卡片
+[ ] 新版主页 sw.js 的 SUB_APP_PATHS 包含 /datework/
+[ ] 原有 Wiki、保险箱、英语和阅读器入口仍正常
+[ ] DataWork 文件位于 /www/wwwroot/1490473838.cn/datework，便于整站迁移
+[ ] Nginx 的三个 /datework location 均已启用，未让 PHP 站点直接提供 datework 源码
+[ ] 使用独立 Python 3.11/3.12 虚拟环境
+[ ] 已运行 datework/服务器环境准备.sh，依赖安装和导入验证成功
+[ ] data 目录属于 www 用户，未使用 777
+[ ] Supervisor datawork 状态为运行中
+[ ] 127.0.0.1:8765/api/health 返回 ok
+[ ] 8765 未在安全组和防火墙中向公网开放
+[ ] data/workspace_auth.json 已创建且权限为 600
+[ ] Nginx 只新增三个 /datework location，nginx -t 检查通过
+[ ] 原 PHP 的 root、index、location ~ \\.php$ 和伪静态配置均未删除或替换
+[ ] https://1490473838.cn/ 仍正常显示个人主页
+[ ] 未认证仍可使用即时分析，但直接访问 /datework/api/projects 返回 401
+[ ] 所有者密码可解锁项目工作区，健康接口返回 0.4.9
+[ ] /datework/assets/ 下 JS、CSS 均返回 200
+[ ] 浏览器请求没有占用个人主页根 /api/
+[ ] 小型 CSV 上传、分析和报告下载通过
+[ ] 已保留 data 目录备份和回滚文件
+[ ] 迁移备份同时包含站点目录、datework/data 和 Nginx 配置

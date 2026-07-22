@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="paper">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#e9e5dc">
+  <title>一隅书房 · PDF 阅读器</title>
+  <meta name="description" content="专注、轻盈的个人 PDF 书房">
+  <link rel="icon" href="/avatar.jpg">
+    <link rel="apple-touch-icon" href="/avatar.jpg">
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/lucide.min.js"></script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">跳到主要内容</a>
+  <div class="app-shell">
+    <aside class="library" id="library" aria-label="书库">
+      <header class="library-head">
+        <a class="brand" href="../" aria-label="返回主页">
+          <span class="brand-mark">隅</span>
+          <span><strong>一隅书房</strong><small>MY READING ROOM</small></span>
+        </a>
+        <button class="icon-btn mobile-close" id="closeLibrary" aria-label="关闭书库"><i data-lucide="x"></i></button>
+      </header>
+
+      <div class="library-tools">
+        <label class="search-field">
+          <i data-lucide="search"></i>
+          <input id="searchInput" type="search" placeholder="搜索书名或系列" autocomplete="off">
+          <kbd>/</kbd>
+        </label>
+        <div class="library-meta"><span id="libraryStats">正在整理书架…</span><button id="collapseAll" class="text-btn">全部收起</button></div>
+      </div>
+
+      <div class="recent" id="recentBlock" hidden>
+        <span class="section-label">继续阅读</span>
+        <button class="recent-book" id="recentBook"></button>
+      </div>
+
+      <nav class="book-list" id="bookList" aria-live="polite"></nav>
+      <footer class="library-foot">
+        <span><i data-lucide="hard-drive"></i><span id="librarySize">—</span></span>
+        <a href="../">返回主页</a>
+      </footer>
+    </aside>
+
+    <div class="scrim" id="scrim"></div>
+
+    <main class="reader" id="main-content">
+      <header class="toolbar" id="toolbar">
+        <div class="toolbar-start">
+          <button class="icon-btn mobile-menu" id="openLibrary" aria-label="打开书库"><i data-lucide="library"></i></button>
+          <div class="book-heading">
+            <span class="book-kicker" id="bookCollection">私人书库</span>
+            <h1 id="bookTitle">挑一本书，安静地读一会儿</h1>
+          </div>
+        </div>
+
+        <div class="toolbar-actions" id="readerControls" hidden>
+          <div class="control-group page-nav" aria-label="翻页">
+            <button class="icon-btn" id="prevPage" aria-label="上一页"><i data-lucide="chevron-left"></i></button>
+            <label class="page-counter"><input id="pageInput" inputmode="numeric" value="1" aria-label="当前页"><span>/</span><span id="pageCount">1</span></label>
+            <button class="icon-btn" id="nextPage" aria-label="下一页"><i data-lucide="chevron-right"></i></button>
+          </div>
+          <div class="control-group zoom-tools" aria-label="缩放">
+            <button class="icon-btn" id="zoomOut" aria-label="缩小"><i data-lucide="minus"></i></button>
+            <button class="zoom-label" id="fitWidth" title="适应宽度">适宽</button>
+            <button class="icon-btn" id="zoomIn" aria-label="放大"><i data-lucide="plus"></i></button>
+          </div>
+          <div class="control-group">
+            <button class="icon-btn active" id="pageMode" aria-label="单页模式" title="单页模式"><i data-lucide="file"></i></button>
+            <button class="icon-btn" id="scrollMode" aria-label="连续滚动" title="连续滚动"><i data-lucide="rows-3"></i></button>
+          </div>
+          <button class="icon-btn" id="themeToggle" aria-label="切换深浅主题"><i data-lucide="moon"></i></button>
+          <button class="icon-btn desktop-only" id="fullscreen" aria-label="全屏阅读"><i data-lucide="maximize-2"></i></button>
+        </div>
+      </header>
+
+      <section class="reading-stage" id="readingStage">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-monogram">读</div>
+          <p>阅读不是赶路，是给自己留一段空白。</p>
+          <span>从左侧书架选择一本书开始</span>
+          <button class="primary-btn mobile-pick" id="mobilePick"><i data-lucide="library"></i>打开书库</button>
+        </div>
+        <div class="loading-state" id="loadingState" hidden>
+          <span class="loader"></span><p id="loadingText">正在翻开书页…</p>
+        </div>
+        <div class="error-state" id="errorState" hidden>
+          <i data-lucide="circle-alert"></i><strong>暂时无法打开</strong><p id="errorText"></p><button class="primary-btn" id="retryButton">重试</button>
+        </div>
+        <div class="pages" id="pages" hidden></div>
+      </section>
+
+      <footer class="reader-footer" id="readerFooter" hidden>
+        <div class="progress-track"><span id="progressBar"></span></div>
+        <span id="progressText">0% 已读</span>
+        <span class="shortcut-hint"><kbd>←</kbd><kbd>→</kbd> 翻页 · <kbd>F</kbd> 全屏 · <kbd>/</kbd> 搜索</span>
+      </footer>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <!-- Floating Back Button -->
+  <button class="floating-back" onclick="window.location.href='../'" title="返回主页 (Esc)">←</button>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

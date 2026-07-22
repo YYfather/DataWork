@@ -1,0 +1,50 @@
+[
+  {
+    "id": "standard",
+    "name": "标准实验",
+    "nameEn": "Standard Experiment",
+    "description": "通用实验记录模板，适用于大多数实验场景",
+    "icon": "🔬",
+    "file": "standard.md"
+  },
+  {
+    "id": "field-survey",
+    "name": "田间调查",
+    "nameEn": "Field Survey",
+    "description": "野外采样、样方调查、作物表型测量",
+    "icon": "🌾",
+    "file": "field-survey.md"
+  },
+  {
+    "id": "equipment-calibration",
+    "name": "设备校验",
+    "nameEn": "Equipment Calibration",
+    "description": "传感器标定、仪器维护与精度校准",
+    "icon": "🔧",
+    "file": "equipment-calibration.md"
+  },
+  {
+    "id": "data-analysis",
+    "name": "数据分析",
+    "nameEn": "Data Analysis",
+    "description": "数据处理、统计分析、模型拟合",
+    "icon": "📊",
+    "file": "data-analysis.md"
+  },
+  {
+    "id": "method-comparison",
+    "name": "方法对比",
+    "nameEn": "Method Comparison",
+    "description": "不同方法、设备或方案的对比实验",
+    "icon": "⚖️",
+    "file": "method-comparison.md"
+  },
+  {
+    "id": "tips",
+    "name": "小 Tips",
+    "nameEn": "Tips & Tricks",
+    "description": "实用技巧、踩坑记录、快捷操作",
+    "icon": "💡",
+    "file": "tips.md"
+  }
+]

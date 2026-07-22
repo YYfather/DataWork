@@ -1,0 +1,50 @@
+# === Runtime / Data ===
+vault/vault.db
+vault/api/vault.db
+vault/vault_debug.log
+vault/data.json
+vault/*.db
+
+# === OS ===
+Thumbs.db
+.DS_Store
+
+# === IDE ===
+.vscode/
+.idea/
+
+# === Agent / Config ===
+.reasonix/
+
+# === Wiki Backup ===
+wiki/backup-config.json
+wiki/backup-debug.log
+
+# === Logs ===
+*.log
+
+# === Environment ===
+.env
+.env.local
+
+# === Backup Files ===
+*.backup
+
+# === Node.js ===
+node_modules/
+package-lock.json
+
+# === Build Output ===
+dist/
+build/
+*.min.js
+*.min.css
+!wiki/vendor/*.min.js
+!wiki/vendor/*.min.css
+
+# === Legacy Files ===
+
+# === Temporary Files ===
+*.tmp
+*.temp
+~*

@@ -1,0 +1,17 @@
+# Server runtime data and credentials
+DataWork服务/data/
+DataWork服务/.venv/
+DataWork服务/.pytest_cache/
+DataWork服务/__pycache__/
+DataWork服务/**/__pycache__/
+DataWork服务/**/.pytest_cache/
+DataWork服务/**/server_ai/
+DataWork服务/**/workspace_auth.json
+DataWork服务/**/ai_secret.json
+DataWork服务/**/ai_settings.json
+DataWork服务/**/*.sqlite3
+DataWork服务/**/*.sqlite3-*
+DataWork服务/**/*.log
+
+# Python caches
+*.py[cod]

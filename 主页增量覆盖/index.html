@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>霡霂 · 个人主页</title>
+<meta name="description" content="霡霂的个人主页 — 工具集与项目展示">
+<meta property="og:title" content="霡霂 · 个人主页">
+<meta property="og:description" content="做自己想做的东西 — 工具集与项目展示">
+<meta property="og:image" content="avatar.jpg">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a14" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="avatar.jpg">
+<link rel="apple-touch-icon" href="avatar.jpg">
+<style>
+:root{--c-primary:#6366f1;--c-primary2:#a78bfa;--c-bg:#f8f7ff;--c-card:rgba(255,255,255,0.72);--c-text:#1e1b2e;--c-text2:#6b7280;--c-border:rgba(255,255,255,0.45);--shadow:0 8px 32px rgba(99,102,241,0.1);--radius:16px;--blur:20px}
+[data-theme="dark"]{--c-primary:#818cf8;--c-primary2:#c4b5fd;--c-bg:#08080f;--c-card:rgba(24,22,38,0.72);--c-text:#eae8f2;--c-text2:#9ca3af;--c-border:rgba(255,255,255,0.06);--shadow:0 8px 32px rgba(0,0,0,0.4)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'SF Pro Display','Segoe UI','Microsoft YaHei',system-ui,sans-serif;background:var(--c-bg);color:var(--c-text);min-height:100vh;min-height:100dvh;transition:background .5s,color .4s;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg-mesh{position:absolute;inset:0;background:radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.15), transparent),radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.12), transparent),radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.08), transparent);animation:meshShift 25s ease-in-out infinite alternate}
+@keyframes meshShift{0%{background-position:0% 0%,100% 100%,50% 50%}50%{background-position:30% 20%,70% 80%,40% 60%}100%{background-position:10% 40%,90% 30%,60% 40%}}
+.bg-grain{position:absolute;inset:0;opacity:.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:128px}
+[data-theme="dark"] .bg-mesh{background:radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.08), transparent),radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.06), transparent),radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.04), transparent)}
+
+.page{position:relative;z-index:1;max-width:480px;margin:0 auto;padding:48px 20px calc(40px + env(safe-area-inset-bottom));display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+
+.profile{text-align:center;margin-bottom:32px;animation:fadeUp .7s ease-out}
+.avatar-container{position:relative;display:inline-block;cursor:pointer;group:true}
+.avatar{width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid var(--c-border);box-shadow:var(--shadow);display:block;background:linear-gradient(135deg,var(--c-primary),var(--c-primary2));transition:transform .3s,box-shadow .3s}
+.avatar-container:hover .avatar{transform:scale(1.04);box-shadow:0 12px 40px rgba(99,102,241,0.25)}
+.avatar-ring{position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--c-primary2);opacity:0;transition:opacity .3s;animation:none}
+.avatar-container:hover .avatar-ring{opacity:.35}
+.avatar-glow{position:absolute;inset:-12px;border-radius:50%;background:radial-gradient(circle,rgba(99,102,241,0.2),transparent 70%);opacity:0;transition:opacity .4s;pointer-events:none}
+.avatar-container:hover .avatar-glow{opacity:1}
+.avatar-badge{position:absolute;bottom:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#10b981;border:3px solid var(--c-bg);z-index:2}
+.avatar-edit{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);opacity:0;transition:opacity .25s;font-size:28px;backdrop-filter:blur(4px)}
+.avatar-container:hover .avatar-edit{opacity:1}
+#avatarInput{display:none}
+
+h1{font-size:1.6rem;font-weight:700;margin-bottom:4px;letter-spacing:-.02em}
+.tagline{color:var(--c-text2);font-size:14px;margin-bottom:14px;font-weight:400}
+.badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.badge{font-size:11px;padding:4px 12px;border-radius:20px;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);color:var(--c-text2)}
+
+.time-bar{text-align:center;margin-bottom:28px;font-size:13px;color:var(--c-text2);font-variant-numeric:tabular-nums;animation:fadeUp .7s ease-out .1s both}
+
+.links{display:flex;flex-direction:column;gap:14px;animation:fadeUp .7s ease-out .2s both}
+.link-card{display:flex;align-items:center;gap:14px;padding:18px 20px;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:var(--radius);text-decoration:none;color:var(--c-text);transition:all .3s cubic-bezier(.25,.46,.45,.94);box-shadow:var(--shadow);position:relative;overflow:hidden}
+.link-card::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent);transition:left .5s}
+.link-card:hover::after{left:100%}
+.link-card:hover{transform:translateY(-3px);box-shadow:0 16px 48px rgba(99,102,241,0.16);border-color:rgba(99,102,241,0.3)}
+.link-card:active{transform:translateY(-1px);transition-duration:.1s}
+.link-icon{width:50px;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;color:#fff;position:relative}
+.link-icon-glow{position:absolute;inset:-4px;border-radius:18px;filter:blur(14px);opacity:.25;pointer-events:none}
+.link-info{flex:1;min-width:0}
+.link-title{font-size:15px;font-weight:600;margin-bottom:2px}
+.link-desc{font-size:12px;color:var(--c-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.link-arrow{font-size:16px;color:var(--c-text2);flex-shrink:0;transition:transform .25s,color .25s}
+.link-card:hover .link-arrow{transform:translateX(5px);color:var(--c-primary)}
+
+/* 最近动态 */
+.recent-section{margin-top:28px;animation:fadeUp .7s ease-out .3s both}
+.recent-section h3{font-size:12px;color:var(--c-text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;font-weight:500}
+.recent-list{display:flex;flex-direction:column;gap:8px}
+.recent-item{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--c-card);backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:12px;text-decoration:none;color:var(--c-text);transition:all .2s;font-size:13px}
+.recent-item:hover{border-color:rgba(99,102,241,0.3);transform:translateY(-1px)}
+.recent-dot{width:8px;height:8px;border-radius:50%;background:var(--c-primary);flex-shrink:0}
+.recent-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recent-date{color:var(--c-text2);font-size:11px;flex-shrink:0}
+.recent-empty{color:var(--c-text2);font-size:13px;padding:8px 0}
+.recent-more{display:inline-block;margin-top:10px;font-size:12px;color:var(--c-primary);text-decoration:none}
+.recent-more:hover{text-decoration:underline}
+
+/* 底部状态栏 */
+.footer-bar{margin-top:28px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:12px;color:var(--c-text2);opacity:.6;animation:fadeUp .7s ease-out .4s both}
+.footer-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.footer-dot.ok{background:#10b981}
+.footer-dot.off{background:#f59e0b}
+.footer-dot.err{background:#ef4444}
+
+.footer{margin-top:auto;padding-top:36px;text-align:center;font-size:12px;color:var(--c-text2);opacity:.4;animation:fadeUp .7s ease-out .5s both}
+
+.theme-btn{position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:none;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:18px;cursor:pointer;box-shadow:var(--shadow);transition:all .25s;display:flex;align-items:center;justify-content:center;z-index:100;border:1px solid var(--c-border)}
+.theme-btn:hover{transform:scale(1.1) rotate(20deg)}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+@media(max-width:480px){
+  .page{padding:36px 16px calc(32px + env(safe-area-inset-bottom))}
+  .avatar{width:92px;height:92px}
+  h1{font-size:1.35rem}
+  .link-card{padding:15px 16px;gap:12px}
+  .link-icon{width:44px;height:44px;border-radius:12px;font-size:22px}
+}
+@media(min-width:768px){
+  .page{padding:72px 20px 48px}
+  .avatar{width:120px;height:120px}
+  h1{font-size:1.8rem}
+  .link-card{padding:20px 24px}
+}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Crop Modal */
+.crop-overlay{position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease-out;padding:24px}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.crop-modal{background:var(--c-card);backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:20px;padding:28px;max-width:400px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.3);animation:scaleIn .25s ease-out}
+@keyframes scaleIn{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
+.crop-header{font-size:17px;font-weight:600;text-align:center;margin-bottom:18px}
+.crop-stage{display:flex;justify-content:center;margin-bottom:16px}
+.crop-mask{width:280px;height:280px;border-radius:50%;overflow:hidden;position:relative;background:var(--c-bg);box-shadow:inset 0 0 0 2px var(--c-border);cursor:grab;user-select:none;touch-action:none}
+.crop-mask:active{cursor:grabbing}
+.crop-mask img{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(1);pointer-events:none;max-width:none;max-height:none;will-change:transform}
+.crop-zoom{display:flex;align-items:center;gap:10px;padding:0 8px;margin-bottom:16px}
+.crop-zoom span{font-size:13px;color:var(--c-text2);min-width:20px;text-align:center}
+.crop-zoom input[type="range"]{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:var(--c-border);outline:none}
+.crop-zoom input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;background:var(--c-primary);cursor:pointer;border:2px solid var(--c-card);box-shadow:0 2px 6px rgba(0,0,0,0.15)}
+.crop-zoom input[type="range"]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--c-primary);cursor:pointer;border:2px solid var(--c-card)}
+.crop-preview-wrap{text-align:center;margin-bottom:16px}
+.crop-preview-title{font-size:11px;color:var(--c-text2);margin-bottom:6px}
+.crop-preview{width:72px;height:72px;border-radius:50%;overflow:hidden;margin:0 auto;border:2px solid var(--c-border);position:relative}
+.crop-preview img{position:absolute;top:50%;left:50%;pointer-events:none;will-change:transform}
+.crop-actions{display:flex;gap:10px}
+.crop-btn{flex:1;padding:10px;border-radius:12px;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;border:none}
+.crop-cancel{background:rgba(99,102,241,0.08);color:var(--c-text2)}
+.crop-cancel:hover{background:rgba(99,102,241,0.14)}
+.crop-confirm{background:var(--c-primary);color:#fff}
+.crop-confirm:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(99,102,241,0.3)}
+.crop-confirm:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* Dev Console */
+.console-btn{position:fixed;bottom:24px;left:20px;width:40px;height:40px;border-radius:50%;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:16px;cursor:pointer;box-shadow:var(--shadow);transition:all .25s;z-index:300;color:var(--c-text2);display:flex;align-items:center;justify-content:center}
+.console-btn:hover{transform:scale(1.1);border-color:var(--c-primary);color:var(--c-primary)}
+.console-overlay{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.4);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:flex-end;justify-content:center;padding:20px;animation:fadeIn .15s ease-out}
+.console-overlay.show{display:flex}
+.console-row{position:relative;max-width:700px;width:100%}
+.console-panel{background:#0d1117;border:1px solid #30363d;border-radius:16px 16px 0 0;width:100%;height:80vh;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,0.4);animation:consoleUp .25s cubic-bezier(.25,.46,.45,.94)}
+@keyframes consoleUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+.console-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #30363d;font-size:12px;color:#8b949e;font-family:'SF Mono','Consolas','Courier New',monospace}
+.console-header .dots{display:flex;gap:6px}
+.console-header .dots span{width:10px;height:10px;border-radius:50%}
+.console-header .dots .red{background:#ff5f56}
+.console-header .dots .yellow{background:#ffbd2e}
+.console-header .dots .green{background:#27ca40}
+.console-close{background:none;border:none;color:#8b949e;font-size:16px;cursor:pointer;padding:0 4px;line-height:1}
+.console-close:hover{color:#f85149}
+.console-maximize{background:none;border:none;color:#8b949e;font-size:15px;cursor:pointer;padding:0 4px;line-height:1;transition:color .2s}
+.console-maximize:hover{color:#e6edf3}
+.console-panel.maximized{max-width:none;max-height:100vh;border-radius:0}
+.console-panel.maximized .console-output{max-height:none}
+.console-overlay.maximized{padding:0;align-items:stretch}
+.console-output{flex:1;overflow-y:auto;padding:12px 16px;font-family:'SF Mono','Consolas','Courier New',monospace;font-size:13px;line-height:1.5;color:#c9d1d9;min-height:0}
+.console-output .cmd-line{color:#58a6ff;margin-bottom:2px}
+.console-output .cmd-line::before{content:'❯ ';color:#8b949e}
+.console-output .result{color:#7ee787;margin-bottom:8px;white-space:pre-wrap;word-break:break-all}
+.console-output .err{color:#f85149;margin-bottom:8px;white-space:pre-wrap}
+.console-output .info{color:#8b949e;font-style:italic;margin-bottom:4px}
+.console-output .ok{color:#7ee787;margin-bottom:4px;white-space:pre-wrap}
+.console-output .warn{color:#d2991d;margin-bottom:4px;white-space:pre-wrap}
+.console-output .server{color:#79c0ff;margin-bottom:8px;white-space:pre-wrap;font-family:'SF Mono','Consolas','Courier New',monospace}
+.console-input-wrap{display:flex;align-items:center;padding:10px 16px;border-top:1px solid #30363d;gap:8px}
+.console-input-wrap .prompt{color:#58a6ff;font-family:'SF Mono','Consolas','Courier New',monospace;font-size:13px;flex-shrink:0;cursor:pointer;user-select:none;transition:color .2s}
+.console-input-wrap .prompt:hover{color:#79c0ff}
+.console-input{flex:1;background:transparent;border:none;outline:none;color:#c9d1d9;font-family:'SF Mono','Consolas','Courier New',monospace;font-size:13px;caret-color:#58a6ff}
+.console-input::placeholder{color:#484f58}
+.quick-btn{background:none;border:1px solid #30363d;color:#8b949e;font-size:13px;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0;transition:all .2s;line-height:1}
+.quick-btn:hover,.quick-btn.active{color:#d2a8ff;border-color:#d2a8ff}
+.quick-panel{position:absolute;bottom:48px;right:10px;z-index:100;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:10px;display:none;flex-direction:column;gap:6px;width:280px;height:400px;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.quick-panel.show{display:flex}
+.quick-search{width:100%}
+.quick-search-input{width:100%;background:#0d1117;border:1px solid #30363d;color:#c9d1d9;font-family:'SF Mono','Consolas','Courier New',monospace;font-size:11px;padding:4px 6px;border-radius:4px;outline:none;box-sizing:border-box;cursor:auto}
+.quick-search-input:focus{border-color:#58a6ff}
+.quick-top{display:flex;align-items:center;gap:4px}
+.quick-groups{display:flex;gap:4px;flex-wrap:wrap;flex:1;min-width:0}
+.quick-group-tab{background:#21262d;border:1px solid #30363d;color:#8b949e;font-family:'SF Mono','Consolas','Courier New',monospace;font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.quick-group-tab:hover,.quick-group-tab.active{color:#d2a8ff;border-color:#d2a8ff}
+.quick-panel.editing .quick-group-tab:hover{color:#f85149!important;border-color:#f85149!important}
+.quick-panel.editing .quick-group-tab::after{content:' ×';color:#f85149;font-size:9px}
+.quick-edit-btn{background:none;border:1px solid #30363d;color:#8b949e;font-size:10px;cursor:pointer;padding:1px 5px;border-radius:3px;transition:all .15s}
+.quick-edit-btn:hover,.quick-edit-btn.active{color:#d2a8ff;border-color:#d2a8ff}
+.quick-mode-btn{background:none;border:1px solid #30363d;color:#8b949e;font-size:10px;cursor:pointer;padding:1px 5px;border-radius:3px;transition:all .15s;margin-right:-2px}
+.quick-mode-btn:hover{color:#7ee787;border-color:#7ee787}
+.quick-mode-btn.insert{color:#58a6ff;border-color:#58a6ff;background:rgba(88,166,255,0.08)}
+.quick-mode-btn.insert:hover{color:#79c0ff;border-color:#79c0ff}
+.quick-cmd-list{display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;overflow-y:auto}
+.quick-cmd-card{display:flex;align-items:center;gap:6px;background:#21262d;border:1px solid #30363d;border-radius:5px;padding:4px 8px;cursor:pointer;transition:all .15s}
+.quick-cmd-card:hover{border-color:#58a6ff;background:#282e38}
+.quick-cmd-card .qc-icon{font-size:12px;flex-shrink:0}
+.quick-cmd-card .qc-info{flex:1;min-width:0}
+.quick-cmd-card .qc-name{font-size:11px;color:#c9d1d9;font-family:'SF Mono','Consolas','Courier New',monospace;font-weight:500}
+.quick-cmd-card .qc-desc{font-size:9px;color:#8b949e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quick-cmd-card .qc-badge{font-size:8px;background:#1a3a2a;color:#3fb950;border-radius:3px;padding:0 4px;flex-shrink:0;margin-left:auto}
+.quick-panel.editing .quick-cmd-card:hover{border-color:#f85149!important;background:#2d1518}
+.quick-panel.editing .quick-cmd-card{cursor:default}
+.quick-panel.editing .qc-edit,.quick-panel.editing .qc-del{display:inline-block;background:none;border:none;color:#8b949e;cursor:pointer;font-size:13px;padding:0 3px;transition:color .15s}
+.quick-panel.editing .qc-edit:hover{color:#d2a8ff}
+.quick-panel.editing .qc-del:hover{color:#f85149}
+.quick-add-wrap{display:none;width:100%;gap:4px;margin-top:2px;justify-content:flex-end;align-items:center}
+.quick-panel.editing .quick-add-wrap{display:flex}
+.quick-add-btn,.quick-add-group-btn{background:#238636;border:none;color:#fff;font-family:'SF Mono','Consolas','Courier New',monospace;font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;white-space:nowrap;transition:opacity .15s}
+.quick-add-btn:hover,.quick-add-group-btn:hover{opacity:.85}
+.quick-export-btn,.quick-import-btn{background:#21262d;border:1px solid #30363d;color:#8b949e;font-size:10px;cursor:pointer;padding:2px 6px;border-radius:3px;transition:all .15s}
+.quick-export-btn:hover,.quick-import-btn:hover{color:#c9d1d9;border-color:#8b949e}
+.quick-form-overlay{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px;animation:fadeIn .15s ease-out}
+.quick-form-overlay.show{display:flex}
+.quick-form-modal{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px;max-width:420px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,0.5);animation:scaleIn .2s ease-out}
+.quick-form-header{font-size:14px;font-weight:600;color:#c9d1d9;margin-bottom:14px}
+.quick-form-body{display:flex;flex-direction:column;gap:10px}
+.quick-form-body label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:#8b949e}
+.quick-form-body input,.quick-form-body select,.quick-form-body textarea{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;font-family:'SF Mono','Consolas','Courier New',monospace;font-size:12px;padding:5px 8px;border-radius:4px;outline:none;resize:vertical}
+.quick-form-body input:focus,.quick-form-body select:focus,.quick-form-body textarea:focus{border-color:#58a6ff}
+.quick-form-actions{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
+.qform-btn{padding:6px 16px;border-radius:6px;font-size:12px;cursor:pointer;transition:all .15s;border:none}
+.qform-cancel{background:#21262d;color:#8b949e}
+.qform-cancel:hover{background:#30363d}
+.qform-save{background:#238636;color:#fff}
+.qform-save:hover{opacity:.85}
+.console-input-wrap{position:relative}
+@media(max-width:480px){
+  .console-panel{border-radius:12px 12px 0 0;height:70vh}
+  .console-btn{bottom:16px;left:12px;width:36px;height:36px;font-size:14px}
+  .quick-panel{width:240px;right:8px;height:340px}
+}
+
+</style>
+<script src="shared/utils.js"></script>
+<link rel="manifest" href="manifest.json?v=2">
+</head>
+<body>
+
+
+<div class="bg"><div class="bg-mesh"></div><div class="bg-grain"></div></div>
+<button class="theme-btn" onclick="toggleTheme()" title="切换主题">🌓</button>
+<button class="console-btn" onclick="toggleConsole()" title="调试控制台">>_</button>
+
+<div class="page">
+<main id="main-content">
+  <div class="profile">
+    <div class="avatar-container" id="avatarContainer">
+      <div class="avatar-glow"></div>
+      <div class="avatar-ring"></div>
+      <img class="avatar" id="avatarImg" src="" alt="头像">
+      <div class="avatar-badge"></div>
+      <div class="avatar-edit" id="avatarEditHint">📷</div>
+      <input type="file" id="avatarInput" accept="image/*">
+    </div>
+    <h1>霡霂</h1>
+    <p class="tagline">做自己想做的东西</p>
+    <div class="badges">
+      <span class="badge">🛠️ 开发者</span>
+      <span class="badge">🌱 持续学习中</span>
+    </div>
+  </div>
+
+  <div class="time-bar">🕐 <span id="clock">--:--:--</span></div>
+
+  <div class="links">
+    <a class="link-card" href="./wiki/">
+      <div class="link-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">
+        <div class="link-icon-glow" style="background:#8b5cf6"></div>📖
+      </div>
+      <div class="link-info">
+        <div class="link-title">学习 Wiki</div>
+        <div class="link-desc">SunScan · PAR · LAI · 冠层分析 · Python</div>
+      </div>
+      <div class="link-arrow">→</div>
+    </a>
+    <a class="link-card" href="./vault/">
+      <div class="link-icon" style="background:linear-gradient(135deg,#6366f1,#4f46e5)">
+        <div class="link-icon-glow" style="background:#6366f1"></div>🔒
+      </div>
+      <div class="link-info">
+        <div class="link-title">凭证保险箱</div>
+        <div class="link-desc">账号密码管理 · WebDAV 云同步 · 加密存储</div>
+      </div>
+      <div class="link-arrow">→</div>
+    </a>
+    <a class="link-card" href="./english/">
+      <div class="link-icon" style="background:linear-gradient(135deg,#10b981,#059669)">
+        <div class="link-icon-glow" style="background:#10b981"></div>📝
+      </div>
+      <div class="link-info">
+        <div class="link-title">英语选词填空 Pro</div>
+        <div class="link-desc">75 题在线刷题 · 随机/顺序 · 错题重练</div>
+      </div>
+      <div class="link-arrow">→</div>
+    </a>
+    <a class="link-card" href="./reader/">
+      <div class="link-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+        <div class="link-icon-glow" style="background:#f59e0b"></div>📚
+      </div>
+      <div class="link-info">
+        <div class="link-title">在线阅读器</div>
+        <div class="link-desc">PDF 在线阅读 · 文件夹分类 · 搜索功能</div>
+      </div>
+      <div class="link-arrow">→</div>
+    </a>
+    <a class="link-card" href="./datework/">
+      <div class="link-icon" style="background:linear-gradient(135deg,#256b4b,#1f513c)">
+        <div class="link-icon-glow" style="background:#3d8a64"></div>📊
+      </div>
+      <div class="link-info">
+        <div class="link-title">DataWork 统计分析</div>
+        <div class="link-desc">实验统计 · 可复现报告 · 项目工作区</div>
+      </div>
+      <div class="link-arrow">→</div>
+    </a>
+  </div>
+
+  <!-- 最近动态 -->
+  <div class="recent-section">
+    <h3>最近更新</h3>
+    <div class="recent-list" id="recentList">
+      <div class="recent-empty">加载中…</div>
+    </div>
+  </div>
+
+  <!-- 底部状态 -->
+  <div class="footer-bar">
+    <span class="footer-dot" id="serverDot"></span>
+    <span id="serverStatus">检测中</span>
+    <span>·</span>
+    <span><span id="toolCount">4</span> 个在线工具</span>
+  </div>
+
+  <div class="footer">© 2026 霡霂 · Built with ❤️</div>
+</main>
+</div>
+
+<!-- Crop Modal -->
+<div class="crop-overlay" id="cropOverlay" style="display:none">
+  <div class="crop-modal">
+    <div class="crop-header">✂️ 裁剪头像</div>
+    <div class="crop-stage">
+      <div class="crop-mask" id="cropMask">
+        <img id="cropImage" alt="裁剪">
+      </div>
+    </div>
+    <div class="crop-zoom">
+      <span>🔍</span>
+      <input type="range" id="cropZoom" min="0.5" max="3" step="0.01" value="1">
+      <span id="cropZoomLabel">1.0x</span>
+    </div>
+    <div class="crop-preview-wrap">
+      <div class="crop-preview-title">预览</div>
+      <div class="crop-preview" id="cropPreview">
+        <img id="cropPreviewImg" alt="预览">
+      </div>
+    </div>
+    <div class="crop-actions">
+      <button class="crop-btn crop-cancel" id="cropCancel">取消</button>
+      <button class="crop-btn crop-confirm" id="cropConfirm">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dev Console -->
+<div class="console-overlay" id="consoleOverlay">
+  <div class="console-row">
+  <div class="console-panel">
+    <div class="console-header">
+      <div class="dots"><span class="red"></span><span class="yellow"></span><span class="green"></span></div>
+      <span>Dev Console · 调试控制台</span>
+      <button class="console-maximize" onclick="toggleMaximize()" title="最大化">⛶</button>
+      <button class="console-close" onclick="toggleConsole()">✕</button>
+    </div>
+    <div class="console-output" id="consoleOutput">
+      <div class="info">输入 JavaScript 表达式或命令，按 Enter 执行。箭头键切换历史。</div>
+      <div class="info">快捷命令: help, clear, ls(), fetch(url), localStorage</div>
+    </div>
+    <div class="console-input-wrap">
+      <span class="prompt" id="consolePrompt" title="点击切换路径显示">$ </span>
+      <input class="console-input" id="consoleInput" placeholder="输入命令..." autocomplete="off" spellcheck="false">
+      <button class="quick-btn" id="quickBtn" onclick="toggleQuick()" title="快捷命令">⚡</button>
+    </div>
+  </div>
+  <!-- 快捷命令工具箱 -->
+  <div class="quick-panel" id="quickPanel">
+    <div class="quick-search"><input class="quick-search-input" id="quickSearch" placeholder="搜索命令..." oninput="searchQuick()" autocomplete="off"></div>
+    <div class="quick-top">
+      <div class="quick-groups" id="quickGroups"></div>
+      <button class="quick-mode-btn" id="quickModeBtn" onclick="event.stopPropagation();toggleQuickMode()" title="点击切换：直接执行／插入输入栏">▶</button>
+      <button class="quick-edit-btn" id="quickEditBtn" onclick="event.stopPropagation();toggleQuickEdit()" title="编辑">✎</button>
+    </div>
+    <div class="quick-cmd-list" id="quickCmdList"></div>
+    <div class="quick-add-wrap">
+      <button class="quick-add-btn" onclick="addQuick()" title="新增命令">+ 新建命令</button>
+      <button class="quick-add-group-btn" id="quickGroupAddBtn" onclick="addGroup()" title="新增分组">+ 分组</button>
+      <button class="quick-export-btn" onclick="exportQuick()" title="导出">↓</button>
+      <button class="quick-import-btn" onclick="importQuick()" title="导入">↑</button>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- 快捷命令编辑弹窗 -->
+<div class="quick-form-overlay" id="quickFormOverlay">
+  <div class="quick-form-modal">
+    <div class="quick-form-header" id="quickFormTitle">新建命令</div>
+    <div class="quick-form-body">
+      <label>分组：<select id="qfGroup"></select></label>
+      <label>命令名：<input id="qfName" placeholder="e.g. restart-blog" autocomplete="off"></label>
+      <label>描述：<input id="qfDesc" placeholder="简要描述这个命令做什么" autocomplete="off"></label>
+      <label>执行目录：<input id="qfDir" placeholder="留空则使用默认目录" autocomplete="off"></label>
+      <label>命令列表（一行一条）：<textarea id="qfCmds" rows="4" placeholder="docker compose pull&#10;docker compose up -d"></textarea></label>
+      <input type="hidden" id="qfEditName">
+    </div>
+    <div class="quick-form-actions">
+      <button class="qform-btn qform-cancel" onclick="closeQuickForm()">取消</button>
+      <button class="qform-btn qform-save" id="qfSaveBtn" onclick="saveQuickForm()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script src="shared/avatar-crop.js"></script>
+<script>
+// Theme
+function toggleTheme(){var b=document.body;if(b.getAttribute('data-theme')==='dark'){b.removeAttribute('data-theme');localStorage.setItem('hp_theme','light')}else{b.setAttribute('data-theme','dark');localStorage.setItem('hp_theme','dark')}}
+if(localStorage.getItem('hp_theme')==='dark')document.body.setAttribute('data-theme','dark');
+
+// Clock - 只在分钟变化时更新完整文本，秒单独更新
+var _lastMin='';
+function updateClock(){
+  var n=new Date();
+  var h=n.getHours(),m=n.getMinutes(),s=n.getSeconds();
+  var timeStr=[h,m,s].map(function(v){return String(v).padStart(2,'0');}).join(':');
+  var minKey=n.getFullYear()+'-'+n.getMonth()+'-'+n.getDate()+'-'+h+'-'+m;
+  if(minKey!==_lastMin){
+    _lastMin=minKey;
+    document.getElementById('clock').textContent=
+      n.toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'})+' '+timeStr;
+  }else{
+    // 只更新时间部分
+    var el=document.getElementById('clock');
+    var txt=el.textContent;
+    var idx=txt.lastIndexOf(' ');
+    if(idx>-1) el.textContent=txt.substring(0,idx+1)+timeStr;
+    else el.textContent=timeStr;
+  }
+}
+updateClock();setInterval(updateClock,1000);
+
+// 动态工具数量
+document.getElementById('toolCount').textContent=document.querySelectorAll('.link-card').length;
+
+// 最近动态
+async function loadRecent(){
+  var list=document.getElementById('recentList');
+  try{
+    var resp=await fetch('./wiki/experiments/api.php');
+    if(!resp.ok) throw new Error(resp.status);
+    var data=await resp.json();
+    if(!data||data.length===0){
+      list.innerHTML='<div class="recent-empty">暂无实验记录</div>';
+      return;
+    }
+    var items=data.slice(0,3);
+    list.innerHTML=items.map(function(e){
+      var d=e.date||'';
+      return '<a class="recent-item" href="./wiki/viewer.html?page=experiments/'+encodeURIComponent(e.path)+'">'+
+        '<span class="recent-dot"></span>'+
+        '<span class="recent-title">'+(e.title||e.id)+'</span>'+
+        '<span class="recent-date">'+d+'</span>'+
+        '</a>';
+    }).join('')+'<a class="recent-more" href="./wiki/experiments.html">查看全部 →</a>';
+  }catch(e){
+    list.innerHTML='<div class="recent-empty">暂无法获取动态</div>';
+  }
+}
+loadRecent();
+
+// 服务器状态
+async function checkStatus(){
+  var dot=document.getElementById('serverDot');
+  var txt=document.getElementById('serverStatus');
+  try{
+    var ctrl=new AbortController();
+    var timer=setTimeout(function(){ctrl.abort();},5000);
+    var r=await fetch('./vault/api.php?action=ping',{signal:ctrl.signal});
+    clearTimeout(timer);
+    var j=await r.json();
+    if(j.ok){dot.className='footer-dot ok';txt.textContent='服务正常';}
+    else{dot.className='footer-dot err';txt.textContent='服务异常';}
+  }catch(e){
+    dot.className='footer-dot off';txt.textContent='服务离线';
+  }
+}
+checkStatus();
+
+// ==================== Dev Console ====================
+var _cmdHistory = [];
+var _cmdIdx = -1;
+var _cmdTemp = '';
+var _consoleOpened = false;
+var _cwd = '';
+var _user = '';
+var _host = '';
+var _promptLong = localStorage.getItem('hp_prompt_long') === '1';
+
+function toggleConsole() {
+  var overlay = document.getElementById('consoleOverlay');
+  var show = !overlay.classList.contains('show');
+  if (show) {
+    overlay.classList.add('show');
+    document.getElementById('consoleInput').focus();
+    if (!_consoleOpened) {
+      _consoleOpened = true;
+      initTerminal();
+    }
+  } else {
+    overlay.classList.remove('show');
+    document.getElementById('quickPanel').classList.remove('show');
+    document.getElementById('quickBtn').classList.remove('active');
+  }
+}
+
+function toggleMaximize() {
+  var overlay = document.getElementById('consoleOverlay');
+  var panel = overlay.querySelector('.console-panel');
+  overlay.classList.toggle('maximized');
+  panel.classList.toggle('maximized');
+  if (overlay.classList.contains('maximized')) {
+    document.getElementById('quickPanel').classList.remove('show');
+    document.getElementById('quickBtn').classList.remove('active');
+  }
+  document.getElementById('consoleInput').focus();
+}
+
+// 快捷命令面板 v2（结构化：group > cmdName > {desc,directory,commands[]}）
+var _serverAliases = ['ls','pwd','cat','head','tail','du','whoami','php','server','disk','git','files','logs','env','db','proc','cd','df','free','ps','uname','uptime','id','date','docker'];
+
+function defaultQuickData() {
+  return { groups: {
+    "文件": {
+      "ls": { description: "列出项目目录文件", directory: "", commands: ["ls"] },
+      "ls-api": { description: "列出 api 目录", directory: "", commands: ["ls api"] },
+      "pwd": { description: "当前服务器工作目录", directory: "", commands: ["pwd"] },
+      "cat-composer": { description: "查看 composer.json", directory: "", commands: ["cat composer.json"] },
+      "head-log": { description: "查看错误日志前20行", directory: "", commands: ["head error.log"] },
+      "tail-log": { description: "查看错误日志末尾", directory: "", commands: ["tail error.log"] }
+    },
+    "系统": {
+      "whoami": { description: "当前 Web 用户身份", directory: "", commands: ["whoami"] },
+      "server": { description: "服务器信息概览", directory: "", commands: ["server"] },
+      "php": { description: "PHP 版本与扩展", directory: "", commands: ["php"] },
+      "disk": { description: "磁盘使用情况", directory: "", commands: ["disk"] },
+      "du": { description: "各目录磁盘占用", directory: "", commands: ["du"] },
+      "env": { description: "环境变量信息", directory: "", commands: ["env"] },
+      "proc": { description: "PHP 进程列表", directory: "", commands: ["proc"] }
+    },
+    "开发": {
+      "git": { description: "Git 仓库状态", directory: "", commands: ["git"] },
+      "files": { description: "文件统计与类型分布", directory: "", commands: ["files"] },
+      "db": { description: "Vault 数据库概况", directory: "", commands: ["db"] },
+      "status": { description: "前端系统诊断", directory: "", commands: ["status"] },
+      "test": { description: "各子应用连通性测试", directory: "", commands: ["test"] }
+    },
+    "Linux": {
+      "df": { description: "磁盘分区空间概况", directory: "", commands: ["df -h"] },
+      "free": { description: "内存使用概况", directory: "", commands: ["free -h"] },
+      "ps": { description: "运行进程列表", directory: "", commands: ["ps aux"] },
+      "uname": { description: "系统内核版本信息", directory: "", commands: ["uname -a"] },
+      "uptime": { description: "系统运行时长与负载", directory: "", commands: ["uptime"] },
+      "id": { description: "当前用户身份信息", directory: "", commands: ["id"] },
+      "date": { description: "系统当前日期时间", directory: "", commands: ["date"] },
+      "docker-ps": { description: "Docker 运行容器列表", directory: "", commands: ["docker ps"] }
+    }
+  }, active: "文件", _version: 2 };
+}
+
+function migrateQuickData(d) {
+  if (d._version >= 2) return d;
+  if (d.groups) {
+    var ng = {};
+    Object.keys(d.groups).forEach(function(g) {
+      var vals = d.groups[g];
+      if (Array.isArray(vals)) {
+        ng[g] = {};
+        vals.forEach(function(c) {
+          var name = c.split(' ')[0].replace(/[^a-zA-Z0-9_-]/g, '-');
+          ng[g][name] = { description: "", directory: "", commands: [c] };
+        });
+      } else if (typeof vals === 'object') {
+        ng[g] = vals;
+      }
+    });
+    return { groups: ng, active: d.active || Object.keys(ng)[0] || "", _version: 2 };
+  }
+  return defaultQuickData();
+}
+
+var _quickData = { groups: {}, active: '', _version: 2 };
+var _quickEditing = false;
+var _quickInsertMode = false;
+
+function activeEntries() {
+  var g = _quickData.groups[_quickData.active] || {};
+  return Object.keys(g).map(function(k) { return { name: k, entry: g[k] }; });
+}
+function isServerAlias(cmd) { return _serverAliases.indexOf(cmd.split(' ')[0]) !== -1; }
+
+function renderQuickPanel() {
+  var groupsEl = document.getElementById('quickGroups');
+  var names = Object.keys(_quickData.groups);
+  if (_quickEditing) {
+    groupsEl.innerHTML = names.map(function(n) {
+      return '<button class="quick-group-tab' + (n === _quickData.active ? ' active' : '') + '" onclick="removeGroup(\'' + n.replace(/'/g, "\\'") + '\')">' + n + '</button>';
+    }).join('');
+  } else {
+    groupsEl.innerHTML = names.map(function(n) {
+      return '<button class="quick-group-tab' + (n === _quickData.active ? ' active' : '') + '" onclick="switchGroup(\'' + n.replace(/'/g, "\\'") + '\')">' + n + '</button>';
+    }).join('');
+  }
+  var list = document.getElementById('quickCmdList');
+  var entries = activeEntries();
+  var q = (document.getElementById('quickSearch').value || '').toLowerCase();
+  if (q) {
+    entries = entries.filter(function(e) {
+      return e.name.toLowerCase().indexOf(q) !== -1 || (e.entry.description || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+  if (_quickEditing) {
+    list.innerHTML = entries.map(function(e) {
+      var n = (e.entry.commands || []).length;
+      return '<div class="quick-cmd-card">' +
+        '<span class="qc-icon">⚡</span>' +
+        '<div class="qc-info">' +
+          '<div class="qc-name">' + e.name + '</div>' +
+          (e.entry.description ? '<div class="qc-desc">' + e.entry.description + '</div>' : '') +
+        '</div>' +
+        '<span class="qc-badge">' + n + ' cmd' + (n !== 1 ? 's' : '') + '</span>' +
+        '<button class="qc-edit" onclick="event.stopPropagation();editQuick(\'' + e.name.replace(/'/g, "\\'") + '\')" title="编辑">✎</button>' +
+        '<button class="qc-del" onclick="event.stopPropagation();removeQuick(\'' + e.name.replace(/'/g, "\\'") + '\')" title="删除">✕</button>' +
+      '</div>';
+    }).join('');
+    if (!entries.length) list.innerHTML = '<div style="color:#8b949e;font-size:11px;padding:8px;text-align:center">空分组 — 点击下方「+ 新建命令」添加</div>';
+  } else {
+    list.innerHTML = entries.map(function(e) {
+      var n = (e.entry.commands || []).length;
+      return '<div class="quick-cmd-card" onclick="' + (_quickInsertMode ? 'insertQuick' : 'runQuick') + '(\'' + e.name.replace(/'/g, "\\'") + '\')">' +
+        '<span class="qc-icon">⚡</span>' +
+        '<div class="qc-info">' +
+          '<div class="qc-name">' + e.name + '</div>' +
+          (e.entry.description ? '<div class="qc-desc">' + e.entry.description + '</div>' : '') +
+        '</div>' +
+        '<span class="qc-badge">' + (_quickInsertMode ? '↩ 插入' : '▶ 执行') + '</span>' +
+      '</div>';
+    }).join('');
+    if (!entries.length) list.innerHTML = '<div style="color:#8b949e;font-size:11px;padding:8px;text-align:center">没有匹配的命令</div>';
+  }
+  // 更新模式按钮
+  var modeBtn = document.getElementById('quickModeBtn');
+  if (_quickInsertMode) {
+    modeBtn.textContent = '↩';
+    modeBtn.className = 'quick-mode-btn insert';
+    modeBtn.title = '点击切换：插入模式 → 直接执行';
+  } else {
+    modeBtn.textContent = '▶';
+    modeBtn.className = 'quick-mode-btn';
+    modeBtn.title = '点击切换：直接执行 → 插入输入栏';
+  }
+}
+
+function saveQuickCmds() {
+  fetch('./api/quick-cmds.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_quickData) }).catch(function(){});
+}
+
+
+async function loadQuickFromServer() {
+  try {
+    var r = await fetch('./api/quick-cmds.php'); var d = await r.json();
+    if (d && d.groups) { _quickData = migrateQuickData(d); }
+  } catch(e) {}
+}
+
+function switchGroup(name) { if (_quickData.groups[name]) { _quickData.active = name; saveQuickCmds(); renderQuickPanel(); } }
+function removeGroup(name) { var names = Object.keys(_quickData.groups); if (names.length <= 1) return; if (!confirm('确认删除分组「' + name + '」及其所有命令？')) return; delete _quickData.groups[name]; if (_quickData.active === name) _quickData.active = names[0] === name ? names[1] : names[0]; saveQuickCmds(); renderQuickPanel(); }
+function addGroup() { var name = prompt('新分组名:'); if (!name || !name.trim()) return; name = name.trim(); if (_quickData.groups[name]) return; _quickData.groups[name] = {}; _quickData.active = name; saveQuickCmds(); renderQuickPanel(); }
+
+function toggleQuickEdit() {
+  _quickEditing = !_quickEditing;
+  var p = document.getElementById('quickPanel'); var b = document.getElementById('quickEditBtn');
+  if (_quickEditing) { p.classList.add('editing'); b.classList.add('active'); }
+  else { p.classList.remove('editing'); b.classList.remove('active'); }
+  renderQuickPanel();
+}
+
+function toggleQuickMode() {
+  _quickInsertMode = !_quickInsertMode;
+  renderQuickPanel();
+}
+
+function insertQuick(cmdName) {
+  var entry = _quickData.groups[_quickData.active] && _quickData.groups[_quickData.active][cmdName];
+  if (!entry) return;
+  var cmds = entry.commands || [];
+  var input = document.getElementById('consoleInput');
+  input.value = cmds.join(' && ');
+  input.focus();
+  input.selectionStart = input.selectionEnd = input.value.length;
+}
+
+function removeQuick(cmdName) { if (!confirm('确认删除命令「' + cmdName + '」？')) return; delete _quickData.groups[_quickData.active][cmdName]; saveQuickCmds(); renderQuickPanel(); }
+
+function addQuick() { showQuickForm(null); }
+
+function editQuick(cmdName) {
+  var entry = _quickData.groups[_quickData.active] && _quickData.groups[_quickData.active][cmdName];
+  if (!entry) return;
+  showQuickForm(cmdName, entry);
+}
+
+function showQuickForm(cmdName, entry) {
+  var overlay = document.getElementById('quickFormOverlay');
+  var sel = document.getElementById('qfGroup');
+  sel.innerHTML = Object.keys(_quickData.groups).map(function(n) {
+    return '<option value="' + n + '"' + (n === _quickData.active ? ' selected' : '') + '>' + n + '</option>';
+  }).join('');
+  document.getElementById('quickFormTitle').textContent = cmdName ? '编辑命令: ' + cmdName : '新建命令';
+  document.getElementById('qfName').value = cmdName || '';
+  document.getElementById('qfDesc').value = entry ? (entry.description || '') : '';
+  document.getElementById('qfDir').value = entry ? (entry.directory || '') : '';
+  document.getElementById('qfCmds').value = entry ? (entry.commands || []).join('\n') : '';
+  document.getElementById('qfEditName').value = cmdName || '';
+  overlay.classList.add('show');
+  document.getElementById('qfName').focus();
+}
+
+function closeQuickForm() {
+  document.getElementById('quickFormOverlay').classList.remove('show');
+}
+
+function saveQuickForm() {
+  var group = document.getElementById('qfGroup').value;
+  var name = document.getElementById('qfName').value.trim();
+  var desc = document.getElementById('qfDesc').value.trim();
+  var dir = document.getElementById('qfDir').value.trim();
+  var cmdsText = document.getElementById('qfCmds').value.trim();
+  var oldName = document.getElementById('qfEditName').value;
+  if (!name) { alert('请输入命令名'); return; }
+  if (!cmdsText) { alert('请至少输入一条命令'); return; }
+  var cmds = cmdsText.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+  if (!_quickData.groups[group]) _quickData.groups[group] = {};
+  var entry = { description: desc, directory: dir, commands: cmds };
+  if (oldName && oldName !== name && _quickData.groups[group][oldName]) {
+    delete _quickData.groups[group][oldName];
+  }
+  _quickData.groups[group][name] = entry;
+  _quickData.active = group;
+  saveQuickCmds();
+  closeQuickForm();
+  renderQuickPanel();
+}
+
+function searchQuick() { renderQuickPanel(); }
+
+document.getElementById('quickFormOverlay').addEventListener('click', function(e) { if (e.target === this) closeQuickForm(); });
+
+// === 快速执行（直接执行 + 顺序执行 + 遇错停止）===
+
+function runQuick(cmdName) {
+  var entry = _quickData.groups[_quickData.active] && _quickData.groups[_quickData.active][cmdName];
+  if (!entry) return;
+  executeCmdSeq(entry);
+}
+
+async function executeCmdSeq(entry) {
+  var output = document.getElementById('consoleOutput');
+  var cmds = entry.commands || [];
+  var dir = entry.directory || '';
+  printLine(output, 'info', '━━ 开始执行: ' + cmds.length + ' 条命令 ━━');
+  for (var i = 0; i < cmds.length; i++) {
+    var cmd = cmds[i];
+    var fullCmd = cmd;
+    printLine(output, 'cmd', fullCmd);
+    if (isServerAlias(cmd) || cmd[0] === '$') {
+      var scmd = cmd[0] === '$' ? cmd.substring(1).trim() : cmd;
+      try {
+        var body = { cmd: scmd };
+        if (dir) body.cwd = dir;
+        var r = await fetch('./api/console.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        var j = await r.json();
+        if (j.ok) {
+          printLine(output, 'server', j.output);
+        } else {
+          printLine(output, 'err', '错误: ' + (j.error || '未知'));
+          printLine(output, 'err', '⚠ 执行中断于第 ' + (i + 1) + ' 条命令');
+          return;
+        }
+      } catch(e) {
+        printLine(output, 'err', '连接失败: ' + e.message);
+        printLine(output, 'err', '⚠ 执行中断于第 ' + (i + 1) + ' 条命令');
+        return;
+      }
+    } else {
+      execCmd(fullCmd);
+    }
+  }
+  printLine(output, 'ok', '✅ 全部 ' + cmds.length + ' 条命令执行完成');
+}
+function toggleQuick() {
+  var panel = document.getElementById('quickPanel'); var btn = document.getElementById('quickBtn');
+  var overlay = document.getElementById('consoleOverlay');
+  panel.classList.toggle('show'); btn.classList.toggle('active');
+  if (panel.classList.contains('show')) {
+    overlay.classList.add('show');
+    loadQuickFromServer().then(function() { renderQuickPanel(); });
+    document.getElementById('consoleInput').focus();
+  }
+}
+
+function exportQuick() {
+  var json = JSON.stringify(_quickData, null, 2);
+  navigator.clipboard.writeText(json).then(function() { alert('已复制到剪贴板'); }).catch(function() { prompt('请手动复制:', json); });
+}
+
+function importQuick() {
+  var json = prompt('粘贴命令数据 JSON:'); if (!json) return;
+  try { var d = JSON.parse(json); d = migrateQuickData(d); if (!d.groups) throw new Error(); _quickData = d; saveQuickCmds(); renderQuickPanel(); }
+  catch(e) { alert('格式错误'); }
+}
+
+async function initTerminal() {
+  await loadQuickFromServer();
+  updatePrompt();
+  try {
+    var r = await fetch('./api/console.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: 'pwd' })
+    });
+    var j = await r.json();
+    if (j.ok) _cwd = j.output.trim();
+  } catch(e) {}
+  try {
+    var r2 = await fetch('./api/console.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: 'whoami' })
+    });
+    var j2 = await r2.json();
+    if (j2.ok) _user = j2.output.trim();
+  } catch(e) {}
+  try {
+    var r3 = await fetch('./api/console.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: 'server' })
+    });
+    var j3 = await r3.json();
+    if (j3.ok) {
+      var m = j3.output.match(/主机:\s*(.+?)(?:\||$)/) || j3.output.match(/Host:\s*([^|]+)/);
+      if (m) _host = m[1].trim();
+    }
+  } catch(e) {}
+  updatePrompt();
+  execCmd('status');
+}
+
+function updatePrompt() {
+  var prompt = document.getElementById('consolePrompt');
+  var symbol = (_user === 'root') ? '#' : '$';
+  if (!_promptLong) {
+    prompt.textContent = symbol + ' ';
+    prompt.title = '点击显示路径';
+    return;
+  }
+  prompt.title = '点击隐藏路径';
+  var parts = [];
+  if (_user) parts.push(_user);
+  if (_cwd) {
+    var short = _cwd.replace(/^[A-Z]:/i, '').replace(/\\/g, '/');
+    short = short.replace(/\/home\/([^\/]+)/, '~').replace(/\/Users\/([^\/]+)/, '~').replace(/\/www\/wwwroot\/1490473838\.cn/, '~');
+    parts.push(short);
+  }
+  parts.push(symbol);
+  prompt.textContent = parts.join(':') + ' ';
+}
+
+document.getElementById('consoleOverlay').addEventListener('click', function(e) {
+  if (e.target === this) toggleConsole();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var overlay = document.getElementById('consoleOverlay');
+    if (!overlay.classList.contains('show')) return;
+    // 最大化时先退出最大化，再按才关闭
+    if (overlay.classList.contains('maximized')) {
+      toggleMaximize();
+      return;
+    }
+    toggleConsole();
+  }
+});
+
+var _consoleInput = document.getElementById('consoleInput');
+_consoleInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    var cmd = _consoleInput.value.trim();
+    if (cmd) execCmd(cmd);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (_cmdHistory.length === 0) return;
+    if (_cmdIdx === -1) _cmdTemp = _consoleInput.value;
+    if (_cmdIdx < _cmdHistory.length - 1) _cmdIdx++;
+    _consoleInput.value = _cmdHistory[_cmdHistory.length - 1 - _cmdIdx];
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (_cmdIdx > 0) {
+      _cmdIdx--;
+      _consoleInput.value = _cmdHistory[_cmdHistory.length - 1 - _cmdIdx];
+    } else if (_cmdIdx === 0) {
+      _cmdIdx = -1;
+      _consoleInput.value = _cmdTemp;
+    }
+  }
+});
+
+// 点击提示符切换路径显示
+document.getElementById('consolePrompt').addEventListener('click', function() {
+  _promptLong = !_promptLong;
+  localStorage.setItem('hp_prompt_long', _promptLong ? '1' : '0');
+  updatePrompt();
+  document.getElementById('consoleInput').focus();
+});
+
+function execCmd(cmd) {
+  var output = document.getElementById('consoleOutput');
+  _cmdHistory.push(cmd);
+  _cmdIdx = -1; _cmdTemp = '';
+  _consoleInput.value = '';
+  printLine(output, 'cmd', cmd);
+  var result;
+  try {
+    if (cmd === 'help')       { cmdHelp(output); }
+    else if (cmd === 'clear') { output.innerHTML = ''; }
+    else if (cmd === 'status'){ result = cmdStatus(output); }
+    else if (cmd === 'test')  { result = cmdTest(output); }
+    else if (cmd === 'network'){ cmdNetwork(output); }
+    else if (cmd === 'sw')    { result = cmdSW(output); }
+    else if (cmd === 'localStorage') { cmdLS(output); }
+    else if (cmd === 'location') { printLine(output, 'result', JSON.stringify({href:location.href,origin:location.origin,pathname:location.pathname,search:location.search,host:location.host},null,2)); }
+    else if (cmd === 'navigator') { printLine(output, 'result', JSON.stringify({userAgent:navigator.userAgent,platform:navigator.platform,language:navigator.language,onLine:navigator.onLine},null,2)); }
+    else if (cmd[0] === '$')       { result = cmdServer(output, cmd.substring(1).trim()); }
+    else if (isServerAlias(cmd)) { result = cmdServer(output, cmd); }
+    else { printLine(output, 'result', fmtResult(eval.call(window, cmd))); }
+  } catch(e) {
+    printLine(output, 'err', e.name + ': ' + e.message);
+  }
+  output.scrollTop = output.scrollHeight;
+  return result;
+}
+
+function printLine(output, cls, text) {
+  var el = document.createElement('div');
+  el.className = cls === 'cmd' ? 'cmd-line' : cls;
+  el.textContent = text;
+  output.appendChild(el);
+  output.scrollTop = output.scrollHeight;
+}
+
+var _serverAliases = ['ls','pwd','cat','head','tail','du','whoami','php','server','disk','git','files','logs','env','db','proc','cd','df','free','ps','uname','uptime','id','date','docker'];
+function isServerAlias(cmd) {
+  var base = cmd.split(' ')[0];
+  return _serverAliases.indexOf(base) !== -1;
+}
+
+function fmtResult(v) {
+  if (v === undefined) return 'undefined';
+  if (typeof v === 'function') return '[Function: ' + (v.name||'anonymous') + ']';
+  if (typeof v === 'string') return v;
+  return JSON.stringify(v, null, 2);
+}
+
+function cmdHelp(output) {
+  printLine(output, 'info', '━━ 基础命令（服务端）━━');
+  printLine(output, 'server', '  ls [path]   列出目录');
+  printLine(output, 'server', '  pwd         当前目录');
+  printLine(output, 'server', '  cat <file>  查看文件');
+  printLine(output, 'server', '  head <f>    文件开头');
+  printLine(output, 'server', '  tail <f>    文件末尾');
+  printLine(output, 'server', '  du [path]   磁盘占用');
+  printLine(output, 'server', '  whoami      当前用户');
+  printLine(output, 'server', '  php         PHP 信息');
+  printLine(output, 'server', '  server      服务器信息');
+  printLine(output, 'server', '  disk        磁盘使用');
+  printLine(output, 'server', '  git         Git 状态');
+  printLine(output, 'server', '  files       文件统计');
+  printLine(output, 'server', '  logs        错误日志');
+  printLine(output, 'server', '  env         环境变量');
+  printLine(output, 'server', '  db          数据库');
+  printLine(output, 'server', '  proc        进程信息');
+  printLine(output, 'server', '  df -h       磁盘分区空间');
+  printLine(output, 'server', '  free -h     内存使用概况');
+  printLine(output, 'server', '  ps aux      进程列表');
+  printLine(output, 'server', '  uname -a    系统内核版本');
+  printLine(output, 'server', '  uptime      运行时长与负载');
+  printLine(output, 'server', '  id          用户身份');
+  printLine(output, 'server', '  date        系统时间');
+  printLine(output, 'server', '  docker ps   Docker 容器');
+  printLine(output, 'info', '━━ 客户端专用 ━━');
+  printLine(output, 'ok', '  status      系统诊断');
+  printLine(output, 'ok', '  test        连通性测试');
+  printLine(output, 'ok', '  network     网络信息');
+  printLine(output, 'ok', '  sw          Service Worker');
+  printLine(output, 'ok', '  localStorage  本地存储');
+  printLine(output, 'ok', '  clear       清空输出');
+  printLine(output, 'info', '也可输入 JS 表达式');
+}
+
+async function cmdStatus(output) {
+  printLine(output, 'info', '🔍 收集系统信息...');
+  var t0 = performance.now();
+  var theme = document.body.getAttribute('data-theme') || 'light';
+  var swReg = false;
+  try { swReg = !!(await navigator.serviceWorker.getRegistration()); } catch(e) {}
+  var tools = document.querySelectorAll('.link-card').length;
+  var t1 = performance.now();
+  printLine(output, 'info', '━━ 系统状态 @ ' + new Date().toLocaleTimeString() + ' ━━');
+  printLine(output, 'ok', '  ✅ 主题        ' + theme);
+  printLine(output, 'ok', '  ✅ 在线工具    ' + tools + ' 个');
+  printLine(output, 'ok', '  ✅ 网络        ' + (navigator.onLine ? '在线' : '离线'));
+  printLine(output, swReg ? 'ok' : 'warn', '  ' + (swReg ? '✅' : '⚠️') + ' SW        ' + (swReg ? '已注册' : '未注册'));
+  printLine(output, 'ok', '  ✅ 本地存储    ' + localStorage.length + ' 项');
+  printLine(output, 'ok', '  ✅ 诊断耗时    ' + (t1-t0).toFixed(1) + 'ms');
+  printLine(output, 'info', '输入 test 测试子应用连通性');
+}
+
+async function cmdTest(output) {
+  printLine(output, 'info', '🔍 测试子应用连通性...');
+  var apps = [
+    {name:'Wiki',   url:'./wiki/',                 icon:'📖'},
+    {name:'保险箱', url:'./vault/api.php?action=ping', icon:'🔒', api:true},
+    {name:'英语',   url:'./english/',               icon:'📝'},
+    {name:'阅读器', url:'./reader/',                icon:'📚'},
+    {name:'DataWork', url:'./datework/api/health', icon:'📊', api:true}
+  ];
+  printLine(output, 'info', '━━ 连通性测试 ━━');
+  var ok = 0, fail = 0;
+  for (var i = 0; i < apps.length; i++) {
+    var a = apps[i];
+    try {
+      var ctrl = new AbortController();
+      var timer = setTimeout(function(){ ctrl.abort(); }, 4000);
+      var t0 = performance.now();
+      var r = await fetch(a.url, {signal: ctrl.signal, cache: 'no-cache'});
+      clearTimeout(timer);
+      var ms = (performance.now() - t0).toFixed(0);
+      if (r.ok || r.status < 500) {
+        printLine(output, 'ok', '  ✅ ' + a.icon + ' ' + a.name + ' — HTTP ' + r.status + ' (' + ms + 'ms)');
+        ok++;
+      } else {
+        printLine(output, 'err', '  ❌ ' + a.icon + ' ' + a.name + ' — HTTP ' + r.status);
+        fail++;
+      }
+    } catch(e) {
+      printLine(output, 'err', '  ❌ ' + a.icon + ' ' + a.name + ' — ' + (e.name === 'AbortError' ? '超时' : e.message));
+      fail++;
+    }
+  }
+  printLine(output, 'info', '结果: ' + ok + ' 通过, ' + fail + ' 失败, ' + apps.length + ' 总计');
+}
+
+function cmdNetwork(output) {
+  var c = navigator.connection;
+  printLine(output, 'info', '━━ 网络信息 ━━');
+  printLine(output, 'ok', '  在线: ' + navigator.onLine);
+  if (c) {
+    printLine(output, 'ok', '  类型: ' + (c.effectiveType || '?'));
+    printLine(output, 'ok', '  带宽: ' + (c.downlink || '?') + ' Mbps');
+    printLine(output, 'ok', '  RTT:  ' + (c.rtt || '?') + 'ms');
+    printLine(output, 'ok', '  省流: ' + (c.saveData ? '是' : '否'));
+  } else {
+    printLine(output, 'warn', '  NetworkInformation API 不可用');
+  }
+}
+
+async function cmdSW(output) {
+  printLine(output, 'info', '━━ Service Worker ━━');
+  if (!('serviceWorker' in navigator)) {
+    printLine(output, 'warn', '  浏览器不支持');
+    return;
+  }
+  try {
+    var reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) { printLine(output, 'warn', '  未注册'); return; }
+    printLine(output, 'ok', '  Scope: ' + reg.scope);
+    var sw = reg.installing || reg.waiting || reg.active;
+    if (sw) {
+      printLine(output, 'ok', '  状态: ' + sw.state);
+      printLine(output, 'ok', '  脚本: ' + sw.scriptURL);
+    }
+    if (reg.waiting) printLine(output, 'warn', '  ⚠️  有新版本等待激活');
+  } catch(e) {
+    printLine(output, 'err', '  错误: ' + e.message);
+  }
+}
+
+function cmdLS(output) {
+  printLine(output, 'info', '━━ 本地存储 (' + localStorage.length + ' 项) ━━');
+  if (localStorage.length === 0) { printLine(output, 'info', '  (空)'); return; }
+  for (var i = 0; i < localStorage.length; i++) {
+    var k = localStorage.key(i), v = localStorage.getItem(k);
+    if (v.length > 80) v = v.substring(0, 80) + '...';
+    printLine(output, 'ok', '  ' + k + ': ' + v);
+  }
+}
+
+async function cmdServer(output, cmd) {
+  printLine(output, 'info', '⏳ 发送到服务器: ' + cmd + ' ...');
+  try {
+    var r = await fetch('./api/console.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: cmd })
+    });
+    var j = await r.json();
+    if (j.ok) {
+      printLine(output, 'server', j.output);
+      var base = cmd.split(' ')[0];
+      if (j.output && !j.output.match(/no access|read error|no such/)) {
+        if (base === 'cd' || base === 'pwd') {
+          _cwd = j.output.split('\n')[0].trim();
+          updatePrompt();
+        }
+      }
+    } else {
+      printLine(output, 'err', '服务器错误: ' + (j.error || '未知'));
+    }
+  } catch(e) {
+    printLine(output, 'err', '连接服务器失败: ' + e.message);
+  }
+}
+
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('./sw.js')
+      .then(function(reg){console.log('SW registered:',reg.scope);})
+      .catch(function(err){console.error('SW registration failed:',err);});
+  });
+}
+</script>
+</body>
+</html>

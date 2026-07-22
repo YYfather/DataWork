@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>凭证保险箱</title>
+<meta name="description" content="多用户账号密码管理工具">
+<meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1e1b2e" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../avatar.jpg">
+<link rel="apple-touch-icon" href="../avatar.jpg">
+<!-- Shared Theme -->
+<link rel="stylesheet" href="../shared/theme.css">
+<!-- Vault Styles -->
+<link rel="stylesheet" href="assets/css/styles.css">
+<!-- PWA Manifest -->
+<link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+<a href="#main-content" class="skip-link">跳到主要内容</a>
+
+<!-- ========== Auth Screen ========== -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <div class="logo">🔒</div>
+    <h1>凭证保险箱</h1>
+    <p id="authDesc">登录以访问你的保险箱</p>
+    <div class="auth-msg" id="authMsg"></div>
+    <div id="authForm">
+      <!-- 登录模式：下拉框 -->
+      <div class="auth-input" id="authSelectWrap">
+        <select id="authUsername" style="padding:14px 16px;cursor:pointer;width:100%;border:2px solid var(--c-border);border-radius:10px;background:var(--c-input-bg);color:var(--c-text);font-size:15px" onkeydown="if(event.key==='Enter')document.getElementById('authPassword').focus()">
+          <option value="">加载用户列表...</option>
+        </select>
+      </div>
+      <!-- 设置模式：输入框 -->
+      <div class="auth-input" id="authTextWrap" style="display:none">
+        <input type="text" id="authTextUser" placeholder="输入用户名" autocomplete="off" onkeydown="if(event.key==='Enter')handleAuth()">
+      </div>
+      <div class="auth-input"><input type="password" id="authPassword" placeholder="密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleAuth()"></div>
+      <div id="authRememberWrap" style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:13px;color:var(--c-text2)">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="authRemember" style="width:16px;height:16px;accent-color:var(--c-primary);cursor:pointer">七天免登录</label>
+      </div>
+      <button class="auth-btn" id="authBtn" onclick="handleAuth()">登录</button>
+    </div>
+    <div class="auth-switch" id="authSwitch">
+      <span>首次使用？</span>
+      <button onclick="switchAuthMode()">设置主账号</button>
+    </div>
+    <div class="auth-hint" id="authHint">1 小时无操作自动退出</div>
+  </div>
+</div>
+
+<!-- ========== App ========== -->
+<main id="main-content">
+<div class="app" id="app">
+  <!-- Header -->
+  <div class="header">
+    <h1>🔒 保险箱</h1>
+    <div class="header-actions">
+      <div class="user-badge" id="userBadge"><span id="userDisplayName">用户</span><span class="role-tag" id="roleTag">主人</span></div>
+      <button class="icon-btn" id="adminBtn" onclick="openAdmin()" title="管理" style="display:none">⚙️</button>
+      <button class="icon-btn" id="notifBtn" onclick="openNotifPanel()" title="通知" style="display:none;position:relative">🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span></button>
+      <button class="icon-btn" onclick="openChangeMyPwd()" title="修改密码">🔑</button>
+      <button class="icon-btn" onclick="toggleTheme()" title="切换主题">🌓</button>
+      <button class="icon-btn" onclick="handleLogout()" title="登出">🚪</button>
+    </div>
+  </div>
+
+  <!-- Breadcrumb -->
+  <nav class="nav-breadcrumb" id="navBreadcrumb">
+    <a href="../">🏠 主页</a><span class="sep">›</span><span class="current">🔒 凭证保险箱</span>
+  </nav>
+
+  <!-- Search -->
+  <div id="searchWrap" style="margin-bottom:16px;position:relative">
+    <input type="text" id="searchInput" placeholder="搜索分类和条目..." oninput="debouncedSearch(this.value)" style="padding:10px 16px 10px 36px;border-radius:10px;border:2px solid var(--c-border);background:var(--c-card);width:100%;font-size:14px;transition:border-color .2s">
+    <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--c-text2);pointer-events:none">🔍</span>
+  </div>
+
+  <!-- Categories -->
+  <div id="categorySection">
+    <div class="cat-grid" id="categoryList"></div>
+  </div>
+
+  <!-- Entries -->
+  <div id="entrySection" style="display:none">
+    <div class="entries-header">
+      <h2 id="entriesTitle"><span id="entriesCatIcon">🔑</span> <span id="entriesCatName">分类</span></h2>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="backToCategories()" title="返回分类">◀</button>
+        <button class="icon-btn" id="addEntryBtn" onclick="openEntryModal()" title="添加条目">➕</button>
+      </div>
+    </div>
+    <div class="entry-list" id="entryList">
+      <div class="entry-empty">选择分类查看条目</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Entry Modal ========== -->
+<div class="modal-overlay" id="entryModal" onkeydown="if(event.key==='Enter'){if(event.target.tagName==='INPUT'){event.preventDefault()}else{event.preventDefault();const saveBtn=document.getElementById('entrySaveBtn');const submitBtn=document.getElementById('entrySubmitBtn');if(submitBtn.style.display!=='none')submitBtn.click();else if(saveBtn.style.display!=='none')saveBtn.click()}}">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="closeEntryModal()">✕</button>
+    <h2 id="entryModalTitle">📝 编辑条目</h2>
+    <label>图标</label>
+    <div class="icon-input-row">
+      <span class="icon-preview" id="entryIconPreview">🔐</span>
+      <input type="text" id="entryIcon" placeholder="选择或输入图标" maxlength="4" oninput="updateIconPreview('entryIcon','entryIconPreview')">
+    </div>
+    <div class="icon-picker-wrap"><div class="icon-grid" id="entryIconGrid"></div></div>
+    <label>标题</label>
+    <input type="text" id="entryTitle" placeholder="例如：Google 账号">
+    <label>字段</label>
+    <div class="mf-list" id="mfList"></div>
+    <button class="mf-add" onclick="addModalField()">+ 添加字段</button>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeEntryModal()">取消</button>
+      <button class="btn btn-primary" id="entrySaveBtn" onclick="saveEntry()">保存</button>
+      <button class="btn btn-primary" id="entrySubmitBtn" onclick="submitEntryForReview(this)" style="display:none">📤 提交审核</button>
+      <button class="btn btn-danger" id="entryDelBtn" onclick="deleteEntry()" style="display:none">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Admin Modal ========== -->
+<div class="modal-overlay" id="adminModal">
+  <div class="modal" style="position:relative;max-width:680px">
+    <button class="modal-close" onclick="closeAdmin()">✕</button>
+    <h2>⚙️ 管理面板</h2>
+
+    <!-- 系统统计 -->
+    <div class="admin-section">
+      <h3>📊 系统概览</h3>
+      <div id="statsBar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px">
+        <div style="text-align:center;padding:12px 8px;background:var(--c-primary-light);border-radius:10px">
+          <div style="font-size:20px;font-weight:700;color:var(--c-primary)" id="statUsers">-</div>
+          <div style="font-size:11px;color:var(--c-text2)">用户</div>
+        </div>
+        <div style="text-align:center;padding:12px 8px;background:var(--c-primary-light);border-radius:10px">
+          <div style="font-size:20px;font-weight:700;color:var(--c-primary)" id="statCats">-</div>
+          <div style="font-size:11px;color:var(--c-text2)">分类</div>
+        </div>
+        <div style="text-align:center;padding:12px 8px;background:var(--c-primary-light);border-radius:10px">
+          <div style="font-size:20px;font-weight:700;color:var(--c-primary)" id="statEntries">-</div>
+          <div style="font-size:11px;color:var(--c-text2)">条目</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 用户管理 -->
+    <div class="admin-section">
+      <h3>👥 用户管理</h3>
+      <div id="userList"></div>
+      <button class="btn btn-secondary" style="width:100%;padding:10px;border-radius:8px;font-size:14px" onclick="showAddUser()">+ 添加用户</button>
+    </div>
+
+    <!-- 分类管理 -->
+    <div class="admin-section">
+      <h3>📂 分类管理</h3>
+      <div id="adminCatList"></div>
+      <button class="btn btn-secondary" style="width:100%;padding:10px;border-radius:8px;font-size:14px" onclick="showAddCategory()">+ 添加分类</button>
+    </div>
+
+    <!-- 权限分配 -->
+    <div class="admin-section">
+      <h3>🔐 权限分配</h3>
+      <div id="permUserSelect" style="margin-bottom:8px">
+        <select id="permUserSelectEl" onchange="loadPermGrid()"><option value="">正在加载…</option></select>
+      </div>
+      <div id="permGridContainer">
+        <div style="color:var(--c-text2);padding:12px">选择用户后显示权限</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-secondary" style="flex:1;padding:8px;border-radius:8px;font-size:13px" onclick="permSelectAll()">全选读写</button>
+        <button class="btn btn-secondary" style="flex:1;padding:8px;border-radius:8px;font-size:13px" onclick="permSelectRead()">全选只读</button>
+        <button class="btn btn-secondary" style="flex:1;padding:8px;border-radius:8px;font-size:13px" onclick="permClearAll()">清空</button>
+      </div>
+      <button class="btn btn-primary" style="width:100%;padding:10px;border-radius:8px;font-size:14px;margin-top:8px" onclick="savePermissions()">保存权限</button>
+    </div>
+
+    <!-- 数据管理 -->
+    <div class="admin-section">
+      <h3>💾 数据管理</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" style="flex:1;padding:10px;border-radius:8px;font-size:14px;text-align:center" onclick="exportData()">⬇️ 导出备份</button>
+        <button class="btn btn-secondary" style="flex:1;padding:10px;border-radius:8px;font-size:14px;text-align:center" onclick="document.getElementById('importFileInput').click()">⬆️ 导入数据</button>
+        <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importData(this.files[0])">
+      </div>
+      <div style="font-size:12px;color:var(--c-text2);margin-top:6px">导入会替换所有现有数据，建议先导出备份</div>
+    </div>
+
+    <!-- WebDAV -->
+    <div class="admin-section">
+      <h3>☁️ WebDAV 云同步</h3>
+      <!-- Config -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input type="url" id="wdUrl" placeholder="WebDAV 目录地址 (例: https://xxx.com/dav/vault-backups/)" style="font-size:13px;padding:10px 12px">
+        <div style="display:flex;gap:8px">
+          <input type="text" id="wdUser" placeholder="用户名" style="flex:1;font-size:13px;padding:10px 12px">
+          <input type="password" id="wdPass" placeholder="密码（留空不修改）" style="flex:1;font-size:13px;padding:10px 12px">
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" style="flex:1;padding:10px;border-radius:8px;font-size:13px;text-align:center" onclick="webdavSaveConfig()">💾 保存配置</button>
+          <button class="btn btn-secondary" style="flex:1;padding:10px;border-radius:8px;font-size:13px;text-align:center" onclick="webdavTest()">🔍 测试连接</button>
+        </div>
+        <div id="wdCfgStatus" style="font-size:12px;color:var(--c-text2);text-align:center;min-height:18px"></div>
+      </div>
+      <!-- Actions -->
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn btn-primary" style="flex:1;padding:12px;border-radius:8px;font-size:14px;text-align:center" id="wdUploadBtn" onclick="webdavUpload()">⬆️ 上传备份</button>
+        <button class="btn btn-secondary" style="flex:1;padding:12px;border-radius:8px;font-size:14px;text-align:center" id="wdDownloadBtn" onclick="webdavDownload()">⬇️ 下载恢复</button>
+      </div>
+      <div id="wdStatus" style="font-size:12px;color:var(--c-text2);margin-top:8px;text-align:center"></div>
+      <!-- Versions -->
+      <div style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:13px;font-weight:600;color:var(--c-text2)">📋 云端版本</span>
+          <button class="icon-btn" onclick="loadWebdavVersions()" title="刷新" style="font-size:14px;width:28px;height:28px">🔄</button>
+        </div>
+        <div id="wdVersionList" style="font-size:12px;max-height:220px;overflow-y:auto">
+          <div style="color:var(--c-text2);padding:8px;text-align:center">点击刷新加载</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Server酱 推送 -->
+    <div class="admin-section">
+      <h3>📱 Server酱 推送</h3>
+      <div style="font-size:12px;color:var(--c-text2);margin-bottom:8px">子账号提交提案时自动推送微信通知给主账号 · <a href="https://sct.ftqq.com/sendkey" target="_blank" rel="noopener" style="color:var(--c-primary)">获取 SendKey</a></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="scSendKey" placeholder="SendKey（留空不修改）" style="flex:1;font-size:13px;padding:10px 12px">
+        <button class="btn btn-secondary" style="padding:10px 16px;border-radius:8px;font-size:13px;white-space:nowrap" onclick="serverchanSave()">💾 保存</button>
+        <button class="btn btn-secondary" style="padding:10px 16px;border-radius:8px;font-size:13px;white-space:nowrap" onclick="serverchanTest()">🔔 测试</button>
+      </div>
+      <div id="scStatus" style="font-size:12px;color:var(--c-text2);margin-top:6px;text-align:center;min-height:18px"></div>
+    </div>
+
+    <!-- Debug -->
+    <div class="admin-section">
+      <h3>🔧 调试工具</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" style="flex:1;padding:10px;border-radius:8px;font-size:13px;text-align:center" onclick="viewDebugLog()">📄 查看调试日志</button>
+        <button class="btn btn-secondary" style="flex:1;padding:10px;border-radius:8px;font-size:13px;text-align:center" onclick="viewSystemInfo()">🖥️ 系统信息</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Debug log modal -->
+<div class="modal-overlay" id="debugLogModal"><div class="modal" style="position:relative;max-width:700px">
+  <button class="modal-close" onclick="closeModal('debugLogModal')">✕</button>
+  <h2>📄 调试日志</h2>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span id="debugLogInfo" style="font-size:12px;color:var(--c-text2)"></span>
+    <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;border-radius:6px" onclick="viewDebugLog()">🔄 刷新</button>
+  </div>
+  <pre id="debugLogContent" style="background:var(--c-input-bg);color:var(--c-text);padding:12px;border-radius:8px;font-size:12px;max-height:400px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace;margin:0">加载中...</pre>
+</div></div>
+
+<!-- ========== Sub-Modals ========== -->
+<div class="modal-overlay" id="addUserModal"><div class="modal" style="position:relative;max-width:400px">
+  <button class="modal-close" onclick="closeModal('addUserModal')">✕</button>
+  <h2>👤 添加用户</h2>
+  <label>用户名</label><input type="text" id="newUserName" placeholder="输入用户名" onkeydown="if(event.key==='Enter')document.getElementById('newUserPwd').focus()">
+  <label>密码</label><input type="text" id="newUserPwd" placeholder="输入密码（至少4位）" onkeydown="if(event.key==='Enter')document.querySelector('#addUserModal .btn-primary').click()">
+  <div class="btn-row"><button class="btn btn-secondary" onclick="closeModal('addUserModal')">取消</button><button class="btn btn-primary" onclick="addUser()">创建</button></div>
+</div></div>
+
+<div class="modal-overlay" id="resetPwdModal"><div class="modal" style="position:relative;max-width:400px">
+  <button class="modal-close" onclick="closeModal('resetPwdModal')">✕</button>
+  <h2>🔑 重置密码</h2>
+  <label>新密码</label><input type="text" id="resetPwdInput" placeholder="输入新密码" onkeydown="if(event.key==='Enter')document.querySelector('#resetPwdModal .btn-primary').click()">
+  <div class="btn-row"><button class="btn btn-secondary" onclick="closeModal('resetPwdModal')">取消</button><button class="btn btn-primary" onclick="resetUserPwd()">确认重置</button></div>
+  <input type="hidden" id="resetPwdUserId" value="">
+</div></div>
+
+<div class="modal-overlay" id="addCatModal"><div class="modal" style="position:relative;max-width:400px">
+  <button class="modal-close" onclick="closeModal('addCatModal')">✕</button>
+  <h2>📂 添加分类</h2>
+  <label>分类名称</label><input type="text" id="newCatName" placeholder="例如：工作" maxlength="20" onkeydown="if(event.key==='Enter')document.querySelector('#addCatModal .btn-primary').click()">
+  <label>图标</label>
+  <div class="icon-input-row">
+    <span class="icon-preview" id="newCatIconPreview">🔑</span>
+    <input type="text" id="newCatIcon" placeholder="🔑" maxlength="4" oninput="updateIconPreview('newCatIcon','newCatIconPreview')">
+  </div>
+  <div class="icon-picker-wrap"><div class="icon-grid" id="newCatIconGrid"></div></div>
+  <div class="btn-row"><button class="btn btn-secondary" onclick="closeModal('addCatModal')">取消</button><button class="btn btn-primary" onclick="addCategory()">创建</button></div>
+</div></div>
+
+<div class="modal-overlay" id="changeMyPwdModal"><div class="modal" style="position:relative;max-width:400px">
+  <button class="modal-close" onclick="closeModal('changeMyPwdModal')">✕</button>
+  <h2>🔑 修改密码</h2>
+  <label>旧密码</label><input type="password" id="myOldPwd" placeholder="输入旧密码" onkeydown="if(event.key==='Enter')document.getElementById('myNewPwd').focus()">
+  <label>新密码</label><input type="password" id="myNewPwd" placeholder="输入新密码（至少 4 位）" onkeydown="if(event.key==='Enter')document.getElementById('myNewPwd2').focus()">
+  <label>确认新密码</label><input type="password" id="myNewPwd2" placeholder="再次输入新密码" onkeydown="if(event.key==='Enter')changeMyPwd()">
+  <div class="btn-row"><button class="btn btn-secondary" onclick="closeModal('changeMyPwdModal')">取消</button><button class="btn btn-primary" onclick="changeMyPwd()">确认修改</button></div>
+</div></div>
+
+<div class="modal-overlay" id="entryPermModal"><div class="modal" style="position:relative;max-width:480px">
+  <button class="modal-close" onclick="closeModal('entryPermModal')">✕</button>
+  <h2>👁️ 条目可见性</h2>
+  <div style="font-size:13px;color:var(--c-text2);margin-bottom:12px" id="entryPermDesc">选择该用户可以查看的条目</div>
+  <div id="entryPermList" style="max-height:340px;overflow-y:auto"></div>
+  <div style="display:flex;gap:8px;margin-top:8px">
+    <button class="btn btn-secondary" style="flex:1;padding:6px;border-radius:8px;font-size:12px" onclick="entryPermSelectAll()">全选</button>
+    <button class="btn btn-secondary" style="flex:1;padding:6px;border-radius:8px;font-size:12px" onclick="entryPermClearAll()">全不选</button>
+  </div>
+  <div class="btn-row"><button class="btn btn-secondary" onclick="closeModal('entryPermModal')">取消</button><button class="btn btn-primary" onclick="saveEntryPerms()">保存</button></div>
+  <input type="hidden" id="entryPermCatId" value="">
+</div></div>
+
+<div class="modal-overlay" id="editUserModal"><div class="modal" style="position:relative;max-width:400px">
+  <button class="modal-close" onclick="closeModal('editUserModal')">✕</button>
+  <h2>✏️ 编辑用户</h2>
+  <label>显示名称</label><input type="text" id="editUserName" placeholder="输入显示名称" onkeydown="if(event.key==='Enter')document.querySelector('#editUserModal .btn-primary').click()">
+  <div class="btn-row"><button class="btn btn-secondary" onclick="closeModal('editUserModal')">取消</button><button class="btn btn-primary" onclick="saveEditUser()">保存</button></div>
+  <input type="hidden" id="editUserId" value="">
+</div></div>
+
+<div class="modal-overlay" id="userDetailModal"><div class="modal" style="position:relative;max-width:520px">
+  <button class="modal-close" onclick="closeModal('userDetailModal')">✕</button>
+  <h2>👤 用户详情</h2>
+  <div id="userDetailContent" style="font-size:14px"></div>
+</div></div>
+
+<div class="modal-overlay" id="renameCatModal"><div class="modal" style="position:relative;max-width:400px">
+  <button class="modal-close" onclick="closeModal('renameCatModal')">✕</button>
+  <h2>✏️ 编辑分类</h2>
+  <label>分类名称</label><input type="text" id="renameCatName" maxlength="20" onkeydown="if(event.key==='Enter')document.querySelector('#renameCatModal .btn-primary').click()">
+  <label>图标</label>
+  <div class="icon-input-row">
+    <span class="icon-preview" id="renameCatIconPreview">🔑</span>
+    <input type="text" id="renameCatIcon" maxlength="4" oninput="updateIconPreview('renameCatIcon','renameCatIconPreview')">
+  </div>
+  <div class="icon-picker-wrap"><div class="icon-grid" id="renameCatIconGrid"></div></div>
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="closeModal('renameCatModal')">取消</button>
+    <button class="btn btn-danger" id="delCatBtn" onclick="deleteCategory()">删除</button>
+    <button class="btn btn-primary" onclick="renameCategory()">保存</button>
+  </div>
+  <input type="hidden" id="renameCatId" value="">
+</div></div>
+
+<!-- ========== My Proposals Modal ========== -->
+<div class="modal-overlay" id="myProposalsModal"><div class="modal" style="position:relative;max-width:560px">
+  <button class="modal-close" onclick="closeMyProposalsModal()">✕</button>
+  <h2>📋 我的提案</h2>
+  <div class="segmented" id="myProposalsFilter" style="margin-bottom:12px">
+    <button class="active" onclick="setMyProposalsFilter('all', this)">全部</button>
+    <button onclick="setMyProposalsFilter('pending', this)">待审核</button>
+    <button onclick="setMyProposalsFilter('approved', this)">已通过</button>
+    <button onclick="setMyProposalsFilter('rejected', this)">已驳回</button>
+  </div>
+  <div id="myProposalsList" style="max-height:60vh;overflow-y:auto"></div>
+</div></div>
+
+<!-- ========== Review Modal ========== -->
+<div class="modal-overlay" id="reviewModal"><div class="modal" style="position:relative;max-width:600px">
+  <button class="modal-close" onclick="closeReviewModal()">✕</button>
+  <h2>✅ 审核队列 <span id="reviewBadge" style="font-size:13px;color:var(--c-text2);font-weight:400"></span></h2>
+  <div class="segmented" id="reviewFilter" style="margin-bottom:12px">
+    <button class="active" onclick="setReviewFilter('all', this)">全部</button>
+    <button onclick="setReviewFilter('create', this)">📝 新条目</button>
+    <button onclick="setReviewFilter('update', this)">✏️ 修改</button>
+    <button onclick="setReviewFilter('report', this)">🚩 上报</button>
+  </div>
+  <div id="reviewList" style="max-height:60vh;overflow-y:auto"></div>
+</div></div>
+
+<!-- ========== Report Issue Modal ========== -->
+<div class="modal-overlay" id="reportModal"><div class="modal" style="position:relative;max-width:440px">
+  <button class="modal-close" onclick="closeReportModal()">✕</button>
+  <h2>🚩 报告问题</h2>
+  <div style="font-size:14px;color:var(--c-text2);margin-bottom:12px">条目：<span id="reportEntryInfo" style="color:var(--c-text);font-weight:600"></span></div>
+  <label>问题描述</label>
+  <textarea id="reportReason" placeholder="请描述发现的问题..." rows="4" onkeydown="if(event.key==='Enter'&&event.ctrlKey)submitReport()"></textarea>
+  <div style="font-size:12px;color:var(--c-text2);margin-top:4px">Ctrl+Enter 快捷提交</div>
+  <div class="btn-row"><button class="btn btn-secondary" onclick="closeReportModal()">取消</button><button class="btn btn-primary" id="reportSubmitBtn" onclick="submitReport()">提交</button></div>
+</div></div>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">处理中...</div>
+  </div>
+</div>
+
+<!-- Sync Bar -->
+<div class="sync-bar" id="syncBar">
+  <span style="font-size:22px">☁️</span>
+  <div class="sync-info">
+    <div class="sync-title">有未同步的更改</div>
+    <div class="sync-detail" id="syncBarDetail">-</div>
+  </div>
+  <button class="btn btn-secondary" onclick="hideSyncBar()" style="padding:8px 12px;border-radius:8px;font-size:13px;white-space:nowrap">忽略</button>
+  <button class="btn btn-primary" id="syncBarBtn" onclick="quickSync()" style="padding:8px 16px;border-radius:8px;font-size:13px;white-space:nowrap">☁️ 上传</button>
+</div>
+
+<!-- Cloud Sync Prompt Modal -->
+<div class="modal-overlay" id="cloudSyncModal">
+  <div class="modal" style="text-align:center">
+    <div style="font-size:48px;margin-bottom:12px">☁️</div>
+    <h2 style="justify-content:center">发现云端更新</h2>
+    <div id="cloudSyncInfo" style="color:var(--c-text2);font-size:14px;margin:12px 0;line-height:1.6"></div>
+    <div style="background:var(--c-warning);color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;margin:12px 0;text-align:left">
+      ⚠️ 同步将<strong>替换所有本地数据</strong>，建议确认后再操作
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-secondary" onclick="dismissCloudSync()">暂不同步</button>
+      <button class="btn btn-primary" id="cloudSyncBtn" onclick="syncFromCloudPrompt()">⬇️ 从云端同步</button>
+    </div>
+  </div>
+</div>
+</main>
+
+<!-- Floating Back Button -->
+<button class="floating-back" id="floatingBack" onclick="goBack()" title="返回上级 (Esc)">←</button>
+
+<script src="../shared/utils.js?v=20260712"></script>
+<script src="../shared/theme.js?v=20260712"></script>
+<script src="assets/js/app.js?v=20260712" defer></script>
+<script>
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.error('SW registration failed:', err));
+  });
+}
+</script>
+</body>
+</html>
+

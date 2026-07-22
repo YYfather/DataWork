@@ -1,0 +1,18 @@
+{
+  "name": "凭证保险箱",
+  "short_name": "保险箱",
+  "description": "安全的凭证管理工具",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f8f7ff",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "../avatar.jpg",
+      "sizes": "any",
+      "type": "image/jpeg"
+    }
+  ],
+  "categories": ["security", "utilities"]
+}

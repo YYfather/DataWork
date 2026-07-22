@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>英语选词填空刷题练习 Pro</title>
+    <meta name="description" content="支持随机、顺序、错题重练和本地进度保存的英语选词填空在线刷题工具，含 70+ 真题题库与即时解析。">
+    <meta name="keywords" content="英语选词填空, 刷题练习, 英语学习, 四级, 六级, 词汇, 在线练习">
+    <meta name="author" content="霡霂">
+    <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="选词填空Pro">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="英语选词填空刷题练习 Pro">
+    <meta property="og:description" content="支持随机、顺序、错题重练和本地进度保存的英语选词填空在线刷题工具。">
+    <meta property="og:locale" content="zh_CN">
+
+    <!-- Favicon -->
+    <link rel="icon" href="../avatar.jpg">
+    <link rel="apple-touch-icon" href="../avatar.jpg">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Shared Theme -->
+    <link rel="stylesheet" href="../shared/theme.css">
+    <!-- English App Styles -->
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<a href="#main-content" class="skip-link">跳到主要内容</a>
+<div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
+<main class="app-shell" role="main" id="main-content">
+    <!-- 首次欢迎弹窗 -->
+    <div id="welcome-overlay" class="welcome-overlay" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+        <div class="welcome-card">
+            <div class="welcome-emoji">📝</div>
+            <h2 id="welcome-title">欢迎使用选词填空 Pro</h2>
+            <div class="welcome-info">
+                <span>本工具仅供学习交流，非盈利用途。</span>
+                <span class="warn-text">若你为本工具付费获取，请联系退款。</span>
+                <span class="author-name">作者：霡霂 &nbsp;|&nbsp; QQ：1490473838</span>
+            </div>
+            <button class="btn-welcome" onclick="dismissWelcome()" aria-label="知道了，开始使用">知道了，开始学习 ✨</button>
+            <div class="welcome-footer">此提示仅显示一次</div>
+        </div>
+    </div>
+
+    <div class="header-tools">
+        <div></div> <div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="切换夜间模式" aria-label="切换夜间模式">🌓</button>
+            <button class="settings-btn" onclick="openDataModal()" title="数据管理" aria-label="数据备份与恢复">💾</button>
+        </div>
+    </div>
+
+    <!-- Breadcrumb -->
+    <nav class="nav-breadcrumb" id="navBreadcrumb">
+        <a href="../">🏠 主页</a><span class="sep">›</span><span class="current">📝 英语选词填空</span>
+    </nav>
+
+    <h1>英语选词填空刷题软件 Pro</h1>
+    <p class="subtitle">支持随机、顺序、错题重练和本地进度保存，上传到服务器即可使用。</p>
+
+    <div class="container">
+        <div id="stats-view">
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="startPractice('random')" aria-label="随机顺序开始刷题">🎲 随机刷题</button>
+                <button class="btn btn-secondary" onclick="startPractice('sequential')" aria-label="按题目顺序开始刷题">📝 顺序刷题</button>
+                <button class="btn btn-danger" onclick="startPractice('review')" id="btn-review-mistakes" aria-label="重新练习做错的题目">💊 错题重练</button>
+            </div>
+            
+            <div class="stats-grid" role="region" aria-label="练习统计">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-total" aria-label="总题数">0</div>
+                    <div class="stat-label">总题库</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-done" aria-label="已刷题数">0</div>
+                    <div class="stat-label">已刷题数</div>
+                    <div class="progress-ring"><div class="progress-ring-fill" id="stat-done-bar" style="width:0%"></div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-accuracy" style="color: var(--success-color)">0%</div>
+                    <div class="stat-label">正确率</div>
+                    <div class="progress-ring"><div class="progress-ring-fill" id="stat-accuracy-bar" style="width:0%; background: var(--success-color)"></div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-wrong" style="color: var(--error-color)">0</div>
+                    <div class="stat-label">错题本</div>
+                </div>
+            </div>
+
+            <div class="reset-wrapper">
+                <button class="btn btn-warning" onclick="resetAllProgress()">🗑️ 重置所有进度</button>
+            </div>
+        </div>
+
+        <div id="quiz-view" style="display: none;" role="region" aria-label="答题区域">
+            <div class="question-meta">
+                <span>
+                    <span id="mode-badge" class="mode-badge">随机模式</span>
+                    第 <span id="current-index-display">1</span> 题
+                </span>
+                
+                <label class="auto-advance-wrapper" title="答对后自动进入下一题">
+                    <input type="checkbox" id="auto-advance-toggle" onchange="toggleAutoAdvance()">
+                    <span>⚡ 自动切题</span>
+                </label>
+
+                <span>剩余: <span id="remaining-count">0</span></span>
+            </div>
+
+            <div id="question-text" class="question-text" aria-live="polite" aria-atomic="true"></div>
+            
+            <div id="options-container" class="options-grid" role="group" aria-label="选项"></div>
+
+            <div id="analysis-box" class="analysis-box" role="alert" aria-live="assertive">
+                <h4 id="feedback-title">解析</h4>
+                <p id="translation-text" class="translation"></p>
+                <div class="analysis-actions">
+                    <button class="btn btn-primary" id="next-btn" onclick="nextQuestion()">下一题 ➜</button>
+                </div>
+            </div>
+
+            <div class="progress-wrapper" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="练习进度">
+                <div id="session-progress" class="progress-bar" style="width: 0%"></div>
+            </div>
+
+            <div class="quiz-footer">
+                <button class="btn btn-secondary" onclick="exitPractice()">✕ 结束练习</button>
+                <button class="btn btn-warning" onclick="showAnswer()" id="show-answer-btn">👁️ 查看答案</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="keyboard-hint">
+        快捷键: <span class="key-badge">1</span>-<span class="key-badge">4</span> 选择答案 &nbsp;|&nbsp; <span class="key-badge">Enter</span> 下一题 &nbsp;|&nbsp; <span class="key-badge">Esc</span> 关闭弹窗
+    </div>
+
+    <div id="data-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" onclick="if(event.target===this)closeDataModal()">
+        <div class="modal-content">
+            <h3 id="modal-title">数据备份与恢复</h3>
+            <p style="font-size: 12px; color: var(--text-secondary);">复制下方代码保存备份，或粘贴代码恢复进度。</p>
+            <textarea id="data-area" aria-label="数据备份内容"></textarea>
+            <div style="text-align: right; gap: 10px; display: flex; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="closeDataModal()" aria-label="关闭对话框">关闭</button>
+                <button class="btn btn-primary" onclick="copyData()" aria-label="复制数据到剪贴板">📋 复制</button>
+                <button class="btn btn-primary" onclick="importData()" aria-label="恢复数据">恢复数据</button>
+            </div>
+        </div>
+    </div>
+</main>
+
+    <!-- 题库数据（独立文件，方便单独更新） -->
+    <script src="questions.js"></script>
+    <script src="../shared/utils.js"></script>
+<script src="../shared/theme.js"></script>
+<script src="assets/js/app.js" defer></script>
+<script>
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.error('SW registration failed:', err));
+  });
+}
+</script>
+<!-- Floating Back Button -->
+<button class="floating-back" onclick="window.location.href='../'" title="返回主页 (Esc)">←</button>
+</body>
+</html>
+

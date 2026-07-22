@@ -1,0 +1,51 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "node": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "script"
+  },
+  "globals": {
+    "escapeHtml": "readonly",
+    "esc": "readonly",
+    "escAttr": "readonly",
+    "showToast": "readonly",
+    "ThemeManager": "readonly",
+    "pdfjsLib": "readonly",
+    "showLoadingOverlay": "readonly",
+    "hideLoadingOverlay": "readonly",
+    "$": "readonly",
+    "formatSize": "readonly"
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "off",
+    "semi": ["error", "always"],
+    "quotes": ["error", "single", { "avoidEscape": true }],
+    "indent": ["error", 2],
+    "no-multiple-empty-lines": ["error", { "max": 1 }],
+    "no-trailing-spaces": "error",
+    "no-undef": "warn",
+    "no-redeclare": "warn",
+    "no-empty": "warn",
+    "no-constant-condition": "warn",
+    "no-dupe-keys": "error",
+    "no-duplicate-case": "error",
+    "no-irregular-whitespace": "error",
+    "no-unreachable": "warn",
+    "valid-typeof": "error",
+    "curly": ["error", "all"],
+    "eqeqeq": ["error", "always"],
+    "no-caller": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-wrappers": "error",
+    "no-throw-literal": "error",
+    "no-with": "error",
+    "radix": "error"
+  }
+}

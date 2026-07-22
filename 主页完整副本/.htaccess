@@ -1,0 +1,25 @@
+# === 安全响应头 ===
+
+<IfModule mod_headers.c>
+    # 防止 MIME 类型嗅探
+    Header set X-Content-Type-Options "nosniff"
+    
+    # 防止点击劫持
+    Header set X-Frame-Options "SAMEORIGIN"
+    
+    # XSS 保护（旧浏览器）
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # 引用策略
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # 权限策略
+    Header set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+</IfModule>
+
+# === Vault 专用 CSP ===
+<Directory "vault">
+    <IfModule mod_headers.c>
+        Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'self'"
+    </IfModule>
+</Directory>

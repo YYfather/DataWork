@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>实验记录 · 霡霂</title>
+<meta name="description" content="实验记录 — 多项目管理 · 状态标记 · 收藏置顶">
+<meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../avatar.jpg">
+<link rel="apple-touch-icon" href="../avatar.jpg">
+<style>
+:root{--c-primary:#6366f1;--c-primary2:#a78bfa;--c-bg:#f8f7ff;--c-card:rgba(255,255,255,0.72);--c-text:#1e1b2e;--c-text2:#6b7280;--c-border:rgba(255,255,255,0.45);--shadow:0 8px 32px rgba(99,102,241,0.1);--radius:16px;--blur:20px;--s-doing:#3b82f6;--s-done:#10b981;--s-pending:#f59e0b;--s-repeat:#ef4444;--s-archive:#9ca3af}
+[data-theme="dark"]{--c-primary:#818cf8;--c-primary2:#c4b5fd;--c-bg:#08080f;--c-card:rgba(24,22,38,0.72);--c-text:#eae8f2;--c-text2:#9ca3af;--c-border:rgba(255,255,255,0.06);--shadow:0 8px 32px rgba(0,0,0,0.4);--s-doing:#60a5fa;--s-done:#34d399;--s-pending:#fbbf24;--s-repeat:#f87171;--s-archive:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'SF Pro Display','Segoe UI','Microsoft YaHei',system-ui,sans-serif;background:var(--c-bg);color:var(--c-text);min-height:100vh;min-height:100dvh;transition:background .5s,color .4s;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg-mesh{position:absolute;inset:0;background:radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.15), transparent),radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.12), transparent),radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.08), transparent);animation:meshShift 25s ease-in-out infinite alternate}
+@keyframes meshShift{0%{background-position:0% 0%,100% 100%,50% 50%}50%{background-position:30% 20%,70% 80%,40% 60%}100%{background-position:10% 40%,90% 30%,60% 40%}}
+.bg-grain{position:absolute;inset:0;opacity:.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:128px}
+[data-theme="dark"] .bg-mesh{background:radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.08), transparent),radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.06), transparent),radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.04), transparent)}
+
+.page{position:relative;z-index:1;max-width:720px;margin:0 auto;padding:48px 24px calc(40px + env(safe-area-inset-bottom));min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;animation:fadeUp .5s ease-out}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--c-text2);text-decoration:none;transition:color .2s}
+.back:hover{color:var(--c-primary)}
+.topbar-actions{display:flex;gap:8px}
+
+.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:10px;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:12px;color:var(--c-text2);cursor:pointer;transition:all .2s;text-decoration:none}
+.btn:hover{border-color:var(--c-primary);color:var(--c-primary);transform:translateY(-1px)}
+
+.theme-btn{position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:none;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:18px;cursor:pointer;box-shadow:var(--shadow);transition:all .25s;display:flex;align-items:center;justify-content:center;z-index:100;border:1px solid var(--c-border)}
+.theme-btn:hover{transform:scale(1.1) rotate(20deg)}
+
+.header{margin-bottom:20px;animation:fadeUp .5s ease-out .05s both}
+.header h1{font-size:1.6rem;font-weight:700;margin-bottom:4px;letter-spacing:-.02em}
+.header p{font-size:14px;color:var(--c-text2);margin-bottom:12px}
+
+/* ── Filter rows ── */
+.filter-section{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;animation:fadeUp .5s ease-out .08s both}
+.filter-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.filter-label{font-size:11px;color:var(--c-text2);font-weight:500;margin-right:4px;letter-spacing:.04em;white-space:nowrap}
+.filter-tab{padding:4px 12px;border-radius:16px;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(var(--blur));font-size:12px;cursor:pointer;transition:all .2s;color:var(--c-text2);white-space:nowrap;user-select:none}
+.filter-tab:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.filter-tab.active{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+
+/* Search */
+.search-wrap{position:relative;margin-bottom:16px;animation:fadeUp .5s ease-out .1s both}
+.search-wrap input{width:100%;padding:10px 16px 10px 38px;border-radius:12px;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(var(--blur));font-size:14px;color:var(--c-text);outline:none;transition:border-color .2s;font-family:inherit}
+.search-wrap input:focus{border-color:var(--c-primary)}
+.search-wrap input::placeholder{color:var(--c-text2)}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none;opacity:.5}
+
+.stats-bar{font-size:12px;color:var(--c-text2);margin-bottom:12px;animation:fadeUp .5s ease-out .12s both}
+
+/* ── Cards ── */
+.list{display:flex;flex-direction:column;gap:14px;flex:1}
+.card{display:flex;gap:14px;padding:18px;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:var(--radius);text-decoration:none;color:var(--c-text);transition:all .3s cubic-bezier(.25,.46,.45,.94);box-shadow:var(--shadow);position:relative;overflow:hidden;cursor:pointer}
+.card::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent);transition:left .5s}
+.card:hover::after{left:100%}
+.card:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(99,102,241,0.16);border-color:rgba(99,102,241,0.3)}
+.card:active{transform:translateY(-1px);transition-duration:.1s}
+.card.pinned{border-color:rgba(99,102,241,0.25);background:rgba(99,102,241,0.04)}
+
+.card-date{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:56px;border-radius:10px;background:rgba(99,102,241,0.06);padding:8px 6px;flex-shrink:0;align-self:flex-start}
+.card-date .month{font-size:11px;color:var(--c-text2);font-weight:500;line-height:1.1}
+.card-date .day{font-size:22px;font-weight:700;color:var(--c-primary);line-height:1.1;margin-top:2px}
+.card-date .year{font-size:9px;color:var(--c-text2);line-height:1}
+
+.card-body{flex:1;min-width:0}
+.card-body .title{font-size:15px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card-body .summary{font-size:13px;color:var(--c-text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:8px}
+.card-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+/* Status badges */
+.status-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:500;border:1px solid;line-height:1.4}
+.status-doing{color:var(--s-doing);border-color:var(--s-doing);background:rgba(59,130,246,0.08)}
+.status-done{color:var(--s-done);border-color:var(--s-done);background:rgba(16,185,129,0.08)}
+.status-pending{color:var(--s-pending);border-color:var(--s-pending);background:rgba(245,158,11,0.08)}
+.status-repeat{color:var(--s-repeat);border-color:var(--s-repeat);background:rgba(239,68,68,0.08)}
+.status-archive{color:var(--s-archive);border-color:var(--s-archive);background:rgba(156,163,175,0.08)}
+
+.project-badge{padding:2px 10px;border-radius:10px;font-size:11px;font-weight:500;color:#fff}
+.project-badge.c1{background:linear-gradient(135deg,#6366f1,#4f46e5)}
+.project-badge.c2{background:linear-gradient(135deg,#10b981,#059669)}
+.project-badge.c3{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.project-badge.c4{background:linear-gradient(135deg,#ec4899,#db2777)}
+.project-badge.c5{background:linear-gradient(135deg,#06b6d4,#0891b2)}
+.project-badge.c6{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}
+
+.tag{padding:2px 8px;border-radius:8px;font-size:10px;background:rgba(99,102,241,0.08);color:var(--c-primary)}
+
+.pin-btn{font-size:14px;cursor:pointer;opacity:.3;transition:all .2s;border:none;background:none;color:var(--c-text2);padding:4px;line-height:1}
+.pin-btn.pinned{opacity:1;color:var(--c-primary)}
+.card:hover .pin-btn{opacity:.6}
+.pin-btn:hover{opacity:1;transform:scale(1.15)}
+
+.empty-state{text-align:center;padding:60px 20px;animation:fadeUp .5s ease-out}
+.empty-state .icon{font-size:40px;margin-bottom:12px}
+.empty-state h3{font-size:1.1rem;margin-bottom:6px}
+.empty-state p{color:var(--c-text2);font-size:14px}
+
+.footer{margin-top:auto;padding-top:36px;text-align:center;font-size:12px;color:var(--c-text2);opacity:.4;animation:fadeUp .5s ease-out .3s both}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+@media(max-width:480px){
+  .page{padding:36px 16px calc(32px + env(safe-area-inset-bottom))}
+  .header h1{font-size:1.35rem}
+  .card{padding:14px;gap:10px}
+  .card-date{min-width:46px;padding:6px 4px}
+  .card-date .day{font-size:18px}
+  .card-body .title{font-size:14px}
+}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Navigation */
+.floating-back{position:fixed;bottom:24px;right:24px;width:48px;height:48px;border-radius:50%;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;z-index:90;transition:all .25s;color:var(--c-text2)}
+.floating-back:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(99,102,241,0.2);border-color:var(--c-primary);color:var(--c-primary)}
+@media(max-width:480px){.floating-back{bottom:calc(16px + env(safe-area-inset-bottom));right:16px;width:44px;height:44px;font-size:18px}}
+
+/* Skip Link */
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.show{opacity:1;pointer-events:auto}
+.modal{background:var(--c-card);backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:16px;padding:28px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);transform:translateY(20px);transition:transform .25s}
+.modal-overlay.show .modal{transform:none}
+.modal h2{font-size:1.3rem;margin-bottom:6px}
+.modal p{font-size:13px;color:var(--c-text2);margin-bottom:16px}
+
+/* Project management */
+.proj-create-row{display:flex;gap:8px;margin-bottom:14px}
+.proj-create-row input{flex:1;padding:8px 12px;border-radius:10px;border:1px solid var(--c-border);background:rgba(255,255,255,0.5);font-size:13px;color:var(--c-text);outline:none;font-family:inherit}
+[data-theme="dark"] .proj-create-row input{background:rgba(0,0,0,0.3)}
+.proj-create-row input:focus{border-color:var(--c-primary)}
+.proj-create-row button{padding:8px 16px;border-radius:10px;border:none;font-size:13px;cursor:pointer;font-weight:600}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-primary:hover{opacity:.9}
+
+.proj-list{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto}
+.proj-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;font-size:13px}
+.proj-item .proj-name{font-weight:600;flex:1}
+.proj-item .proj-count{color:var(--c-text2);font-size:11px;margin-left:auto}
+.proj-item .proj-actions{display:flex;gap:4px}
+.proj-item .proj-actions button{padding:4px 8px;border:none;background:none;border-radius:6px;cursor:pointer;font-size:13px;color:var(--c-text2);transition:all .15s}
+.proj-item .proj-actions button:hover{background:rgba(99,102,241,0.1);color:var(--c-primary)}
+.proj-item .proj-actions button[disabled]{opacity:.3;cursor:not-allowed}
+.proj-exp-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;padding-left:10px}
+.proj-exp-tag{padding:1px 6px;border-radius:6px;background:rgba(99,102,241,0.08);color:var(--c-primary);font-size:10px}
+
+/* Card action menu */
+.card-actions{position:absolute;top:6px;right:6px;display:flex;gap:2px;z-index:2}
+.card-action-btn{width:28px;height:28px;border-radius:8px;border:none;background:rgba(255,255,255,0.7);backdrop-filter:blur(var(--blur));font-size:13px;cursor:pointer;display:none;align-items:center;justify-content:center;transition:all .15s;color:var(--c-text2)}
+[data-theme="dark"] .card-action-btn{background:rgba(0,0,0,0.5)}
+.card:hover .card-action-btn{display:flex}
+.card-action-btn:hover{color:var(--c-primary);transform:scale(1.1)}
+.card-action-btn.danger:hover{color:#ef4444}
+
+/* Delete confirm modal */
+.delete-confirm-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.delete-confirm-overlay.show{opacity:1;pointer-events:auto}
+.delete-confirm-box{background:var(--c-card);backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:16px;padding:24px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);transform:translateY(20px);transition:transform .25s;text-align:center}
+.delete-confirm-overlay.show .delete-confirm-box{transform:none}
+.delete-confirm-box .icon{font-size:36px;margin-bottom:10px}
+.delete-confirm-box h3{font-size:1.1rem;margin-bottom:6px}
+.delete-confirm-box p{font-size:13px;color:var(--c-text2);margin-bottom:18px;line-height:1.5}
+.delete-confirm-box .btn-row{display:flex;gap:10px;justify-content:center}
+.delete-confirm-box .btn-row button{padding:8px 20px;border-radius:10px;border:1px solid var(--c-border);font-size:13px;cursor:pointer;transition:all .15s;font-weight:600}
+.delete-confirm-box .btn-cancel{background:var(--c-card);color:var(--c-text)}
+.delete-confirm-box .btn-cancel:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.delete-confirm-box .btn-delete{background:#ef4444;color:#fff;border-color:#ef4444}
+.delete-confirm-box .btn-delete:hover{background:#dc2626}
+</style>
+</head>
+<body>
+
+
+<div class="bg"><div class="bg-mesh"></div><div class="bg-grain"></div></div>
+<button class="theme-btn" onclick="toggleTheme()" title="切换主题">🌓</button>
+
+<div class="page">
+<main id="main-content">
+  <div class="topbar">
+    <a class="back" href="../">← 主页</a>
+    <span style="color:var(--c-text2);opacity:.4;margin:0 2px">›</span>
+    <a class="back" href="./">Wiki 首页</a>
+    <div class="topbar-actions">
+      <a class="btn" href="./messages.html">💬 消息</a>
+      <button class="btn" onclick="toggleProjectPanel()">📂 项目管理</button>
+      <a class="btn" href="./editor.html?new=1">📄 新建</a>
+    </div>
+  </div>
+
+  <div class="header">
+    <h1>🔬 实验记录</h1>
+    <p>多项目管理 · 状态标记 · 收藏置顶 · 关键词搜索</p>
+  </div>
+
+  <!-- Filter: 收藏 + 项目 -->
+  <div class="filter-section">
+    <div class="filter-row" id="filterRow1">
+      <span class="filter-label">筛选</span>
+      <button class="filter-tab active" data-filter="all">全部</button>
+      <button class="filter-tab" data-filter="⭐fav">⭐ 收藏</button>
+    </div>
+    <!-- Status filter row -->
+    <div class="filter-row" id="filterRow2">
+      <span class="filter-label">状态</span>
+      <button class="filter-tab active" data-status="all">全部</button>
+      <button class="filter-tab" data-status="进行中">🔄 进行中</button>
+      <button class="filter-tab" data-status="已完成">✅ 已完成</button>
+      <button class="filter-tab" data-status="待分析">📊 待分析</button>
+      <button class="filter-tab" data-status="需重复">🔁 需重复</button>
+      <button class="filter-tab" data-status="已归档">📦 已归档</button>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="搜索标题、概要、项目、标签、状态...">
+  </div>
+
+  <div class="stats-bar">共 <span id="count">0</span> 条记录</div>
+
+  <div class="list" id="experimentList"></div>
+
+  <div class="empty-state" id="emptyState" style="display:none">
+    <div class="icon">🔬</div>
+    <h3>没有找到实验记录</h3>
+    <p>试试调整筛选条件或新建一条实验记录</p>
+  </div>
+
+  <div class="footer">© 2026 霡霂 · 实验记录</div>
+</main>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="delete-confirm-overlay" id="deleteConfirmOverlay">
+  <div class="delete-confirm-box">
+    <div class="icon">⚠️</div>
+    <h3>确认删除</h3>
+    <p id="deleteConfirmText"></p>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeDeleteConfirm()">取消</button>
+      <button class="btn-delete" id="deleteConfirmBtn">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project management modal -->
+<div class="modal-overlay" id="projectModal">
+  <div class="modal">
+    <h2>📂 项目管理</h2>
+    <p>创建、重命名或删除实验项目</p>
+    <div class="proj-create-row">
+      <input type="text" id="newProjName" placeholder="新项目名" onkeydown="if(event.key==='Enter')createProject()">
+      <button class="btn-primary" onclick="createProject()">创建</button>
+    </div>
+    <div id="projectList" class="proj-list"></div>
+    <div style="margin-top:16px;text-align:right">
+      <button class="btn" onclick="toggleProjectPanel()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Theme
+function toggleTheme(){const b=document.body;if(b.getAttribute('data-theme')==='dark'){b.removeAttribute('data-theme');localStorage.setItem('hp_theme','light')}else{b.setAttribute('data-theme','dark');localStorage.setItem('hp_theme','dark')}}
+if(localStorage.getItem('hp_theme')==='dark')document.body.setAttribute('data-theme','dark');
+
+// Escape HTML
+function escapeHtml(s){if(typeof s!=='string')return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
+function escAttr(s){return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
+// ── Status display config ──
+var statusConfig = {
+  '进行中':     { cls:'status-doing',   dot:'🔄' },
+  '已完成':     { cls:'status-done',    dot:'✅' },
+  '待分析':     { cls:'status-pending', dot:'📊' },
+  '需重复':     { cls:'status-repeat',  dot:'🔁' },
+  '已归档':     { cls:'status-archive', dot:'📦' },
+};
+
+// ── Data ──
+var experiments = [];
+var pinnedMap = {};
+var projectColors = {};
+var colorClasses = ['c1','c2','c3','c4','c5','c6'];
+var colorIdx = 0;
+
+// ── Filter state ──
+var currentFilter = 'all';   // 'all' | '⭐fav' | projectName
+var currentStatus = 'all';   // 'all' | status value
+
+// ── Load data ──
+async function loadData(){
+  try{
+    var resp = await fetch('./experiments/api.php');
+    if(!resp.ok) throw new Error(resp.status);
+    experiments = await resp.json();
+    try{
+      var stored = JSON.parse(localStorage.getItem('exp_pinned') || '{}');
+      pinnedMap = stored;
+    }catch(e){pinnedMap={};}
+    await buildFilters();
+    render();
+  }catch(e){
+    document.getElementById('experimentList').innerHTML =
+      '<div class="empty-state"><div class="icon">⚠️</div><h3>加载失败</h3><p>' + escapeHtml(e.message) + '</p></div>';
+  }
+}
+
+async function buildFilters(){
+  // 从实验数据中提取项目
+  var projectsFromExperiments = {};
+  experiments.forEach(function(e){ projectsFromExperiments[e.project]=true; });
+
+  // 从API获取所有项目（包括没有实验记录的项目）
+  var allProjects = {};
+  try{
+    var resp = await fetch('./experiments/api-edit.php?action=list-projects');
+    var data = await resp.json();
+    if(data.ok && data.projects){
+      data.projects.forEach(function(p){ allProjects[p.name]=true; });
+    }
+  }catch(e){
+    console.error('获取项目列表失败:', e);
+  }
+
+  // 合并项目列表
+  var projects = Object.assign({}, projectsFromExperiments, allProjects);
+
+  var row = document.getElementById('filterRow1');
+  // 清除现有的项目按钮（保留"全部"和"收藏"）
+  var existingButtons = row.querySelectorAll('.filter-tab:not([data-filter="all"]):not([data-filter="⭐fav"])');
+  existingButtons.forEach(function(btn){ btn.remove(); });
+
+  var projNames = Object.keys(projects).sort();
+  projNames.forEach(function(p, i){
+    if(colorClasses[i]) projectColors[p] = colorClasses[i];
+    else projectColors[p] = colorClasses[i % colorClasses.length];
+    var btn = document.createElement('button');
+    btn.className = 'filter-tab';
+    btn.setAttribute('data-filter', p);
+    btn.textContent = p;
+    btn.onclick = function(){ setFilter(p); };
+    row.appendChild(btn);
+  });
+  // Bind "全部" and "收藏"
+  row.querySelector('[data-filter="all"]').onclick = function(){ setFilter('all'); };
+  row.querySelector('[data-filter="⭐fav"]').onclick = function(){ setFilter('⭐fav'); };
+
+  // Bind status buttons
+  document.querySelectorAll('#filterRow2 [data-status]').forEach(function(btn){
+    btn.onclick = function(){ setStatus(btn.getAttribute('data-status')); };
+  });
+}
+
+function setFilter(f){
+  currentFilter = f;
+  document.querySelectorAll('#filterRow1 .filter-tab').forEach(function(btn){
+    btn.classList.toggle('active', btn.getAttribute('data-filter') === f);
+  });
+  render();
+}
+
+function setStatus(s){
+  currentStatus = s;
+  document.querySelectorAll('#filterRow2 .filter-tab').forEach(function(btn){
+    btn.classList.toggle('active', btn.getAttribute('data-status') === s);
+  });
+  render();
+}
+
+// ── Pin toggle ──
+function togglePin(id, btnEl){
+  var exp = experiments.find(function(e){ return e.id === id; });
+  if(!exp) return;
+  var current = (pinnedMap[id] !== undefined) ? pinnedMap[id] : exp.pinned;
+  pinnedMap[id] = !current;
+  localStorage.setItem('exp_pinned', JSON.stringify(pinnedMap));
+  btnEl.classList.toggle('pinned');
+  btnEl.style.opacity = pinnedMap[id] ? '1' : '.3';
+  render();
+}
+
+// ── Render ──
+function render(){
+  var query = document.getElementById('searchInput').value.trim().toLowerCase();
+
+  var filtered = experiments.filter(function(e){
+    // Project / fav filter
+    if(currentFilter === '⭐fav'){
+      var isP = (pinnedMap[e.id] !== undefined) ? pinnedMap[e.id] : e.pinned;
+      if(!isP) return false;
+    } else if(currentFilter !== 'all' && e.project !== currentFilter){
+      return false;
+    }
+    // Status filter
+    if(currentStatus !== 'all' && e.status !== currentStatus) return false;
+    // Search
+    if(query){
+      var fields = (e.title + ' ' + e.summary + ' ' + e.project + ' ' + e.tags.join(' ') + ' ' + e.status).toLowerCase();
+      if(fields.indexOf(query) === -1) return false;
+    }
+    return true;
+  });
+
+  // Sort: pinned first, then by date desc
+  filtered.sort(function(a, b){
+    var aP = (pinnedMap[a.id] !== undefined) ? pinnedMap[a.id] : a.pinned;
+    var bP = (pinnedMap[b.id] !== undefined) ? pinnedMap[b.id] : b.pinned;
+    if(aP && !bP) return -1;
+    if(!aP && bP) return 1;
+    return b.date.localeCompare(a.date);
+  });
+
+  document.getElementById('count').textContent = filtered.length;
+
+  var list = document.getElementById('experimentList');
+  var empty = document.getElementById('emptyState');
+  if(filtered.length === 0){
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  var html = '';
+  var months = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+  filtered.forEach(function(e){
+    var dateObj = new Date(e.date + 'T00:00:00');
+    var month = months[dateObj.getMonth()+1];
+    var day = dateObj.getDate();
+    var year = dateObj.getFullYear();
+    var colorClass = projectColors[e.project] || 'c1';
+    var isPinned = (pinnedMap[e.id] !== undefined) ? pinnedMap[e.id] : e.pinned;
+
+    html += '<div class="card' + (isPinned?' pinned':'') + '" data-path="' + escAttr(e.path) + '">';
+    html += '<div class="card-actions">';
+    html += '<button class="pin-btn' + (isPinned?' pinned':'') + '" data-id="' + escAttr(e.id) + '" title="收藏/取消">📌</button>';
+    html += '<button class="card-action-btn" onclick="event.stopPropagation();editExperiment(\'' + escAttr(e.path) + '\')" title="编辑">✏️</button>';
+    html += '<button class="card-action-btn danger" onclick="event.stopPropagation();confirmDeleteExperiment(\'' + escAttr(e.path) + '\',\'' + escAttr(e.title) + '\')" title="删除">🗑</button>';
+    html += '</div>';
+
+    // Date block
+    html += '<div class="card-date">';
+    html += '<div class="month">' + month + '</div>';
+    html += '<div class="day">' + day + '</div>';
+    html += '<div class="year">' + year + '</div>';
+    html += '</div>';
+
+    // Body
+    html += '<div class="card-body">';
+    html += '<div class="title">' + escapeHtml(e.title);
+    if(isPinned) html += '<span style="font-size:11px;color:var(--c-primary);font-weight:400">⭐</span>';
+    html += '</div>';
+    html += '<div class="summary">' + escapeHtml(e.summary) + '</div>';
+
+    // Meta row: status + project + tags
+    html += '<div class="card-meta">';
+
+    // Status badge
+    var cfg = statusConfig[e.status];
+    if(cfg){
+      html += '<span class="status-badge ' + cfg.cls + '">' + cfg.dot + ' ' + escapeHtml(e.status) + '</span>';
+    }else if(e.status){
+      html += '<span class="status-badge status-pending">📋 ' + escapeHtml(e.status) + '</span>';
+    }
+
+    html += '<span class="project-badge ' + colorClass + '">' + escapeHtml(e.project) + '</span>';
+
+    e.tags.forEach(function(t){
+      html += '<span class="tag">#' + escapeHtml(t) + '</span>';
+    });
+
+    html += '</div></div></div>';
+  });
+  list.innerHTML = html;
+}
+
+function openExperiment(path){
+  window.location.href = './viewer.html?page=experiments/' + path;
+}
+
+var searchTimer;
+document.getElementById('searchInput').addEventListener('input', function(){
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(render, 200);
+});
+
+// ── Project Management ──
+function toggleProjectPanel() {
+  var modal = document.getElementById('projectModal');
+  if (modal.classList.contains('show')) {
+    modal.classList.remove('show');
+  } else {
+    loadProjectList();
+    modal.classList.add('show');
+  }
+}
+
+async function loadProjectList() {
+  try {
+  var resp = await fetch('./experiments/api-edit.php?action=list-projects');
+  var data = await resp.json();
+  if (!data.ok) return;
+  var list = document.getElementById('projectList');
+  list.innerHTML = '';
+  data.projects.forEach(function(p) {
+    var item = document.createElement('div');
+    item.className = 'proj-item';
+    item.style.flexDirection = 'column';
+    item.style.alignItems = 'stretch';
+    var canDelete = p.count === 0;
+    var expList = p.experiments.length > 0
+      ? '<div class="proj-exp-list">' + p.experiments.map(function(e) {
+          return '<span class="proj-exp-tag">' + escapeHtml(e) + '</span>';
+        }).join('') + '</div>'
+      : '';
+    item.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px">' +
+        '<span class="proj-name">' + escapeHtml(p.name) + '</span>' +
+        '<span class="proj-count">' + p.count + ' 条</span>' +
+        '<div class="proj-actions">' +
+          '<button onclick="renameProject(\'' + escapeHtml(p.name) + '\')" title="重命名">✏️</button>' +
+          (canDelete
+            ? '<button onclick="deleteProject(\'' + escapeHtml(p.name) + '\')" title="删除">🗑</button>'
+            : '<button disabled title="有实验记录，无法删除">🗑</button>') +
+        '</div>' +
+      '</div>' +
+      expList;
+    list.appendChild(item);
+  });
+  } catch(e) {
+    console.error('加载项目列表失败:', e);
+  }
+}
+
+async function createProject() {
+  var name = document.getElementById('newProjName').value.trim();
+  if (!name) { alert('请输入项目名'); return; }
+  try {
+    var resp = await fetch('./experiments/api-edit.php?action=create-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name })
+    });
+    var data = await resp.json();
+    if (data.ok) {
+      document.getElementById('newProjName').value = '';
+      await loadProjectList();
+      await loadData();
+    } else {
+      alert(data.error || '创建失败');
+    }
+  } catch(e) {
+    alert('请求失败: ' + e.message);
+  }
+}
+
+async function renameProject(oldName) {
+  var newName = prompt('重命名项目 "' + oldName + '"', oldName);
+  if (!newName || newName === oldName) return;
+  try {
+    var resp = await fetch('./experiments/api-edit.php?action=rename-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldName: oldName, newName: newName })
+    });
+    var data = await resp.json();
+    if (data.ok) {
+      await loadProjectList();
+      await loadData();
+    } else {
+      alert(data.error || '重命名失败');
+    }
+  } catch(e) {
+    alert('请求失败: ' + e.message);
+  }
+}
+
+async function deleteProject(name) {
+  if (!confirm('确定删除项目 "' + name + '"？')) return;
+  try {
+    var resp = await fetch('./experiments/api-edit.php?action=delete-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name })
+    });
+    var data = await resp.json();
+    if (data.ok) {
+      await loadProjectList();
+      await loadData();
+    } else {
+      var msg = data.error || '删除失败';
+      if (data.experiments) msg += '：' + data.experiments.slice(0, 3).join(', ');
+      alert(msg);
+    }
+  } catch(e) {
+    alert('请求失败: ' + e.message);
+  }
+}
+
+loadData();
+
+// ── 条目管理 ──
+function editExperiment(path) {
+  window.location.href = './editor.html?path=experiments/' + path;
+}
+
+function confirmDeleteExperiment(path, title) {
+  var overlay = document.getElementById('deleteConfirmOverlay');
+  document.getElementById('deleteConfirmText').innerHTML =
+    '确定要删除实验记录 <strong>' + escapeHtml(title) + '</strong> 吗？<br>此操作将同时删除中文和英文版本，且不可恢复。';
+  document.getElementById('deleteConfirmBtn').onclick = function() {
+    closeDeleteConfirm();
+    doDeleteExperiment(path);
+  };
+  overlay.classList.add('show');
+}
+
+function closeDeleteConfirm() {
+  document.getElementById('deleteConfirmOverlay').classList.remove('show');
+}
+
+async function doDeleteExperiment(path) {
+  try {
+    var resp = await fetch('./experiments/api-edit.php?action=delete-experiment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: path })
+    });
+    var data = await resp.json();
+    if (data.ok) {
+      await loadData();
+    } else {
+      alert(data.error || '删除失败');
+    }
+  } catch(e) {
+    alert('请求失败: ' + e.message);
+  }
+}
+
+// Event delegation for card clicks and pin buttons
+document.getElementById('experimentList').addEventListener('click', function(ev){
+  var pinBtn = ev.target.closest('.pin-btn');
+  if(pinBtn){
+    ev.stopPropagation();
+    togglePin(pinBtn.getAttribute('data-id'), pinBtn);
+    return;
+  }
+  var card = ev.target.closest('.card');
+  if(card){
+    openExperiment(card.getAttribute('data-path'));
+  }
+});
+
+// Escape key: navigate back to Wiki home
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') window.location.href = './';
+});
+</script>
+<!-- Floating Back Button -->
+<button class="floating-back" onclick="window.location.href='./'" title="返回 Wiki 首页 (Esc)">←</button>
+</body>
+</html>

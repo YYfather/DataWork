@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>编辑实验 · 霡霂</title>
+<meta name="description" content="实验记录在线编辑器">
+<meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../avatar.jpg">
+<link rel="apple-touch-icon" href="../avatar.jpg">
+<script src="./vendor/marked.min.js"></script>
+<link rel="stylesheet" href="./vendor/github-dark.min.css" id="hljs-theme">
+<script src="./vendor/highlight.min.js"></script>
+<style>
+:root{--c-primary:#6366f1;--c-primary2:#a78bfa;--c-bg:#f8f7ff;--c-card:rgba(255,255,255,0.72);--c-text:#1e1b2e;--c-text2:#6b7280;--c-border:rgba(255,255,255,0.45);--shadow:0 8px 32px rgba(99,102,241,0.1);--radius:16px;--blur:20px}
+[data-theme="dark"]{--c-primary:#818cf8;--c-primary2:#c4b5fd;--c-bg:#08080f;--c-card:rgba(24,22,38,0.72);--c-text:#eae8f2;--c-text2:#9ca3af;--c-border:rgba(255,255,255,0.06);--shadow:0 8px 32px rgba(0,0,0,0.4)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'SF Pro Display','Segoe UI','Microsoft YaHei',system-ui,sans-serif;background:var(--c-bg);color:var(--c-text);min-height:100vh;min-height:100dvh;transition:background .5s,color .4s;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg-mesh{position:absolute;inset:0;background:radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.15), transparent),radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.12), transparent),radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.08), transparent);animation:meshShift 25s ease-in-out infinite alternate}
+@keyframes meshShift{0%{background-position:0% 0%,100% 100%,50% 50%}50%{background-position:30% 20%,70% 80%,40% 60%}100%{background-position:10% 40%,90% 30%,60% 40%}}
+.bg-grain{position:absolute;inset:0;opacity:.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:128px}
+[data-theme="dark"] .bg-mesh{background:radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.08), transparent),radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.06), transparent),radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.04), transparent)}
+
+.page{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:16px 20px calc(20px + env(safe-area-inset-bottom));min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+
+/* Topbar */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-shrink:0}
+.topbar-left{display:flex;align-items:center;gap:8px}
+.topbar-right{display:flex;gap:8px;align-items:center}
+.back{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--c-text2);text-decoration:none;transition:color .2s}
+.back:hover{color:var(--c-primary)}
+.page-title{font-size:15px;font-weight:600;color:var(--c-text)}
+.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:10px;border:1px solid var(--c-border);background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:12px;color:var(--c-text2);cursor:pointer;transition:all .2s;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--c-primary);color:var(--c-primary);transform:translateY(-1px)}
+.btn-primary{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+.btn-primary:hover{background:var(--c-primary2);color:#fff;border-color:var(--c-primary2)}
+.btn[disabled]{opacity:.5;cursor:not-allowed;transform:none}
+.theme-btn{position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:none;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:18px;cursor:pointer;box-shadow:var(--shadow);transition:all .25s;display:flex;align-items:center;justify-content:center;z-index:100;border:1px solid var(--c-border)}
+.theme-btn:hover{transform:scale(1.1) rotate(20deg)}
+
+/* Language tabs */
+.lang-tabs{display:flex;gap:4px}
+.lang-tab{padding:4px 12px;border-radius:8px;border:1px solid var(--c-border);background:var(--c-card);font-size:12px;cursor:pointer;transition:all .2s;color:var(--c-text2)}
+.lang-tab:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.lang-tab.active{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+
+/* Mobile view tabs */
+.view-tabs{display:none;gap:4px;margin-bottom:8px}
+.view-tab{flex:1;padding:8px;border-radius:10px;border:1px solid var(--c-border);background:var(--c-card);font-size:13px;cursor:pointer;text-align:center;transition:all .2s;color:var(--c-text2)}
+.view-tab.active{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+
+/* Main editor area */
+.editor-layout{display:grid;grid-template-columns:240px 1fr 1fr;gap:12px;flex:1;min-height:0}
+
+/* Metadata sidebar */
+.meta-panel{background:var(--c-card);backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:12px;padding:16px;overflow-y:auto;max-height:calc(100vh - 100px)}
+.meta-panel h3{font-size:13px;font-weight:600;color:var(--c-text2);margin-bottom:12px;letter-spacing:.04em;text-transform:uppercase}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;color:var(--c-text2);margin-bottom:4px;font-weight:500}
+.field input,.field select,.field textarea{width:100%;padding:7px 10px;border-radius:8px;border:1px solid var(--c-border);background:rgba(255,255,255,0.5);font-size:13px;color:var(--c-text);outline:none;transition:border-color .2s;font-family:inherit}
+[data-theme="dark"] .field input,[data-theme="dark"] .field select,[data-theme="dark"] .field textarea{background:rgba(0,0,0,0.3)}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--c-primary)}
+.field select{cursor:pointer}
+.field textarea{resize:vertical;min-height:48px}
+
+/* Editor pane */
+.editor-pane{display:flex;flex-direction:column;background:var(--c-card);backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:12px;overflow:hidden;min-height:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:2px;padding:6px 8px;border-bottom:1px solid var(--c-border);background:rgba(99,102,241,0.03);flex-shrink:0}
+.toolbar button{padding:4px 8px;border:none;background:none;border-radius:6px;cursor:pointer;font-size:13px;color:var(--c-text2);transition:all .15s;line-height:1}
+.toolbar button:hover{background:rgba(99,102,241,0.1);color:var(--c-primary)}
+.toolbar .sep{width:1px;height:20px;background:var(--c-border);margin:0 4px;align-self:center}
+.editor-textarea{flex:1;width:100%;padding:16px;border:none;background:transparent;font-family:'SF Mono','Fira Code','JetBrains Mono','Cascadia Code',monospace;font-size:13px;line-height:1.7;color:var(--c-text);resize:none;outline:none;tab-size:2}
+.editor-textarea::placeholder{color:var(--c-text2)}
+
+/* Preview pane */
+.preview-pane{background:var(--c-card);backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:12px;padding:20px 24px;overflow-y:auto;max-height:calc(100vh - 100px);line-height:1.75;font-size:14px}
+.preview-pane h1{font-size:1.6rem;font-weight:700;margin:0 0 12px;padding-bottom:10px;border-bottom:2px solid var(--c-border)}
+.preview-pane h2{font-size:1.2rem;font-weight:700;margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--c-border);color:var(--c-primary)}
+.preview-pane h3{font-size:1.05rem;font-weight:600;margin:20px 0 6px}
+.preview-pane p{margin:0 0 10px}
+.preview-pane a{color:var(--c-primary);text-decoration:none;border-bottom:1px solid transparent}
+.preview-pane a:hover{border-bottom-color:var(--c-primary)}
+.preview-pane ul,.preview-pane ol{margin:0 0 10px;padding-left:22px}
+.preview-pane li{margin-bottom:3px}
+.preview-pane blockquote{margin:0 0 10px;padding:10px 14px;border-left:3px solid var(--c-primary);background:rgba(99,102,241,0.05);border-radius:0 8px 8px 0;color:var(--c-text2)}
+.preview-pane hr{border:none;border-top:1px solid var(--c-border);margin:20px 0}
+.preview-pane img{max-width:100%;border-radius:8px;margin:6px 0}
+.preview-pane table{width:100%;border-collapse:collapse;margin:0 0 12px;font-size:13px}
+.preview-pane th{background:rgba(99,102,241,0.08);font-weight:600;text-align:left;padding:8px 12px;border:1px solid var(--c-border)}
+.preview-pane td{padding:6px 12px;border:1px solid var(--c-border)}
+.preview-pane tr:hover td{background:rgba(99,102,241,0.03)}
+.preview-pane pre{margin:0 0 12px;border-radius:10px;overflow:hidden;background:#0d1117}
+[data-theme="light"] .preview-pane pre{background:#f6f8fa}
+[data-theme="light"] .preview-pane pre code{color:#24292f}
+.preview-pane pre code{display:block;padding:14px 16px;font-size:12px;line-height:1.6;overflow-x:auto;font-family:'SF Mono','Fira Code','JetBrains Mono',monospace}
+.preview-pane code:not(pre code){padding:2px 5px;border-radius:5px;background:rgba(99,102,241,0.1);font-size:12px;font-family:'SF Mono','Fira Code','JetBrains Mono',monospace;color:var(--c-primary)}
+
+/* Status bar */
+.status-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;font-size:11px;color:var(--c-text2);border-top:1px solid var(--c-border);background:rgba(99,102,241,0.02);flex-shrink:0}
+.status-msg{transition:opacity .3s}
+.status-msg.success{color:#10b981}
+.status-msg.error{color:#ef4444}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.show{opacity:1;pointer-events:auto}
+.modal{background:var(--c-card);backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:16px;padding:28px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);transform:translateY(20px);transition:transform .25s}
+.modal-overlay.show .modal{transform:none}
+.modal h2{font-size:1.3rem;margin-bottom:6px}
+.modal p{font-size:13px;color:var(--c-text2);margin-bottom:20px}
+.template-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.template-card{padding:16px;border:1px solid var(--c-border);border-radius:12px;cursor:pointer;transition:all .2s;background:rgba(255,255,255,0.3)}
+[data-theme="dark"] .template-card{background:rgba(0,0,0,0.2)}
+.template-card:hover{border-color:var(--c-primary);transform:translateY(-2px);box-shadow:0 8px 24px rgba(99,102,241,0.12)}
+.template-card.selected{border-color:var(--c-primary);background:rgba(99,102,241,0.08)}
+.template-card .tpl-icon{font-size:24px;margin-bottom:6px}
+.template-card .tpl-name{font-size:14px;font-weight:600;margin-bottom:2px}
+.template-card .tpl-desc{font-size:11px;color:var(--c-text2);line-height:1.4}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 20px;border-radius:10px;background:var(--c-text);color:var(--c-bg);font-size:13px;z-index:300;opacity:0;transition:all .3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.error{background:#ef4444;color:#fff}
+
+/* Project manager */
+.project-list{display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto}
+.proj-item{padding:10px;border:1px solid var(--c-border);border-radius:8px;font-size:12px}
+.proj-info{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.proj-name{font-weight:600;font-size:13px}
+.proj-count{color:var(--c-text2);font-size:11px}
+.proj-exp-list{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+.proj-exp-tag{padding:1px 6px;border-radius:6px;background:rgba(99,102,241,0.08);color:var(--c-primary);font-size:10px}
+.proj-actions{display:flex;gap:4px;justify-content:flex-end}
+.proj-actions button{padding:3px 6px;border:none;background:none;border-radius:6px;cursor:pointer;font-size:12px;color:var(--c-text2);transition:all .15s}
+.proj-actions button:hover{background:rgba(99,102,241,0.1);color:var(--c-primary)}
+.proj-actions button[disabled]{opacity:.3;cursor:not-allowed}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+
+/* Mobile */
+@media(max-width:900px){
+  .editor-layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .meta-panel{max-height:none;order:3;display:none}
+  .meta-panel.mobile-show{display:block}
+  .preview-pane{max-height:none;display:none}
+  .preview-pane.mobile-show{display:block}
+  .editor-pane{display:none}
+  .editor-pane.mobile-show{display:flex}
+  .view-tabs{display:flex}
+  .page{padding:12px 12px calc(16px + env(safe-area-inset-bottom))}
+}
+@media(max-width:480px){
+  .template-grid{grid-template-columns:1fr}
+  .topbar{flex-wrap:wrap}
+  .toolbar{overflow-x:auto;flex-wrap:nowrap}
+}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<div class="bg"><div class="bg-mesh"></div><div class="bg-grain"></div></div>
+<button class="theme-btn" onclick="toggleTheme()" title="切换主题">🌓</button>
+
+<div class="page">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back" href="./experiments.html">← 实验记录</a>
+      <span style="color:var(--c-text2);opacity:.4;margin:0 2px">›</span>
+      <span class="page-title" id="pageTitle">新建实验</span>
+    </div>
+    <div class="topbar-right">
+      <div class="lang-tabs" id="langTabs">
+        <button class="lang-tab active" data-lang="zh" onclick="switchLang('zh')">中文</button>
+        <button class="lang-tab" data-lang="en" onclick="switchLang('en')">EN</button>
+      </div>
+      <button class="btn" id="saveBtn" onclick="saveContent()">💾 保存</button>
+    </div>
+  </div>
+
+  <!-- Mobile view tabs -->
+  <div class="view-tabs" id="viewTabs">
+    <button class="view-tab" data-view="meta" onclick="switchView('meta')">📋 元数据</button>
+    <button class="view-tab active" data-view="edit" onclick="switchView('edit')">✏️ 编辑</button>
+    <button class="view-tab" data-view="preview" onclick="switchView('preview')">👁 预览</button>
+  </div>
+
+  <!-- Editor layout -->
+  <div class="editor-layout">
+    <!-- Metadata panel -->
+    <div class="meta-panel" id="metaPanel">
+      <h3>📋 实验信息</h3>
+      <div class="field">
+        <label>标题（中文）</label>
+        <input type="text" id="metaTitle" placeholder="实验标题" oninput="syncMetaToFrontmatter()">
+      </div>
+      <div class="field">
+        <label>Title (EN)</label>
+        <input type="text" id="metaTitleEn" placeholder="Experiment Title" oninput="syncMetaToFrontmatter()">
+      </div>
+      <div class="field">
+        <label>摘要（中文）</label>
+        <textarea id="metaSummary" rows="2" placeholder="实验简介" oninput="syncMetaToFrontmatter()"></textarea>
+      </div>
+      <div class="field">
+        <label>Summary (EN)</label>
+        <textarea id="metaSummaryEn" rows="2" placeholder="Experiment summary" oninput="syncMetaToFrontmatter()"></textarea>
+      </div>
+      <div class="field">
+        <label>项目</label>
+        <select id="metaProject" onchange="syncMetaToFrontmatter()">
+          <option value="">选择项目...</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>日期</label>
+        <input type="date" id="metaDate" onchange="syncMetaToFrontmatter()">
+      </div>
+      <div class="field">
+        <label>状态</label>
+        <select id="metaStatus" onchange="syncMetaToFrontmatter()">
+          <option value="进行中">🔄 进行中</option>
+          <option value="已完成">✅ 已完成</option>
+          <option value="待分析">📊 待分析</option>
+          <option value="需重复">🔁 需重复</option>
+          <option value="已归档">📦 已归档</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>标签（逗号分隔）</label>
+        <input type="text" id="metaTags" placeholder="标签1, 标签2" oninput="syncMetaToFrontmatter()">
+      </div>
+      <div class="field">
+        <label>置顶</label>
+        <select id="metaPinned" onchange="syncMetaToFrontmatter()">
+          <option value="false">否</option>
+          <option value="true">是</option>
+        </select>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--c-border);margin:16px 0">
+      <h3>📂 项目管理</h3>
+      <div class="field">
+        <div style="display:flex;gap:6px">
+          <input type="text" id="newProjectName" placeholder="新项目名" style="flex:1" onkeydown="if(event.key==='Enter')createProject()">
+          <button class="btn" onclick="createProject()" style="padding:6px 10px">＋</button>
+        </div>
+      </div>
+      <div id="projectList" class="project-list"></div>
+    </div>
+
+    <!-- Editor pane -->
+    <div class="editor-pane mobile-show" id="editorPane">
+      <div class="toolbar">
+        <button onclick="insertMd('heading')" title="标题">H</button>
+        <button onclick="insertMd('bold')" title="粗体"><b>B</b></button>
+        <button onclick="insertMd('italic')" title="斜体"><i>I</i></button>
+        <button onclick="insertMd('code')" title="代码">&lt;&gt;</button>
+        <span class="sep"></span>
+        <button onclick="insertMd('ul')" title="无序列表">•</button>
+        <button onclick="insertMd('ol')" title="有序列表">1.</button>
+        <button onclick="insertMd('check')" title="任务列表">☑</button>
+        <span class="sep"></span>
+        <button onclick="insertMd('link')" title="链接">🔗</button>
+        <button onclick="insertMd('image')" title="图片">🖼</button>
+        <button onclick="insertMd('table')" title="表格">▦</button>
+        <button onclick="insertMd('quote')" title="引用">❝</button>
+        <button onclick="insertMd('hr')" title="分割线">—</button>
+        <span class="sep"></span>
+        <button onclick="insertMd('wikilink')" title="Wiki链接">[[ ]]</button>
+      </div>
+      <textarea class="editor-textarea" id="editor" placeholder="在此输入 Markdown 内容..." oninput="onEditorInput()"></textarea>
+      <div class="status-bar">
+        <span class="status-msg" id="statusMsg">就绪</span>
+        <span id="charCount">0 字</span>
+      </div>
+    </div>
+
+    <!-- Preview pane -->
+    <div class="preview-pane" id="previewPane">
+      <div style="text-align:center;color:var(--c-text2);padding:40px 0">开始编辑后预览内容</div>
+    </div>
+  </div>
+</div>
+
+<!-- Template selection modal -->
+<div class="modal-overlay" id="templateModal">
+  <div class="modal">
+    <h2>📄 选择实验模板</h2>
+    <p>选择一个模板开始创建新的实验记录</p>
+    <div class="template-grid" id="templateGrid"></div>
+    <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn" onclick="location.href='./experiments.html'">取消</button>
+      <button class="btn btn-primary" id="confirmTemplateBtn" onclick="confirmTemplate()" disabled>使用此模板</button>
+    </div>
+  </div>
+</div>
+
+<!-- New experiment form modal -->
+<div class="modal-overlay" id="newFormModal">
+  <div class="modal">
+    <h2>📝 新建实验</h2>
+    <p>填写基本信息后开始编辑</p>
+    <div class="field">
+      <label>项目 *</label>
+      <select id="newProject"></select>
+    </div>
+    <div class="field">
+      <label>日期</label>
+      <input type="date" id="newDate">
+    </div>
+    <div class="field">
+      <label>实验标识（英文slug）*</label>
+      <input type="text" id="newSlug" placeholder="如：canopy-profiling" pattern="[a-z0-9\-]+">
+    </div>
+    <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn" onclick="location.href='./experiments.html'">取消</button>
+      <button class="btn btn-primary" onclick="createExperiment()">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──
+var state = {
+  mode: 'new',        // 'new' | 'edit'
+  path: '',           // e.g. '田间试验/2026-03-22-canopy-profiling'
+  lang: 'zh',         // 'zh' | 'en'
+  template: 'standard',
+  projects: [],
+  templates: [],
+  dirty: false,
+  saving: false
+};
+
+// ── Theme ──
+function toggleTheme() {
+  var b = document.body;
+  if (b.getAttribute('data-theme') === 'dark') {
+    b.removeAttribute('data-theme');
+    localStorage.setItem('hp_theme', 'light');
+  } else {
+    b.setAttribute('data-theme', 'dark');
+    localStorage.setItem('hp_theme', 'dark');
+  }
+  updateHljsTheme();
+}
+if (localStorage.getItem('hp_theme') === 'dark') document.body.setAttribute('data-theme', 'dark');
+
+function updateHljsTheme() {
+  var link = document.getElementById('hljs-theme');
+  link.href = document.body.getAttribute('data-theme') === 'dark'
+    ? './vendor/github-dark.min.css'
+    : './vendor/github.min.css';
+}
+updateHljsTheme();
+
+// ── Escape HTML ──
+function escapeHtml(s) {
+  if (typeof s !== 'string') return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// ── Toast ──
+function showToast(msg, isError) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function() { t.className = 'toast'; }, 2500);
+}
+
+// ── Status ──
+function setStatus(msg, type) {
+  var el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = 'status-msg' + (type ? ' ' + type : '');
+}
+
+// ── Mobile view switch ──
+function switchView(view) {
+  document.querySelectorAll('.view-tab').forEach(function(t) {
+    t.classList.toggle('active', t.getAttribute('data-view') === view);
+  });
+  document.getElementById('metaPanel').classList.toggle('mobile-show', view === 'meta');
+  document.getElementById('editorPane').classList.toggle('mobile-show', view === 'edit');
+  document.getElementById('previewPane').classList.toggle('mobile-show', view === 'preview');
+  if (view === 'preview') updatePreview();
+}
+
+// ── Language switch ──
+function switchLang(lang) {
+  if (state.dirty && !confirm('当前修改未保存，确定切换语言？')) return;
+  state.lang = lang;
+  document.querySelectorAll('.lang-tab').forEach(function(t) {
+    t.classList.toggle('active', t.getAttribute('data-lang') === lang);
+  });
+  if (state.mode === 'edit') loadExistingContent();
+}
+
+// ── marked.js setup ──
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+  highlight: function(code, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try { return hljs.highlight(code, { language: lang }).value; } catch(e) {}
+    }
+    try { return hljs.highlightAuto(code).value; } catch(e) {}
+    return code;
+  }
+});
+
+// ── Preview ──
+var previewTimer = null;
+function updatePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(function() {
+    var md = document.getElementById('editor').value;
+    // Strip frontmatter for preview
+    var body = md.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '');
+    var html = marked.parse(body);
+    // Process wikilinks
+    html = html.replace(/\[\[([^\]]+)\]\]/g, function(m, p1) {
+      return '<a href="./viewer.html?page=' + encodeURIComponent(p1) + '">' + escapeHtml(p1) + '</a>';
+    });
+    document.getElementById('previewPane').innerHTML = html;
+    // Highlight code blocks
+    document.getElementById('previewPane').querySelectorAll('pre code').forEach(function(block) {
+      hljs.highlightElement(block);
+    });
+  }, 200);
+}
+
+// ── Editor input ──
+function onEditorInput() {
+  state.dirty = true;
+  var md = document.getElementById('editor').value;
+  document.getElementById('charCount').textContent = md.length + ' 字';
+  syncFrontmatterToMeta(md);
+  updatePreview();
+}
+
+// ── Frontmatter ↔ Meta sync ──
+function parseFrontmatter(content) {
+  var fm = {};
+  var m = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
+  if (!m) return fm;
+  m[1].split('\n').forEach(function(line) {
+    var p = line.match(/^(\w+):\s*(.+)$/);
+    if (!p) return;
+    var key = p[1], val = p[2].trim();
+    if (key === 'tags') {
+      if (val.charAt(0) === '[') {
+        try { val = JSON.parse(val); } catch(e) { val = [val]; }
+      } else {
+        val = val.split(',').map(function(s) { return s.trim(); });
+      }
+    } else if (key === 'pinned') {
+      val = (val === 'true' || val === 'yes');
+    }
+    fm[key] = val;
+  });
+  return fm;
+}
+
+function syncFrontmatterToMeta(content) {
+  var fm = parseFrontmatter(content);
+  if (fm.title !== undefined) document.getElementById('metaTitle').value = fm.title;
+  if (fm.titleEn !== undefined) document.getElementById('metaTitleEn').value = fm.titleEn;
+  if (fm.summary !== undefined) document.getElementById('metaSummary').value = fm.summary;
+  if (fm.summaryEn !== undefined) document.getElementById('metaSummaryEn').value = fm.summaryEn;
+  if (fm.status !== undefined) document.getElementById('metaStatus').value = fm.status;
+  if (fm.pinned !== undefined) document.getElementById('metaPinned').value = String(fm.pinned);
+  if (fm.tags !== undefined) {
+    var tags = Array.isArray(fm.tags) ? fm.tags.join(', ') : fm.tags;
+    document.getElementById('metaTags').value = tags;
+  }
+}
+
+function buildFrontmatter() {
+  var tags = document.getElementById('metaTags').value
+    .split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  var lines = ['---'];
+  lines.push('title: ' + (document.getElementById('metaTitle').value || '实验标题'));
+  lines.push('titleEn: ' + (document.getElementById('metaTitleEn').value || 'Experiment Title'));
+  lines.push('summary: ' + (document.getElementById('metaSummary').value || ''));
+  lines.push('summaryEn: ' + (document.getElementById('metaSummaryEn').value || ''));
+  lines.push('tags: [' + tags.join(', ') + ']');
+  lines.push('status: ' + document.getElementById('metaStatus').value);
+  lines.push('pinned: ' + (document.getElementById('metaPinned').value === 'true' ? 'true' : 'false'));
+  lines.push('---');
+  return lines.join('\n');
+}
+
+function syncMetaToFrontmatter() {
+  var editor = document.getElementById('editor');
+  var content = editor.value;
+  var fmRegex = /^---\s*\n[\s\S]*?\n---\s*\n/;
+  var body = content.replace(fmRegex, '');
+  var newFm = buildFrontmatter();
+  editor.value = newFm + '\n' + body;
+  state.dirty = true;
+  updatePreview();
+}
+
+// ── Toolbar insert ──
+function insertMd(type) {
+  var ta = document.getElementById('editor');
+  var start = ta.selectionStart;
+  var end = ta.selectionEnd;
+  var sel = ta.value.substring(start, end);
+  var before = ta.value.substring(0, start);
+  var after = ta.value.substring(end);
+  var insert = '';
+
+  switch(type) {
+    case 'heading': insert = '## ' + (sel || '标题'); break;
+    case 'bold': insert = '**' + (sel || '粗体文本') + '**'; break;
+    case 'italic': insert = '*' + (sel || '斜体文本') + '*'; break;
+    case 'code': insert = sel.indexOf('\n') >= 0
+      ? '```\n' + (sel || '代码') + '\n```'
+      : '`' + (sel || '代码') + '`'; break;
+    case 'ul': insert = '- ' + (sel || '列表项'); break;
+    case 'ol': insert = '1. ' + (sel || '列表项'); break;
+    case 'check': insert = '- [ ] ' + (sel || '待办项'); break;
+    case 'link': insert = '[' + (sel || '链接文本') + '](url)'; break;
+    case 'image': insert = '![' + (sel || '图片描述') + '](url)'; break;
+    case 'table':
+      insert = '| 列1 | 列2 | 列3 |\n|------|------|------|\n| 数据 | 数据 | 数据 |';
+      break;
+    case 'quote': insert = '> ' + (sel || '引用文本'); break;
+    case 'hr': insert = '\n---\n'; break;
+    case 'wikilink': insert = '[[' + (sel || 'Page Name') + ']]'; break;
+  }
+
+  ta.value = before + insert + after;
+  ta.focus();
+  ta.selectionStart = start;
+  ta.selectionEnd = start + insert.length;
+  state.dirty = true;
+  onEditorInput();
+}
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveContent();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+    e.preventDefault();
+    insertMd('bold');
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+    e.preventDefault();
+    insertMd('italic');
+  }
+});
+
+// Tab key in textarea
+document.getElementById('editor').addEventListener('keydown', function(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    var start = this.selectionStart;
+    this.value = this.value.substring(0, start) + '  ' + this.value.substring(this.selectionEnd);
+    this.selectionStart = this.selectionEnd = start + 2;
+    state.dirty = true;
+  }
+});
+
+// ── API helpers ──
+async function apiGet(action, params) {
+  var url = './experiments/api-edit.php?action=' + action;
+  if (params) {
+    Object.keys(params).forEach(function(k) {
+      url += '&' + k + '=' + encodeURIComponent(params[k]);
+    });
+  }
+  var resp = await fetch(url);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp.json();
+}
+
+async function apiPost(action, body) {
+  var resp = await fetch('./experiments/api-edit.php?action=' + action, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return resp.json();
+}
+
+// ── Load templates ──
+async function loadTemplates() {
+  try {
+    var data = await apiGet('list-templates');
+    if (data && data.ok && Array.isArray(data.templates)) {
+      state.templates = data.templates;
+    }
+  } catch(e) {
+    console.error('loadTemplates failed:', e);
+  }
+}
+
+// ── Load projects ──
+async function loadProjects() {
+  try {
+    var data = await apiGet('list-projects');
+    if (data.ok) {
+      state.projects = data.projects;
+      var selects = ['metaProject', 'newProject'];
+      selects.forEach(function(id) {
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        if (id === 'newProject') sel.innerHTML = '';
+        else { while (sel.options.length > 1) sel.remove(1); }
+        data.projects.forEach(function(p) {
+          var opt = document.createElement('option');
+          opt.value = p.name;
+          opt.textContent = p.name + ' (' + p.count + ')';
+          sel.appendChild(opt);
+        });
+      });
+      // Update project manager
+      renderProjectManager();
+    }
+  } catch(e) {
+    console.error('加载项目列表失败:', e);
+  }
+}
+
+// ── Project Manager ──
+function renderProjectManager() {
+  var list = document.getElementById('projectList');
+  if (!list) return;
+  list.innerHTML = '';
+  state.projects.forEach(function(p) {
+    var item = document.createElement('div');
+    item.className = 'proj-item';
+    var canDelete = p.count === 0;
+    var expList = p.experiments.length > 0
+      ? '<div class="proj-exp-list">' + p.experiments.map(function(e) { return '<span class="proj-exp-tag">' + escapeHtml(e) + '</span>'; }).join('') + '</div>'
+      : '';
+    item.innerHTML =
+      '<div class="proj-info">' +
+        '<span class="proj-name">' + escapeHtml(p.name) + '</span>' +
+        '<span class="proj-count">' + p.count + ' 条记录</span>' +
+      '</div>' +
+      expList +
+      '<div class="proj-actions">' +
+        '<button onclick="renameProject(\'' + escapeHtml(p.name) + '\')" title="重命名">✏️</button>' +
+        (canDelete
+          ? '<button onclick="deleteProject(\'' + escapeHtml(p.name) + '\')" title="删除">🗑</button>'
+          : '<button disabled title="项目下有实验记录，无法删除">🗑</button>') +
+      '</div>';
+    list.appendChild(item);
+  });
+}
+
+async function createProject() {
+  var name = document.getElementById('newProjectName').value.trim();
+  if (!name) { showToast('请输入项目名', true); return; }
+  try {
+    var result = await apiPost('create-project', { name: name });
+    if (result.ok) {
+      showToast('项目 "' + name + '" 创建成功');
+      document.getElementById('newProjectName').value = '';
+      await loadProjects();
+    } else {
+      showToast(result.error || '创建失败', true);
+    }
+  } catch(e) {
+    showToast('请求失败: ' + e.message, true);
+  }
+}
+
+async function renameProject(oldName) {
+  var newName = prompt('重命名项目 "' + oldName + '"', oldName);
+  if (!newName || newName === oldName) return;
+  try {
+    var result = await apiPost('rename-project', { oldName: oldName, newName: newName });
+    if (result.ok) {
+      showToast('项目已重命名为 "' + newName + '"');
+      await loadProjects();
+    } else {
+      showToast(result.error || '重命名失败', true);
+    }
+  } catch(e) {
+    showToast('请求失败: ' + e.message, true);
+  }
+}
+
+async function deleteProject(name) {
+  if (!confirm('确定删除项目 "' + name + '"？此操作不可撤销。')) return;
+  try {
+    var result = await apiPost('delete-project', { name: name });
+    if (result.ok) {
+      showToast('项目已删除');
+      await loadProjects();
+    } else {
+      if (result.experiments) {
+        showToast(result.error + '：' + result.experiments.slice(0, 3).join(', ') + (result.experiments.length > 3 ? '...' : ''), true);
+      } else {
+        showToast(result.error || '删除失败', true);
+      }
+    }
+  } catch(e) {
+    showToast('请求失败: ' + e.message, true);
+  }
+}
+
+// ── Show template modal ──
+function showTemplateModal() {
+  var grid = document.getElementById('templateGrid');
+  grid.innerHTML = '';
+  if (!state.templates || state.templates.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--c-text2);padding:20px">暂无可用模板</div>';
+  } else {
+    state.templates.forEach(function(tpl) {
+      var card = document.createElement('div');
+      card.className = 'template-card';
+      card.setAttribute('data-id', tpl.id);
+      card.innerHTML = '<div class="tpl-icon">' + (tpl.icon || '📄') + '</div>' +
+        '<div class="tpl-name">' + escapeHtml(tpl.name) + '</div>' +
+        '<div class="tpl-desc">' + escapeHtml(tpl.description) + '</div>';
+      card.onclick = function() {
+        document.querySelectorAll('.template-card').forEach(function(c) { c.classList.remove('selected'); });
+        card.classList.add('selected');
+        state.template = tpl.id;
+        document.getElementById('confirmTemplateBtn').disabled = false;
+      };
+      grid.appendChild(card);
+    });
+  }
+  document.getElementById('templateModal').classList.add('show');
+}
+
+// ── Confirm template → show new form ──
+async function confirmTemplate() {
+  document.getElementById('templateModal').classList.remove('show');
+  var data = await apiGet('get-template', { id: state.template });
+  if (data.ok) {
+    var content = data.content;
+    var today = new Date().toISOString().slice(0, 10);
+    content = content.replace(/\{\{date\}\}/g, today);
+    document.getElementById('editor').value = content;
+    syncFrontmatterToMeta(content);
+    updatePreview();
+  }
+  document.getElementById('newDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('newFormModal').classList.add('show');
+}
+
+// ── Create experiment ──
+async function createExperiment() {
+  var project = document.getElementById('newProject').value;
+  var date = document.getElementById('newDate').value;
+  var slug = document.getElementById('newSlug').value.trim();
+
+  if (!project) { showToast('请选择项目', true); return; }
+  if (!slug) { showToast('请输入实验标识', true); return; }
+  if (!/^[a-z0-9\-]+$/.test(slug)) { showToast('标识只能包含小写字母、数字和连字符', true); return; }
+
+  // Update frontmatter with form values
+  syncMetaToFrontmatter();
+  var content = document.getElementById('editor').value;
+  // Replace placeholders
+  content = content.replace(/\{\{date\}\}/g, date);
+  content = content.replace(/\{\{project\}\}/g, project);
+
+  var result = await apiPost('create', {
+    project: project,
+    date: date,
+    id: slug,
+    template: state.template,
+    content: content
+  });
+
+  if (result.ok) {
+    document.getElementById('newFormModal').classList.remove('show');
+    state.mode = 'edit';
+    state.path = result.path;
+    document.getElementById('pageTitle').textContent = result.id;
+    // Reload as edit mode
+    loadExistingContent();
+    showToast('实验创建成功！');
+    state.dirty = false;
+  } else {
+    showToast(result.error || '创建失败', true);
+  }
+}
+
+// ── Load existing content ──
+async function loadExistingContent() {
+  var data = await apiGet('read', { path: state.path, lang: state.lang });
+  if (data.ok) {
+    document.getElementById('editor').value = data.content;
+    syncFrontmatterToMeta(data.content);
+    document.getElementById('charCount').textContent = data.content.length + ' 字';
+    updatePreview();
+    state.dirty = false;
+    setStatus('已加载');
+  } else {
+    setStatus('加载失败: ' + (data.error || '未知错误'), 'error');
+  }
+}
+
+// ── Save ──
+async function saveContent() {
+  if (state.saving) return;
+  if (!state.path) { showToast('请先创建实验', true); return; }
+
+  state.saving = true;
+  document.getElementById('saveBtn').disabled = true;
+  setStatus('保存中...');
+
+  var content = document.getElementById('editor').value;
+  var result = await apiPost('save', {
+    path: state.path,
+    lang: state.lang,
+    content: content
+  });
+
+  state.saving = false;
+  document.getElementById('saveBtn').disabled = false;
+
+  if (result.ok) {
+    state.dirty = false;
+    setStatus('已保存 ' + new Date().toLocaleTimeString(), 'success');
+    showToast('保存成功');
+  } else {
+    setStatus('保存失败', 'error');
+    showToast(result.error || '保存失败', true);
+  }
+}
+
+// ── Init ──
+async function init() {
+  await Promise.all([loadTemplates(), loadProjects()]);
+
+  var params = new URLSearchParams(location.search);
+  state.path = params.get('path') || '';
+  state.lang = params.get('lang') || 'zh';
+
+  // Strip 'experiments/' prefix since API root is already experiments/
+  if (state.path.startsWith('experiments/')) {
+    state.path = state.path.substring('experiments/'.length);
+  }
+
+  if (state.path) {
+    // Edit mode
+    state.mode = 'edit';
+    document.getElementById('pageTitle').textContent = state.path.split('/').pop();
+    loadExistingContent();
+  } else if (params.get('new') === '1') {
+    // New mode — show template modal
+    state.mode = 'new';
+    showTemplateModal();
+  } else {
+    // Default to new
+    state.mode = 'new';
+    showTemplateModal();
+  }
+
+  // Update lang tabs
+  document.querySelectorAll('.lang-tab').forEach(function(t) {
+    t.classList.toggle('active', t.getAttribute('data-lang') === state.lang);
+  });
+}
+
+init();
+
+// Warn before leaving with unsaved changes
+window.addEventListener('beforeunload', function(e) {
+  if (state.dirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+</script>
+</body>
+</html>

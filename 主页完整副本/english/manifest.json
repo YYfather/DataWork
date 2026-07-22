@@ -1,0 +1,19 @@
+{
+    "name": "英语选词填空刷题练习 Pro",
+    "short_name": "选词填空Pro",
+    "description": "支持随机、顺序、错题重练和本地进度保存的英语选词填空在线刷题工具",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#eef4ff",
+    "theme_color": "#2563eb",
+    "orientation": "any",
+    "lang": "zh-CN",
+    "categories": ["education", "productivity"],
+    "icons": [
+        {
+            "src": "../avatar.jpg",
+            "sizes": "any",
+            "type": "image/jpeg"
+        }
+    ]
+}

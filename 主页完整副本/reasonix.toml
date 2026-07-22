@@ -1,0 +1,7 @@
+[permissions]
+allow = ["Bash(Get-Location)"]
+
+
+[agent]
+plan_mode_read_only_commands = ["php -r"]
+

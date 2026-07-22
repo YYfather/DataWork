@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.min.js
+*.min.css
+*.min.html
+
+# Backup files
+*.backup
+
+# Logs
+*.log
+
+# Database
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Agent config
+.reasonix/

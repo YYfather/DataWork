@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>学习 Wiki · 霡霂</title>
+<meta name="description" content="个人学习知识库 - SunScan、PAR、LAI、数据分析">
+<meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="../avatar.jpg">
+<link rel="apple-touch-icon" href="../avatar.jpg">
+<style>
+:root{--c-primary:#6366f1;--c-primary2:#a78bfa;--c-bg:#f8f7ff;--c-card:rgba(255,255,255,0.72);--c-text:#1e1b2e;--c-text2:#6b7280;--c-border:rgba(255,255,255,0.45);--shadow:0 8px 32px rgba(99,102,241,0.1);--radius:16px;--blur:20px}
+[data-theme="dark"]{--c-primary:#818cf8;--c-primary2:#c4b5fd;--c-bg:#08080f;--c-card:rgba(24,22,38,0.72);--c-text:#eae8f2;--c-text2:#9ca3af;--c-border:rgba(255,255,255,0.06);--shadow:0 8px 32px rgba(0,0,0,0.4)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'SF Pro Display','Segoe UI','Microsoft YaHei',system-ui,sans-serif;background:var(--c-bg);color:var(--c-text);min-height:100vh;min-height:100dvh;transition:background .5s,color .4s;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg-mesh{position:absolute;inset:0;background:
+  radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.15), transparent),
+  radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.12), transparent),
+  radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.08), transparent);
+animation:meshShift 25s ease-in-out infinite alternate}
+@keyframes meshShift{
+  0%{background-position:0% 0%,100% 100%,50% 50%}
+  50%{background-position:30% 20%,70% 80%,40% 60%}
+  100%{background-position:10% 40%,90% 30%,60% 40%}
+}
+.bg-grain{position:absolute;inset:0;opacity:.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:128px}
+[data-theme="dark"] .bg-mesh{background:
+  radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,0.08), transparent),
+  radial-gradient(ellipse 500px 500px at 80% 70%, rgba(167,139,250,0.06), transparent),
+  radial-gradient(ellipse 400px 300px at 50% 50%, rgba(16,185,129,0.04), transparent)}
+
+.page{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:48px 20px calc(40px + env(safe-area-inset-bottom));display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+
+.back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--c-text2);text-decoration:none;margin-bottom:24px;transition:color .2s;animation:fadeUp .5s ease-out}
+.back:hover{color:var(--c-primary)}
+
+.header{text-align:center;margin-bottom:32px;animation:fadeUp .5s ease-out .05s both}
+.header h1{font-size:1.6rem;font-weight:700;margin-bottom:6px;letter-spacing:-.02em}
+.header p{color:var(--c-text2);font-size:14px}
+
+.section-title{font-size:12px;color:var(--c-text2);text-transform:uppercase;letter-spacing:.08em;margin:24px 0 12px;font-weight:500;animation:fadeUp .5s ease-out .1s both}
+
+.cards{display:flex;flex-direction:column;gap:12px;animation:fadeUp .5s ease-out .15s both}
+.card{display:flex;align-items:center;gap:14px;padding:16px 18px;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:var(--radius);text-decoration:none;color:var(--c-text);transition:all .3s cubic-bezier(.25,.46,.45,.94);box-shadow:var(--shadow);position:relative;overflow:hidden}
+.card::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent);transition:left .5s}
+.card:hover::after{left:100%}
+.card:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(99,102,241,0.16);border-color:rgba(99,102,241,0.3)}
+.card:active{transform:translateY(-1px);transition-duration:.1s}
+.card-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;color:#fff}
+.card-info{flex:1;min-width:0}
+.card-title{font-size:14px;font-weight:600;margin-bottom:2px}
+.card-desc{font-size:12px;color:var(--c-text2)}
+.card-tag{font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,0.1);color:var(--c-primary);flex-shrink:0}
+
+.footer{margin-top:auto;padding-top:36px;text-align:center;font-size:12px;color:var(--c-text2);opacity:.4;animation:fadeUp .5s ease-out .3s both}
+
+/* Auto-discovered documents */
+.docs-loading,.docs-empty,.docs-error{padding:28px 18px;text-align:center;color:var(--c-text2);font-size:13px;background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.docs-loading::after{content:'';display:block;width:22px;height:22px;margin:14px auto 0;border:2px solid var(--c-border);border-top-color:var(--c-primary);border-radius:50%;animation:spin .7s linear infinite}
+.docs-error{color:#dc2626}
+.docs-count{font-size:11px;color:var(--c-text2);font-weight:400;margin-left:6px;letter-spacing:0;text-transform:none}
+.docs-tools{display:grid;grid-template-columns:minmax(0,1fr) 168px;gap:10px;margin:24px 0 8px;padding:12px;background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--radius);box-shadow:var(--shadow);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur))}
+.docs-tools[hidden]{display:none}
+.docs-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.docs-field>span{font-size:11px;font-weight:600;color:var(--c-text2)}
+.docs-field input,.docs-field select{width:100%;height:38px;padding:0 11px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-bg);color:var(--c-text);font:inherit;font-size:13px;outline:none;transition:border-color .2s,box-shadow .2s}
+.docs-field input::placeholder{color:var(--c-text2);opacity:.78}
+.docs-field input:focus,.docs-field select:focus{border-color:var(--c-primary);box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+.docs-field select{cursor:pointer}
+.docs-match{grid-column:1/-1;min-height:18px;margin:0 2px 2px;color:var(--c-text2);font-size:11px;text-align:right}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.theme-btn{position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:none;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:18px;cursor:pointer;box-shadow:var(--shadow);transition:all .25s;display:flex;align-items:center;justify-content:center;z-index:100;border:1px solid var(--c-border)}
+.theme-btn:hover{transform:scale(1.1) rotate(20deg)}
+.backup-btn{position:fixed;top:16px;right:64px;width:40px;height:40px;border-radius:50%;border:none;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));font-size:18px;cursor:pointer;box-shadow:var(--shadow);transition:all .25s;display:flex;align-items:center;justify-content:center;z-index:100;border:1px solid var(--c-border)}
+.backup-btn:hover{transform:scale(1.1)}
+.backup-btn.has-sync{border-color:var(--c-primary)}
+
+/* Backup Overlay & Panel */
+.bak-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease-out}
+.bak-overlay.show{display:flex}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.bak-panel{background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-radius:20px;padding:28px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,0.25);animation:scaleIn .25s ease-out}
+@keyframes scaleIn{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
+.bak-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.bak-header h2{font-size:1.2rem;font-weight:700;display:flex;align-items:center;gap:8px}
+.bak-close{width:32px;height:32px;border-radius:50%;border:none;background:rgba(99,102,241,0.08);color:var(--c-text2);font-size:16px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center}
+.bak-close:hover{background:rgba(99,102,241,0.15);color:var(--c-primary)}
+.bak-status{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--c-bg);border-radius:12px;margin-bottom:16px;font-size:13px}
+.bak-status .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.bak-status .dot.ok{background:#10b981}
+.bak-status .dot.err{background:#ef4444}
+.bak-status .dot.warn{background:#f59e0b}
+.bak-info{flex:1;min-width:0}
+.bak-info .label{font-weight:600;font-size:13px}
+.bak-info .detail{color:var(--c-text2);font-size:12px;margin-top:2px}
+.bak-actions{display:flex;gap:10px;margin-bottom:20px}
+.bak-btn{flex:1;padding:12px;border-radius:12px;border:1px solid var(--c-border);background:var(--c-card);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--c-text)}
+.bak-btn:hover{border-color:var(--c-primary);color:var(--c-primary);transform:translateY(-1px)}
+.bak-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.bak-btn.primary{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+.bak-btn.primary:hover{box-shadow:0 4px 16px rgba(99,102,241,0.3)}
+.bak-section{margin-bottom:16px}
+.bak-section h3{font-size:12px;color:var(--c-text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:500}
+.bak-setting{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--c-bg);border-radius:10px;margin-bottom:8px;font-size:13px}
+.bak-setting label{flex:1;font-weight:500}
+.bak-setting input[type=number]{width:64px;padding:6px 8px;border:1px solid var(--c-border);border-radius:8px;background:var(--c-card);color:var(--c-text);font-size:13px;text-align:center}
+.bak-setting input[type=number]:focus{border-color:var(--c-primary);outline:none}
+.bak-ver-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
+.bak-ver-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--c-bg);border-radius:10px;font-size:13px;transition:background .15s}
+.bak-ver-item:hover{background:rgba(99,102,241,0.06)}
+.bak-ver-time{font-weight:500}
+.bak-ver-name{color:var(--c-text2);font-size:11px;margin-top:2px}
+.bak-ver-btn{padding:5px 12px;border-radius:8px;border:1px solid var(--c-border);background:var(--c-card);font-size:11px;cursor:pointer;transition:all .15s;color:var(--c-text2);flex-shrink:0}
+.bak-ver-btn:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.bak-ver-btn:disabled{opacity:.4;cursor:not-allowed}
+.bak-empty{text-align:center;padding:24px;color:var(--c-text2);font-size:13px}
+.bak-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 24px;background:var(--c-card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--c-border);border-radius:12px;font-size:14px;font-weight:500;color:var(--c-text);box-shadow:var(--shadow);z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.bak-toast.show{opacity:1}
+.bak-toast.error{border-color:#ef4444;color:#ef4444}
+@media(max-width:480px){
+  .bak-panel{padding:20px;border-radius:16px}
+  .bak-actions{flex-direction:column}
+}
+/* Loading Overlay */
+.bak-loading{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.bak-loading.show{display:flex;opacity:1}
+.bak-loading-box{background:var(--c-card);border-radius:16px;padding:28px 36px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 16px 48px rgba(0,0,0,.2);animation:scaleIn .2s ease}
+.bak-loading-spinner{width:36px;height:36px;border:3px solid var(--c-border);border-top-color:var(--c-primary);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.bak-loading-text{font-size:14px;color:var(--c-text2);font-weight:500}
+/* Cloud update notice */
+.bak-cloud-notice{display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:10px;margin-bottom:12px;font-size:13px;color:#d97706;animation:fadeUp .3s ease}
+.bak-cloud-notice .notice-icon{font-size:18px;flex-shrink:0}
+.bak-cloud-notice .notice-text{flex:1}
+.bak-cloud-notice .notice-text strong{color:var(--c-text)}
+.bak-cloud-notice button{padding:5px 12px;border-radius:8px;border:none;background:#f59e0b;color:#fff;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;transition:all .15s}
+.bak-cloud-notice button:hover{background:#d97706}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+
+/* Sync Bar */
+.sync-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);z-index:300;background:var(--c-card);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--c-border);border-bottom:none;padding:14px 18px;display:flex;align-items:center;gap:12px;box-shadow:0 -4px 24px rgba(0,0,0,0.15);width:calc(100% - 24px);max-width:500px;border-radius:16px 16px 0 0;transition:transform .3s cubic-bezier(.25,.46,.45,.94)}
+.sync-bar.show{transform:translateX(-50%) translateY(0)}
+.sync-bar .sync-icon{font-size:24px;flex-shrink:0}
+.sync-bar .sync-info{flex:1;min-width:0}
+.sync-bar .sync-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
+.sync-bar .sync-detail{font-size:12px;color:var(--c-text2);margin-top:2px}
+.sync-bar button{padding:8px 14px;border-radius:10px;border:1px solid var(--c-border);background:var(--c-bg);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;color:var(--c-text2);white-space:nowrap}
+.sync-bar button:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.sync-bar button.primary{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+.sync-bar button.primary:hover{box-shadow:0 4px 16px rgba(99,102,241,0.3)}
+.backup-btn{position:relative}
+.backup-btn .sync-dot{position:absolute;top:-2px;right:-2px;width:10px;height:10px;border-radius:50%;background:#10b981;border:2px solid var(--c-bg);display:none}
+.backup-btn .sync-dot.show{display:block}
+.backup-btn .sync-dot.warn{background:#f59e0b}
+
+@media(max-width:480px){
+  .page{padding:36px 16px calc(32px + env(safe-area-inset-bottom))}
+  .header h1{font-size:1.35rem}
+  .docs-tools{grid-template-columns:1fr;padding:11px}
+  .docs-match{text-align:left}
+  .card{padding:14px 14px;gap:12px}
+  .card-icon{width:38px;height:38px;border-radius:10px;font-size:18px}
+}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+
+</style>
+<link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+
+<div class="bg"><div class="bg-mesh"></div><div class="bg-grain"></div></div>
+<button class="backup-btn" onclick="openBackup()" title="云端备份">☁️<span class="sync-dot" id="syncDot"></span></button>
+<button class="theme-btn" onclick="toggleTheme()" title="切换主题">🌓</button>
+
+<div class="page">
+<main id="main-content">
+  <a class="back" href="../">← 返回主页</a>
+
+  <div class="header">
+    <h1>📖 学习 Wiki</h1>
+    <p>个人学习知识库 · 持续更新中</p>
+  </div>
+
+  <!-- Experiment Records -->
+  <div class="section-title">🔬 实验记录</div>
+  <div class="cards">
+    <a class="card" href="./experiments.html">
+      <div class="card-icon" style="background:linear-gradient(135deg,#06b6d4,#0891b2)">🧪</div>
+      <div class="card-info">
+        <div class="card-title">全部实验记录</div>
+        <div class="card-desc">多项目管理 · 按时间排序 · 收藏置顶</div>
+      </div>
+      <span class="card-tag">NEW</span>
+    </a>
+  </div>
+
+  <!-- Auto-discovered Markdown documents -->
+  <div id="autoDocs">
+    <div class="docs-tools" id="docsTools" hidden>
+      <label class="docs-field" for="docsSearch">
+        <span>搜索文档</span>
+        <input id="docsSearch" type="search" autocomplete="off" placeholder="输入名称或摘要" aria-controls="docsResults">
+      </label>
+      <label class="docs-field" for="docsSort">
+        <span>排序方式</span>
+        <select id="docsSort" aria-controls="docsResults">
+          <option value="recommended">推荐排序</option>
+          <option value="updated-desc">更新时间（最新）</option>
+          <option value="updated-asc">更新时间（最早）</option>
+          <option value="name-asc">名称（升序）</option>
+          <option value="name-desc">名称（降序）</option>
+        </select>
+      </label>
+      <div class="docs-match" id="docsMatch" aria-live="polite"></div>
+    </div>
+    <div id="docsResults" aria-live="polite">
+    <div class="docs-loading">正在读取同级目录中的 Markdown 文档…</div>
+    </div>
+  </div>
+
+  <div class="footer">© 2026 霡霂 · 学习知识库</div>
+</main>
+</div>
+
+<!-- Backup Panel -->
+<div class="bak-overlay" id="bakOverlay">
+  <div class="bak-panel">
+    <div class="bak-header">
+      <h2>☁️ 云端备份</h2>
+      <button class="bak-close" onclick="closeBackup()">✕</button>
+    </div>
+
+    <div class="bak-status" id="bakStatus">
+      <span class="dot warn"></span>
+      <div class="bak-info">
+        <div class="label">检查中…</div>
+        <div class="detail"></div>
+      </div>
+    </div>
+
+    <div class="bak-actions">
+      <button class="bak-btn primary" id="bakUploadBtn" onclick="doBackup()" disabled>☁️ 备份到云端</button>
+      <button class="bak-btn" id="bakRestoreBtn" onclick="doRestore()" disabled>⬇️ 从云端恢复</button>
+    </div>
+
+    <div class="bak-section">
+      <h3>⚙️ 版本设置</h3>
+      <div class="bak-setting">
+        <label>保留版本数</label>
+        <input type="number" id="bakMaxVer" min="1" max="100" value="20" onchange="setMaxVersions(this.value)">
+      </div>
+      <div class="bak-setting">
+        <label>上次同步</label>
+        <span id="bakLastSync" style="color:var(--c-text2)">-</span>
+      </div>
+    </div>
+
+    <div class="bak-section">
+      <h3>📋 版本历史</h3>
+      <div class="bak-ver-list" id="bakVerList">
+        <div class="bak-empty">加载中…</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="bak-toast" id="bakToast"></div>
+<!-- Loading Overlay -->
+<div class="bak-loading" id="bakLoading">
+  <div class="bak-loading-box">
+    <div class="bak-loading-spinner"></div>
+    <div class="bak-loading-text" id="bakLoadingText">处理中…</div>
+  </div>
+</div>
+
+</div>
+
+<!-- Sync Bar -->
+<div class="sync-bar" id="syncBar">
+  <span class="sync-icon">☁️</span>
+  <div class="sync-info">
+    <div class="sync-title">有未同步的更改</div>
+    <div class="sync-detail" id="syncBarDetail">-</div>
+  </div>
+  <button onclick="hideSyncBar()">忽略</button>
+  <button class="primary" id="syncBarBtn" onclick="quickSync()">☁️ 上传</button>
+</div>
+
+<script>
+function escapeHtml(str) {
+  if (typeof str !== 'string') return str;
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function toggleTheme(){const b=document.body;if(b.getAttribute('data-theme')==='dark'){b.removeAttribute('data-theme');localStorage.setItem('hp_theme','light')}else{b.setAttribute('data-theme','dark');localStorage.setItem('hp_theme','dark')}}
+if(localStorage.getItem('hp_theme')==='dark')document.body.setAttribute('data-theme','dark');
+
+// ==================== Auto-discovered documents ====================
+// 时间戳保证旧版 Service Worker 不会复用此前缓存的空响应。
+var docsApi = './api-documents.php?_=' + Date.now();
+var documentPalette = [
+  ['#6366f1','#4f46e5'], ['#10b981','#059669'], ['#f59e0b','#d97706'],
+  ['#3b82f6','#2563eb'], ['#8b5cf6','#7c3aed'], ['#ec4899','#db2777'],
+  ['#06b6d4','#0891b2'], ['#f97316','#ea580c']
+];
+var allDocuments = [];
+var documentQuery = '';
+var documentSort = localStorage.getItem('wiki_docs_sort') || 'recommended';
+
+function chineseDocumentText(doc, field, fallback) {
+  var values = doc[field] || {};
+  var value = values.zh || fallback || '';
+  if (String(value).indexOf('\uFFFD') !== -1) {
+    value = values.en || fallback || '';
+  }
+  return String(value).trim();
+}
+
+function documentSearchText(doc) {
+  return [doc.page, doc.category, doc.title, doc.description]
+    .concat(Object.values(doc.titles || {}), Object.values(doc.descriptions || {}))
+    .join(' ').toLocaleLowerCase('zh-CN');
+}
+
+function compareDocuments(a, b) {
+  var titleA = chineseDocumentText(a, 'titles', a.title || a.page);
+  var titleB = chineseDocumentText(b, 'titles', b.title || b.page);
+  if (documentSort === 'name-asc' || documentSort === 'name-desc') {
+    var byName = titleA.localeCompare(titleB, 'zh-CN', { numeric: true, sensitivity: 'base' });
+    return documentSort === 'name-desc' ? -byName : byName;
+  }
+  if (documentSort === 'updated-desc' || documentSort === 'updated-asc') {
+    var timeA = Date.parse(a.modified_at || '') || 0;
+    var timeB = Date.parse(b.modified_at || '') || 0;
+    var byTime = timeA - timeB;
+    if (byTime === 0) byTime = titleA.localeCompare(titleB, 'zh-CN', { numeric: true, sensitivity: 'base' });
+    return documentSort === 'updated-desc' ? -byTime : byTime;
+  }
+  var orderA = Number.isFinite(Number(a.order)) ? Number(a.order) : 9999;
+  var orderB = Number.isFinite(Number(b.order)) ? Number(b.order) : 9999;
+  return orderA - orderB || titleA.localeCompare(titleB, 'zh-CN', { numeric: true, sensitivity: 'base' });
+}
+
+function documentCard(doc, index) {
+  var palette = documentPalette[index % documentPalette.length];
+  var page = encodeURIComponent(doc.page).replace(/%2F/gi, '/');
+  var descriptions = doc.descriptions || {};
+  var rawTitle = chineseDocumentText(doc, 'titles', doc.title || doc.page);
+  var rawDescription = chineseDocumentText(doc, 'descriptions', doc.description || 'Markdown 文档');
+  if (String(rawTitle).indexOf('\uFFFD') !== -1) rawTitle = doc.page;
+  if (String(rawDescription).indexOf('\uFFFD') !== -1) {
+    rawDescription = descriptions.en || '点击查看完整文档';
+  }
+  var title = escapeHtml(rawTitle);
+  var desc = escapeHtml(rawDescription);
+  var icon = escapeHtml(doc.icon || '📄');
+  var tag = escapeHtml(doc.tag || (doc.languages && doc.languages.length > 1 ? '中/EN' : 'MD'));
+  return '<a class="card" href="./viewer.html?page=' + page + '">' +
+    '<div class="card-icon" style="background:linear-gradient(135deg,' + palette[0] + ',' + palette[1] + ')">' + icon + '</div>' +
+    '<div class="card-info"><div class="card-title">' + title + '</div><div class="card-desc">' + desc + '</div></div>' +
+    '<span class="card-tag">' + tag + '</span></a>';
+}
+
+function renderDocuments() {
+  var results = document.getElementById('docsResults');
+  var match = document.getElementById('docsMatch');
+  var query = documentQuery.trim().toLocaleLowerCase('zh-CN');
+  var docs = allDocuments.filter(function(doc) {
+    return !query || documentSearchText(doc).indexOf(query) !== -1;
+  }).sort(compareDocuments);
+
+  match.textContent = query ? '找到 ' + docs.length + ' 篇，共 ' + allDocuments.length + ' 篇' : '共 ' + docs.length + ' 篇';
+  if (!docs.length) {
+    results.innerHTML = '<div class="docs-empty">没有找到匹配的文档，请尝试其他关键词。</div>';
+    return;
+  }
+
+  var groups = {};
+  docs.forEach(function(doc) {
+    var category = doc.category || '学习文档';
+    if (!groups[category]) groups[category] = [];
+    groups[category].push(doc);
+  });
+
+  var cardIndex = 0;
+  results.innerHTML = Object.keys(groups).map(function(category) {
+    var items = groups[category];
+    var cards = items.map(function(doc) { return documentCard(doc, cardIndex++); }).join('');
+    return '<div class="section-title">📚 ' + escapeHtml(category) + '<span class="docs-count">' + items.length + ' 篇</span></div>' +
+      '<div class="cards">' + cards + '</div>';
+  }).join('');
+}
+
+function initializeDocumentTools() {
+  var tools = document.getElementById('docsTools');
+  var search = document.getElementById('docsSearch');
+  var sort = document.getElementById('docsSort');
+  var allowedSorts = ['recommended', 'updated-desc', 'updated-asc', 'name-asc', 'name-desc'];
+  if (allowedSorts.indexOf(documentSort) === -1) documentSort = 'recommended';
+  sort.value = documentSort;
+  search.addEventListener('input', function() {
+    documentQuery = search.value;
+    renderDocuments();
+  });
+  sort.addEventListener('change', function() {
+    documentSort = sort.value;
+    localStorage.setItem('wiki_docs_sort', documentSort);
+    renderDocuments();
+  });
+  tools.hidden = false;
+}
+
+async function readDocumentIndex(response) {
+  var raw = await response.text();
+  if (!raw.trim()) throw new Error('文档接口返回为空（HTTP ' + response.status + '）');
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    throw new Error('文档接口返回的不是 JSON（HTTP ' + response.status + '）');
+  }
+}
+
+async function loadDocuments() {
+  var results = document.getElementById('docsResults');
+  try {
+    var response = await fetch(docsApi, { cache: 'no-store' });
+    var data = await readDocumentIndex(response);
+    if (!response.ok || !data.ok) throw new Error(data.error || ('HTTP ' + response.status));
+    allDocuments = Array.isArray(data.documents) ? data.documents : [];
+    if (!allDocuments.length) {
+      results.innerHTML = '<div class="docs-empty">当前目录还没有可显示的 Markdown 文档。</div>';
+      return;
+    }
+    initializeDocumentTools();
+    renderDocuments();
+
+    var subtitle = document.querySelector('.header p');
+    if (subtitle) subtitle.textContent = '个人学习知识库 · 已自动读取 ' + allDocuments.length + ' 篇文档';
+  } catch (error) {
+    document.getElementById('docsTools').hidden = true;
+    results.innerHTML = '<div class="docs-error">自动读取失败：' + escapeHtml(error.message) + '<br><small>请确认 api-documents.php 已同步到服务器，并由 PHP Web 服务器运行；若刚更新，请强制刷新页面。</small></div>';
+  }
+}
+
+loadDocuments();
+
+// ==================== Backup Panel ====================
+var bakApi = './api-backup.php';
+var bakConfigured = false;
+
+function bakFetch(url, options) {
+  var authToken = sessionStorage.getItem('vault_session_token') || localStorage.getItem('vault_token') || '';
+  if (!authToken) return Promise.reject(new Error('请先登录凭证保险箱主账号'));
+  var requestOptions = Object.assign({}, options || {});
+  requestOptions.cache = 'no-store';
+  requestOptions.headers = Object.assign({}, requestOptions.headers || {}, { Authorization: 'Bearer ' + authToken });
+  return fetch(url, requestOptions).then(function(response) {
+    if (response.status === 401) throw new Error('保险箱会话已过期，请重新登录');
+    if (response.status === 403) throw new Error('仅保险箱主账号可管理云同步');
+    return response;
+  });
+}
+
+function openBackup() {
+  document.getElementById('bakOverlay').classList.add('show');
+  checkBakStatus();
+  loadVersions();
+}
+function closeBackup() {
+  document.getElementById('bakOverlay').classList.remove('show');
+}
+// 点击遮罩关闭
+document.getElementById('bakOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeBackup();
+});
+
+function bakToast(msg, isError) {
+  var t = document.getElementById('bakToast');
+  t.textContent = msg;
+  t.className = 'bak-toast show' + (isError ? ' error' : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function() { t.className = 'bak-toast'; }, 2500);
+}
+
+var _bakLoadingTimer = null;
+function showBakLoading(text) {
+  clearTimeout(_bakLoadingTimer);
+  _bakLoadingTimer = setTimeout(function() {
+    document.getElementById('bakLoadingText').textContent = text || '处理中…';
+    document.getElementById('bakLoading').classList.add('show');
+  }, 300);
+}
+function hideBakLoading() {
+  clearTimeout(_bakLoadingTimer);
+  _bakLoadingTimer = null;
+  document.getElementById('bakLoading').classList.remove('show');
+}
+
+var _lastSyncTime = null;
+
+async function checkBakStatus() {
+  var el = document.getElementById('bakStatus');
+  var uploadBtn = document.getElementById('bakUploadBtn');
+  var restoreBtn = document.getElementById('bakRestoreBtn');
+  try {
+    var r = await bakFetch(bakApi + '?action=status');
+    var j = await r.json();
+    if (j.ok && j.configured) {
+      bakConfigured = true;
+      _lastSyncTime = j.last_sync || null;
+      el.innerHTML = '<span class="dot ok"></span><div class="bak-info"><div class="label">已连接</div><div class="detail">' + escapeHtml(j.username || '') + ' · WebDAV 已就绪</div></div>';
+      uploadBtn.disabled = false;
+      restoreBtn.disabled = false;
+      document.getElementById('bakMaxVer').value = j.max_versions || 20;
+      document.getElementById('bakLastSync').textContent = _lastSyncTime ? new Date(_lastSyncTime).toLocaleString('zh-CN') : '从未同步';
+      document.querySelector('.backup-btn').classList.add('has-sync');
+      // 检查云端是否有更新
+      await checkCloudForUpdates();
+    } else {
+      bakConfigured = false;
+      el.innerHTML = '<span class="dot err"></span><div class="bak-info"><div class="label">未配置</div><div class="detail">请先在凭证保险箱中配置 WebDAV</div></div>';
+      uploadBtn.disabled = true;
+      restoreBtn.disabled = true;
+    }
+  } catch(e) {
+    el.innerHTML = '<span class="dot err"></span><div class="bak-info"><div class="label">连接失败</div><div class="detail">' + escapeHtml(e.message) + '</div></div>';
+  }
+}
+
+async function checkCloudForUpdates() {
+  try {
+    var r = await bakFetch(bakApi + '?action=cloud-latest');
+    var j = await r.json();
+    if (!j.ok || !j.configured || !j.time) return;
+    var cloudTime = new Date(j.time).getTime();
+    var localTime = _lastSyncTime ? new Date(_lastSyncTime).getTime() : 0;
+    // 本地从未同步但有文件 → 不覆盖
+    if (!_lastSyncTime) {
+      var verR = await bakFetch(bakApi + '?action=versions');
+      var verJ = await verR.json();
+      if (verJ.ok && verJ.versions && verJ.versions.length > 0) return;
+    }
+    // 云端比本地新 → 显示提示
+    if (cloudTime > localTime) {
+      var cloudStr = new Date(j.time).toLocaleString('zh-CN');
+      var localStr = _lastSyncTime ? new Date(_lastSyncTime).toLocaleString('zh-CN') : '从未同步';
+      var notice = document.createElement('div');
+      notice.className = 'bak-cloud-notice';
+      notice.innerHTML = '<span class="notice-icon">☁️</span>' +
+        '<div class="notice-text">云端有更新版本<br><strong>' + escapeHtml(cloudStr) + '</strong> · 本地: ' + escapeHtml(localStr) + '</div>' +
+        '<button onclick="this.parentElement.remove();doRestore()">同步</button>';
+      var panel = document.querySelector('.bak-panel');
+      var actions = panel.querySelector('.bak-actions');
+      panel.insertBefore(notice, actions);
+    }
+  } catch {}
+}
+
+async function loadVersions() {
+  var el = document.getElementById('bakVerList');
+  try {
+    var r = await bakFetch(bakApi + '?action=versions');
+    var j = await r.json();
+    if (!j.ok) {
+      el.innerHTML = '<div class="bak-empty">加载失败: ' + escapeHtml(j.error || '未知错误') + '</div>';
+      return;
+    }
+    if (!j.versions || j.versions.length === 0) {
+      el.innerHTML = '<div class="bak-empty">暂无备份版本</div>';
+      return;
+    }
+    el.innerHTML = j.versions.map(function(v) {
+      var time = new Date(v.time).toLocaleString('zh-CN');
+      return '<div class="bak-ver-item"><div><div class="bak-ver-time">' + escapeHtml(time) + '</div><div class="bak-ver-name">' + escapeHtml(v.name) + '</div></div>' +
+        '<button class="bak-ver-btn" onclick="doRestoreVersion(\'' + escapeHtml(v.name).replace(/'/g, "\\'") + '\')">恢复</button></div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="bak-empty">加载失败: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+async function doBackup() {
+  if (!bakConfigured) return;
+  showBakLoading('正在备份到云端…');
+  var btn = document.getElementById('bakUploadBtn');
+  btn.disabled = true;
+  try {
+    var r = await bakFetch(bakApi + '?action=backup', { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      // 使用服务器返回的时间，确保与云端一致
+      _lastSyncTime = j.time || new Date().toISOString();
+      document.getElementById('bakLastSync').textContent = new Date(_lastSyncTime).toLocaleString('zh-CN');
+      bakToast('✅ ' + j.msg + (j.deleted && j.deleted.length ? '，清理了 ' + j.deleted.length + ' 个旧版本' : '') + (j.warning ? ' ⚠️ ' + j.warning : ''));
+      // 移除云端更新提示
+      var notice = document.querySelector('.bak-cloud-notice');
+      if (notice) notice.remove();
+      var autoNotice = document.getElementById('autoCloudNotice');
+      if (autoNotice) autoNotice.remove();
+      hideSyncBar();
+      await loadVersions();
+    } else {
+      bakToast('❌ ' + j.error, true);
+    }
+  } catch(e) {
+    bakToast('❌ 备份失败: ' + e.message, true);
+  }
+  hideBakLoading();
+  btn.disabled = false;
+}
+
+async function doRestore() {
+  if (!bakConfigured) return;
+  if (!confirm('确认从云端最新版本恢复？当前文件将被覆盖，快照中不存在的旧 Wiki 文件会被删除。')) return;
+  showBakLoading('正在从云端恢复…');
+  var btn = document.getElementById('bakRestoreBtn');
+  btn.disabled = true;
+  try {
+    var r = await bakFetch(bakApi + '?action=restore', { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      // 使用恢复版本的时间，而非当前时间
+      // 这样 checkCloudForUpdates 能正确判断云端是否有更新版本
+      _lastSyncTime = j.time || new Date().toISOString();
+      document.getElementById('bakLastSync').textContent = new Date(_lastSyncTime).toLocaleString('zh-CN');
+      bakToast('✅ 已恢复 ' + j.restored + '/' + j.total + ' 个文件' + (j.removed ? '，清理 ' + j.removed + ' 个旧文件' : '') + (j.warning ? ' ⚠️ ' + j.warning : ''));
+      var notice = document.querySelector('.bak-cloud-notice');
+      if (notice) notice.remove();
+      var autoNotice = document.getElementById('autoCloudNotice');
+      if (autoNotice) autoNotice.remove();
+      hideSyncBar();
+    } else {
+      bakToast('❌ ' + (j.error || '恢复失败'), true);
+    }
+  } catch(e) {
+    bakToast('❌ 恢复失败: ' + e.message, true);
+  }
+  hideBakLoading();
+  btn.disabled = false;
+}
+
+async function doRestoreVersion(name) {
+  if (!confirm('确认恢复版本 ' + name + '？当前文件将被覆盖，快照中不存在的旧 Wiki 文件会被删除。')) return;
+  showBakLoading('正在恢复版本…');
+  var btns = document.querySelectorAll('.bak-ver-btn');
+  btns.forEach(function(b) { b.disabled = true; });
+  try {
+    var r = await bakFetch(bakApi + '?action=restore-version', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name })
+    });
+    var j = await r.json();
+    if (j.ok) {
+      // 使用恢复版本的时间，而非当前时间
+      _lastSyncTime = j.time || new Date().toISOString();
+      document.getElementById('bakLastSync').textContent = new Date(_lastSyncTime).toLocaleString('zh-CN');
+      bakToast('✅ 已恢复 ' + j.restored + '/' + j.total + ' 个文件' + (j.removed ? '，清理 ' + j.removed + ' 个旧文件' : ''));
+    } else {
+      bakToast('❌ ' + (j.error || '恢复失败'), true);
+    }
+  } catch(e) {
+    bakToast('❌ 恢复失败: ' + e.message, true);
+  }
+  hideBakLoading();
+  btns.forEach(function(b) { b.disabled = false; });
+}
+
+async function setMaxVersions(val) {
+  var n = parseInt(val);
+  if (isNaN(n) || n < 1 || n > 100) return;
+  try {
+    var r = await bakFetch(bakApi + '?action=set-max-versions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ max_versions: n })
+    });
+    var j = await r.json();
+    if (j.needs_confirm) {
+      if (confirm(j.msg + '，确认删除？')) {
+        var r2 = await bakFetch(bakApi + '?action=set-max-versions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ max_versions: n, confirm_delete: true })
+        });
+        var j2 = await r2.json();
+        bakToast('✅ ' + j2.msg);
+        loadVersions();
+      } else {
+        document.getElementById('bakMaxVer').value = j.previous_max || 20;
+      }
+    } else if (j.ok) {
+      bakToast('✅ ' + j.msg);
+      if (j.deleted && j.deleted.length) loadVersions();
+    } else {
+      bakToast('❌ ' + j.error, true);
+    }
+  } catch(e) {
+    bakToast('❌ 设置失败: ' + e.message, true);
+  }
+}
+
+// ==================== Sync State ====================
+var _dataDirty = false;
+var _syncBarTimer = null;
+var _cloudConfigured = false;
+
+async function initSyncState() {
+  try {
+    var r = await bakFetch(bakApi + '?action=cloud-status');
+    var j = await r.json();
+    if (!j.ok) return;
+    _cloudConfigured = j.configured;
+    _lastSyncTime = j.last_sync || null;
+    if (j.configured) {
+      document.querySelector('.backup-btn').classList.add('has-sync');
+    }
+    document.getElementById('bakLastSync').textContent = _lastSyncTime ? new Date(_lastSyncTime).toLocaleString('zh-CN') : '从未同步';
+    if (j.cloud_is_newer) {
+      var cloudStr = j.cloud_time ? new Date(j.cloud_time).toLocaleString('zh-CN') : '未知';
+      var localStr = _lastSyncTime ? new Date(_lastSyncTime).toLocaleString('zh-CN') : '从未同步';
+      var notice = document.createElement('div');
+      notice.className = 'bak-cloud-notice';
+      notice.id = 'autoCloudNotice';
+      notice.innerHTML = '<span class="notice-icon">☁️</span>' +
+        '<div class="notice-text">云端有更新版本<br><strong>' + escapeHtml(cloudStr) + '</strong> · 本地: ' + escapeHtml(localStr) + '</div>' +
+        '<button onclick="document.getElementById(\'autoCloudNotice\').remove();openBackup();setTimeout(function(){doRestore()},500)">同步</button>';
+      var main = document.getElementById('main-content');
+      if (main) main.insertBefore(notice, main.firstChild);
+    }
+    if (j.has_local_changes) {
+      _dataDirty = true;
+      if (j.cloud_versions > 0) {
+        document.getElementById('syncBarDetail').textContent = '本地: ' + new Date(_lastSyncTime).toLocaleString('zh-CN') + ' · ☁️ 云端: ' + j.cloud_versions + ' 个版本';
+      } else {
+        document.getElementById('syncBarDetail').textContent = _lastSyncTime ? '本地有未备份的更改' : 'Wiki 尚未创建首次云端备份';
+      }
+      setTimeout(function() { if (_dataDirty) showSyncBar(); }, 1500);
+    }
+  } catch(e) { console.log('initSyncState:', e); }
+}
+
+function markDataDirty() {
+  if (!_cloudConfigured) return;
+  _dataDirty = true;
+  if (_syncBarTimer) clearTimeout(_syncBarTimer);
+  _syncBarTimer = setTimeout(function() { checkLocalChanges(); }, 2000);
+}
+window.markDataDirty = markDataDirty;
+
+async function checkLocalChanges() {
+  try {
+    var r = await bakFetch(bakApi + '?action=check-local');
+    var j = await r.json();
+    if (j.ok && j.has_changes) {
+      _dataDirty = true;
+      showSyncBar();
+      bakFetch(bakApi + '?action=cloud-status').then(function(r2) { return r2.json(); }).then(function(j2) {
+        if (j2.ok && j2.cloud_versions > 0) {
+          document.getElementById('syncBarDetail').textContent = '本地: ' + (j2.last_sync ? new Date(j2.last_sync).toLocaleString('zh-CN') : '从未同步') + ' · ☁️ 云端: ' + j2.cloud_versions + ' 个版本';
+        }
+      }).catch(function(){});
+    } else {
+      _dataDirty = false;
+      hideSyncBar();
+    }
+  } catch(e) {}
+}
+
+function showSyncBar() { if (_dataDirty) document.getElementById('syncBar').classList.add('show'); }
+function hideSyncBar() { document.getElementById('syncBar').classList.remove('show'); _dataDirty = false; }
+
+async function quickSync() {
+  if (!_cloudConfigured) return;
+  var btn = document.getElementById('syncBarBtn');
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    var r = await bakFetch(bakApi + '?action=backup', { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      _lastSyncTime = j.time || new Date().toISOString();
+      document.getElementById('bakLastSync').textContent = new Date(_lastSyncTime).toLocaleString('zh-CN');
+      var msg = '✅ ' + (j.msg || '已同步到云端');
+      if (j.warning) msg += ' ⚠️ ' + j.warning;
+      bakToast(msg);
+      hideSyncBar();
+    } else {
+      bakToast('❌ ' + (j.error || '同步失败'), true);
+    }
+  } catch(e) { bakToast('❌ 同步失败: ' + e.message, true); }
+  btn.disabled = false; btn.textContent = '☁️ 上传';
+}
+
+initSyncState();
+
+</script>
+<script>
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.error('SW registration failed:', err));
+  });
+}
+</script>
+</body>
+</html>

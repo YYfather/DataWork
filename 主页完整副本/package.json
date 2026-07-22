@@ -1,0 +1,33 @@
+{
+  "name": "web-toolbox",
+  "version": "2.0.0",
+  "private": true,
+  "description": "个人主页和工具集合",
+  "scripts": {
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "format": "prettier --write \"**/*.{js,css,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,css,json,md}\"",
+    "build:vault": "node build.js vault",
+    "build:english": "node build.js english",
+    "build:all": "node build.js all",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "terser": "^5.27.0",
+    "csso-cli": "^4.0.0",
+    "html-minifier-terser": "^7.2.0"
+  },
+  "lint-staged": {
+    "*.{js,css,json,md}": [
+      "prettier --write"
+    ],
+    "*.js": [
+      "eslint --fix"
+    ]
+  }
+}

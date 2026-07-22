@@ -1,0 +1,10 @@
+个人主页源文件只读校验
+====================
+
+源目录：E:\studywork\Web
+打包前后以下 SHA-256 完全一致：
+00ea3354ee6ce3c9e2776509fed20c59a482f24aa883542875f6a3f1afa3a526  index.html
+64f07c8a0f6e39408dd1726d51fb1d54b6c169b5232301d04073dd2df3b90e85  sw.js
+c44be74fa1a9234ad2ae381c9c782bde4f7490447b41a96cf419eadff319e402  manifest.json
+
+这些校验值对应原始主页；包内 index.html 和 sw.js 是允许修改后的副本。

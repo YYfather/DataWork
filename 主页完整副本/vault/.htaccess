@@ -1,0 +1,88 @@
+# === Vault 目录安全配置 ===
+
+# 禁止目录浏览
+Options -Indexes
+
+# === 安全响应头 ===
+<IfModule mod_headers.c>
+    # 防止 MIME 类型嗅探
+    Header set X-Content-Type-Options "nosniff"
+    
+    # 防止点击劫持
+    Header set X-Frame-Options "SAMEORIGIN"
+    
+    # XSS 保护（旧浏览器）
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # 引用策略
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # 权限策略
+    Header set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    
+    # 严格 CSP
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'self'"
+</IfModule>
+
+# 禁止直接访问数据库文件
+<FilesMatch "\.(db|sqlite|sqlite3)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 禁止直接访问数据文件（但允许 API 通过 PHP 读取）
+<FilesMatch "^(data|vault_data|_vault_data).*\.json$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 禁止访问日志文件
+<FilesMatch "\.(log|debug)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 禁止访问 PHP 备份文件
+<FilesMatch "\.(php\.bak|php\.old|php\.orig|php~)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 禁止访问隐藏文件
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 禁止访问备份目录
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^_backup - [F,L]
+    RewriteRule ^.*_backup.* - [F,L]
+    RewriteRule ^.*_original_backup.* - [F,L]
+</IfModule>
