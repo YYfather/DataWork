@@ -1,0 +1,3 @@
+datawork/ui.py
+datawork/web/static/assets/index-CPsr4TFv.js
+datawork/web/static/assets/index-mCJiNXhg.css

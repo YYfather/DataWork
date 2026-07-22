@@ -1,6 +1,14 @@
-# DataWork 0.4.9
+# DataWork 1.0.0（v1.0）
 
 DataWork 是面向实验数据的跨平台统计分析与可复现项目工作区。统计核心使用 Python、SciPy 和 statsmodels，应用层使用 FastAPI，网页界面使用 Vue 3 + TypeScript。
+
+## v1.0 正式版
+
+- 正式版本统一为 `1.0.0`；Python、前端、桌面外壳、服务器健康接口和发布清单使用同一版本来源。
+- 专业模式支持最多 10 个自定义计算列，每列最多引用 10 个原始数值列；允许基础算术和括号，统一保留最多 8 位小数，禁止自定义列互相引用。
+- 自定义列只能作为因变量，并继承来源原始列及全局拆分的排列组合；不作为分类因素、协变量或自定义拆分列。
+- 服务器部署版与通用源码分支继续隔离；从 0.4.9 升级时保留经哈希验证、可自动备份和回滚的服务器热补丁。
+- 项目组统计方法手册新增全部 47 种方法与 SciPy、statsmodels、Patsy 等计算依赖的逐项映射及升级复核规则。
 
 ## 0.4.9 黄金数据集、计算核心复核与普通用户参数优化
 
@@ -315,5 +323,5 @@ pytest -q
 - [发布与部署指南](docs/RELEASE_DEPLOYMENT_GUIDE.md)
 - [完整源码包内容说明](SOURCE_PACKAGE_CONTENTS.md)
 - [系统架构](docs/ARCHITECTURE.md)
-- [统计方法手册](docs/STATISTICAL_METHODS.md)
+- [统计方法与计算核心依赖手册（含项目组方法—依赖矩阵）](docs/STATISTICAL_METHODS.md)
 - [AI 助手说明](docs/AI_ASSISTANT.md)

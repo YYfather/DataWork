@@ -1,0 +1,221 @@
+DataWork 0.4.9 宝塔面板部署说明
+================================
+
+如果本文件位于 datework_homepage_subproject_deploy.zip 的“DataWork服务”目录中，
+请优先阅读压缩包根目录“请先阅读.txt”。该包使用 1490473838.cn/datework/，不需要
+新建子域名；本文件后面的独立域名方案仅供通用 Linux 包使用。
+
+一、这个压缩包是什么
+--------------------
+
+这是“纯文件”Linux 服务器包，不包含 Docker、systemd 服务、自动安装脚本，
+也不会修改服务器、宝塔、Nginx 或防火墙配置。
+
+主要文件：
+- bt_start.py：宝塔服务器启动入口，固定监听 127.0.0.1:8765；
+- requirements.txt：Python 运行依赖；
+- datawork/：应用源码和网页资源；
+- data/：第一次运行时创建，保存项目、上传数据、报告和本地配置；
+- SHA256SUMS.txt：包内文件完整性校验清单。
+
+当前版本面向个人、单用户使用，没有内置账号系统和多租户隔离。
+不得将 8765 端口直接开放到公网，也不要把启动地址改成 0.0.0.0。
+
+二、推荐服务器条件
+------------------
+
+- 64 位 Linux；
+- Python 3.11 或 3.12；
+- 最低 2 核、4 GB 内存，处理较大数据建议 8 GB；
+- 至少预留 10 GB 磁盘，并根据上传数据和报告数量增加；
+- 宝塔已安装 Nginx。若要公网域名访问，还需要已解析到服务器的域名。
+
+不要使用宝塔面板自身的 Python 环境安装 DataWork。请为项目创建独立虚拟环境。
+
+三、上传和解压
+--------------
+
+1. 在宝塔“文件”中进入 /www/wwwroot/。
+2. 上传 datework_linux_server.zip。
+3. 解压后将目录整理为：
+
+   /www/wwwroot/datework/
+
+4. 确认以下文件存在：
+
+   /www/wwwroot/datework/bt_start.py
+   /www/wwwroot/datework/requirements.txt
+   /www/wwwroot/datework/datawork/web/static/index.html
+
+四、创建独立 Python 环境
+------------------------
+
+可在宝塔“终端”或 SSH 中执行。下面假设系统命令是 python3.11；如果宝塔安装的
+Python 路径不同，请把 python3.11 换成该 Python 3.11/3.12 的完整路径。
+
+   cd /www/wwwroot/datework
+   python3.11 -m venv .venv
+   .venv/bin/python -m pip install --upgrade pip
+   .venv/bin/python -m pip install -r requirements.txt
+
+验证：
+
+   .venv/bin/python -c "import datawork, fastapi, uvicorn; print(datawork.__version__)"
+
+正常应输出 0.4.9。
+
+如果提示 python3.11 不存在，可在宝塔“网站 -> Python 项目”或 Python 项目管理器中
+安装 Python 3.11/3.12，再复制面板显示的解释器完整路径。不要改用宝塔面板运行所用的
+Python。
+
+五、先手动启动并检查
+--------------------
+
+在项目目录执行：
+
+   cd /www/wwwroot/datework
+   .venv/bin/python bt_start.py
+
+另开一个终端检查：
+
+   curl http://127.0.0.1:8765/api/health
+
+收到 JSON 健康状态后，按 Ctrl+C 停止手动进程，再配置进程守护。
+
+六、用 Supervisor 守护进程（推荐）
+---------------------------------
+
+1. 在宝塔“软件商店”安装“Supervisor 管理器”。
+2. 打开 Supervisor 管理器，添加守护进程：
+
+   名称：datawork
+   启动用户：www
+   运行目录：/www/wwwroot/datework
+   启动命令：/www/wwwroot/datework/.venv/bin/python /www/wwwroot/datework/bt_start.py
+
+3. 保存后启动，状态应为“运行中”。
+4. 再执行 curl http://127.0.0.1:8765/api/health 检查。
+
+进程名称只使用英文字母。若启动失败，先看 Supervisor 的错误日志，并确认启动命令
+使用的是本项目 .venv 中的 Python。
+
+也可以使用宝塔“网站 -> Python 项目”：项目目录选择 /www/wwwroot/datework，
+Python 选择 3.11/3.12，启动文件选择 bt_start.py，依赖文件选择 requirements.txt。
+不同宝塔版本的字段名称略有差异；无论采用哪种入口，都应确认实际解释器属于本项目
+虚拟环境，并且服务只监听 127.0.0.1:8765。
+
+七、目录权限
+------------
+
+应用只需要向 data 目录写入数据。首次启动前可执行：
+
+   mkdir -p /www/wwwroot/datework/data
+   chown -R www:www /www/wwwroot/datework/data
+   chmod 750 /www/wwwroot/datework/data
+
+不要使用 chmod 777。源码和虚拟环境只需允许 www 用户读取和执行。
+
+八、最安全的个人访问方式：SSH 隧道
+------------------------------------
+
+不需要域名，也不需要开放 8765。在自己的电脑运行：
+
+   ssh -L 8765:127.0.0.1:8765 服务器用户名@服务器公网地址
+
+保持终端连接，再在电脑浏览器打开：
+
+   http://127.0.0.1:8765
+
+这种方式适合只有自己使用的场景。
+
+九、通过域名访问：反向代理、密码和 HTTPS
+------------------------------------------
+
+警告：DataWork 本身没有登录。必须先配置密码保护和 HTTPS，不能只配置反向代理。
+
+如果根域名已经承载其他网站，请不要在原站点上直接添加 DataWork 反向代理；应先创建
+独立子域名（例如 datawork.example.com），再为该子域名单独新建宝塔站点、SSL 和
+反向代理，否则会覆盖原网站的访问入口。
+
+1. 在宝塔“网站”中新建站点，例如 datawork.example.com。此时先不要添加反向代理。
+2. 进入站点“SSL”，申请 Let's Encrypt 证书。证书生效后开启“强制 HTTPS”。
+3. 创建 Nginx 密码文件。Ubuntu/Debian：
+
+   apt-get update
+   apt-get install -y apache2-utils
+
+   CentOS/RHEL/Rocky/AlmaLinux：
+
+   dnf install -y httpd-tools
+
+   然后执行：
+
+   mkdir -p /www/server/pass
+   htpasswd -c /www/server/pass/datawork.htpasswd dataworkadmin
+   chown root:www /www/server/pass/datawork.htpasswd
+   chmod 640 /www/server/pass/datawork.htpasswd
+
+   按提示输入一个强密码。用户名 dataworkadmin 可以自行更改。
+
+4. 在该站点“配置文件”的 server { ... } 内加入：
+
+   auth_basic "DataWork 私有服务";
+   auth_basic_user_file /www/server/pass/datawork.htpasswd;
+
+   保存后检查 Nginx 配置。如面板提示配置错误，不要强制重启，先撤销刚才两行并检查
+   文件路径和插入位置。
+
+5. 先用浏览器无痕窗口访问域名，确认 HTTPS 正常并且已经出现密码框。
+6. 再进入该站点的“反向代理”，添加代理：
+
+   代理名称：datawork
+   目标 URL：http://127.0.0.1:8765
+   发送域名：$host
+   缓存：关闭
+
+7. 云服务器安全组和宝塔防火墙只开放 80、443；不要开放 8765。
+8. 再次使用浏览器无痕窗口访问域名，确认仍然先出现密码框，登录后才能看到
+   DataWork。若密码框消失，应立即删除或暂停反向代理并修复认证配置。
+
+宝塔在反向代理场景中可能使站点“访问限制”的路径规则失效，因此本说明使用 Nginx
+auth_basic，而不是依赖面板的路径访问限制。每次修改反向代理后都应重新测试密码保护。
+
+十、升级和备份
+--------------
+
+数据目录：
+
+   /www/wwwroot/datework/data
+
+升级步骤：
+1. 在 Supervisor 中停止 datawork；
+2. 完整备份 data 目录；
+3. 将新包解压到一个新目录，不要直接覆盖旧目录；
+4. 将旧 data 目录复制到新目录；
+5. 在新目录重新创建 .venv 并安装 requirements.txt；
+6. 修改 Supervisor 的运行目录和启动命令后启动；
+7. 完成健康检查和实际页面检查，再保留或删除旧目录。
+
+至少定期备份 data 目录。API 密钥不应写进源码或公开压缩包。
+
+十一、常见问题
+--------------
+
+1. 502 Bad Gateway
+   Supervisor 进程未运行、端口不是 8765，或反向代理目标填写错误。先执行：
+   curl http://127.0.0.1:8765/api/health
+
+2. ModuleNotFoundError
+   Supervisor 使用了错误的 Python。启动命令必须指向：
+   /www/wwwroot/datework/.venv/bin/python
+
+3. Permission denied
+   检查 /www/wwwroot/datework/data 是否属于 www 用户，不要用 777 规避权限问题。
+
+4. 域名能直接打开但没有密码框
+   立即暂停公网访问，检查 auth_basic 两行是否在当前生效站点的 server 块内；修改
+   反向代理后再次检查。没有密码保护时不应公开服务。
+
+5. 内存不足或分析很慢
+   DataWork 的统计任务会随数据规模增加内存和 CPU 使用。减少并行任务、缩小数据，
+   或升级服务器内存；较大数据建议至少 8 GB。
