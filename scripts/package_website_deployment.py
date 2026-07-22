@@ -22,8 +22,10 @@ SKIP_MANIFEST_PARTS = SKIP_RUNTIME_PARTS | {".git"}
 SCRIPT_NAMES = ("服务器环境准备.sh", "设置工作区密码.sh")
 TEXT_SUFFIXES = {
     ".css",
+    ".conf",
     ".html",
     ".ini",
+    ".j2",
     ".js",
     ".json",
     ".md",
