@@ -28,3 +28,14 @@ def test_deployment_manifest_excludes_runtime_caches(tmp_path) -> None:
     manifest = (tmp_path / "SHA256SUMS.txt").read_text(encoding="utf-8")
     assert "README.md" in manifest
     assert ".pytest_cache" not in manifest
+
+
+def test_deployment_manifest_includes_nested_manifest(tmp_path) -> None:
+    nested = tmp_path / "hotfix"
+    nested.mkdir()
+    (nested / "SHA256SUMS.txt").write_text("nested\n", encoding="utf-8")
+
+    write_manifest(tmp_path)
+
+    manifest = (tmp_path / "SHA256SUMS.txt").read_text(encoding="utf-8")
+    assert "hotfix/SHA256SUMS.txt" in manifest

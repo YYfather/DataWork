@@ -20,7 +20,24 @@ SKIP_WEB_PARTS = {".git", ".agents", ".jj", ".reasonix", "node_modules"}
 SKIP_RUNTIME_PARTS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
 SKIP_MANIFEST_PARTS = SKIP_RUNTIME_PARTS | {".git"}
 SCRIPT_NAMES = ("服务器环境准备.sh", "设置工作区密码.sh")
-TEXT_SUFFIXES = {".css", ".html", ".ini", ".js", ".json", ".md", ".py", ".sh", ".toml", ".txt", ".xml", ".yaml", ".yml"}
+TEXT_SUFFIXES = {
+    ".css",
+    ".html",
+    ".ini",
+    ".js",
+    ".json",
+    ".md",
+    ".mjs",
+    ".php",
+    ".py",
+    ".sh",
+    ".toml",
+    ".txt",
+    ".xml",
+    ".yaml",
+    ".yml",
+}
+TEXT_FILENAMES = {".gitignore", ".htaccess", ".prettierignore", ".prettierrc", "VERSION"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,7 +58,7 @@ def sha256(path: Path) -> str:
 
 def deployment_sha256(path: Path) -> str:
     """Hash text with canonical Linux LF endings for the Web branch."""
-    if path.suffix.lower() not in TEXT_SUFFIXES and path.name != "VERSION":
+    if path.suffix.lower() not in TEXT_SUFFIXES and path.name not in TEXT_FILENAMES:
         return sha256(path)
     payload = path.read_bytes().replace(b"\r\n", b"\n")
     return hashlib.sha256(payload).hexdigest()
@@ -73,12 +90,13 @@ def copy_tree(source: Path, destination: Path, *, skip_parts: set[str]) -> None:
 def write_manifest(root: Path) -> None:
     lines = []
     for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
+        relative = path.relative_to(root)
         if (
             path.is_file()
-            and path.name != "SHA256SUMS.txt"
-            and not SKIP_MANIFEST_PARTS.intersection(path.relative_to(root).parts)
+            and relative != Path("SHA256SUMS.txt")
+            and not SKIP_MANIFEST_PARTS.intersection(relative.parts)
         ):
-            lines.append(f"{deployment_sha256(path)}  {path.relative_to(root).as_posix()}")
+            lines.append(f"{deployment_sha256(path)}  {relative.as_posix()}")
     (root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
