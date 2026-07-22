@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from enum import Enum
 from itertools import combinations
 from math import comb
@@ -98,6 +99,104 @@ class SplitRule(BaseModel):
         return self
 
 
+class DerivedColumn(BaseModel):
+    """专业模式下从原始数值列逐行计算的派生列。"""
+
+    name: str
+    formula: str
+    source_columns: list[str]
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, value: str) -> str:
+        cleaned = str(value).strip()
+        if not cleaned:
+            raise ValueError("自定义列名称不能为空")
+        if len(cleaned) > 120:
+            raise ValueError("自定义列名称不能超过 120 个字符")
+        return cleaned
+
+    @field_validator("formula")
+    @classmethod
+    def _clean_formula(cls, value: str) -> str:
+        cleaned = str(value).strip()
+        if not cleaned:
+            raise ValueError("自定义列公式不能为空")
+        if len(cleaned) > 10000:
+            raise ValueError("自定义列公式不能超过 10000 个字符")
+        return cleaned
+
+    @field_validator("source_columns")
+    @classmethod
+    def _clean_sources(cls, value: list[str]) -> list[str]:
+        cleaned = [str(item).strip() for item in value if str(item).strip()]
+        if not cleaned:
+            raise ValueError("自定义列至少需要引用一个原始列")
+        if len(cleaned) != len(set(cleaned)):
+            raise ValueError("自定义列来源不能重复")
+        if len(cleaned) > 10:
+            raise ValueError("单个自定义列最多引用 10 个原始列")
+        return cleaned
+
+
+def migrate_saved_derived_roles(raw_plan: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Clean roles that older saved plans could assign to derived columns.
+
+    This migration is only for persisted workspace plans. New API requests are
+    validated strictly by :class:`AnalysisPlan` and are never silently changed.
+    """
+    cleaned = deepcopy(raw_plan)
+    definitions = cleaned.get("derived_columns") or []
+    derived_names = {
+        str(item.get("name", "")).strip()
+        for item in definitions if isinstance(item, dict) and str(item.get("name", "")).strip()
+    }
+    if not derived_names:
+        return cleaned, []
+    changes: list[str] = []
+    for field, label in (
+        ("fixed_factors", "分类因素"), ("covariates", "协变量"),
+        ("random_factors", "随机因素"), ("random_slopes", "随机斜率"),
+        ("split_by", "拆分列"), ("emm_factors", "EMM 因素"),
+    ):
+        before = [str(item) for item in (cleaned.get(field) or [])]
+        after = [item for item in before if item not in derived_names]
+        if after != before:
+            cleaned[field] = after
+            changes.append(label)
+    for field, label in (("subject_id", "对象 ID"), ("repeated_factor", "重复/时间因素")):
+        if cleaned.get(field) in derived_names:
+            cleaned[field] = None
+            changes.append(label)
+    rules = cleaned.get("split_rules") or []
+    filtered_rules = [item for item in rules if not isinstance(item, dict) or item.get("column") not in derived_names]
+    if filtered_rules != rules:
+        cleaned["split_rules"] = filtered_rules
+        changes.append("自定义拆分规则")
+    dependents = {str(item) for item in (cleaned.get("dependent_variables") or [])}
+    calibration = [str(item) for item in (cleaned.get("calibration_columns") or [])]
+    filtered_calibration = [item for item in calibration if item not in derived_names or item in dependents]
+    if filtered_calibration != calibration:
+        cleaned["calibration_columns"] = filtered_calibration
+        changes.append("非法自定义列校准")
+    labels = cleaned.get("factor_combination_labels") or {}
+    if not isinstance(labels, dict):
+        labels = {}
+    filtered_labels = {
+        key: value for key, value in labels.items()
+        if not (set(str(key).split(" × ")) & derived_names)
+    }
+    if filtered_labels != labels:
+        cleaned["factor_combination_labels"] = filtered_labels
+        changes.append("因素组合名称")
+    warnings = []
+    if changes:
+        warnings.append(
+            "旧计划已自动整理：自定义列只能作为因变量，已移除其"
+            + "、".join(dict.fromkeys(changes))
+        )
+    return cleaned, warnings
+
 class AnalysisPlan(BaseModel):
     interface_mode: Literal["concise", "professional"] | None = None
     dependent_variables: list[str] = Field(default_factory=list)
@@ -109,6 +208,7 @@ class AnalysisPlan(BaseModel):
     repeated_factor: str | None = None
     split_by: list[str] = Field(default_factory=list)
     split_rules: list[SplitRule] = Field(default_factory=list)
+    derived_columns: list[DerivedColumn] = Field(default_factory=list)
     method: str
     alpha: float = 0.05
     ss_type: Literal[1, 2, 3] = 3
@@ -196,6 +296,7 @@ class AnalysisPlan(BaseModel):
             self.factor_combination_max_order = None
             self.factor_combination_labels = {}
             self.split_rules = []
+            self.derived_columns = []
             self.estimate_marginal_means = False
             self.emm_factors = []
             self.contrast_correction = "holm"
@@ -234,6 +335,32 @@ class AnalysisPlan(BaseModel):
         if len(rule_columns) != len(set(rule_columns)):
             raise ValueError("同一拆分列只能配置一条自定义分组规则")
         self.split_by = list(dict.fromkeys([*self.split_by, *rule_columns]))
+        derived_names = [column.name for column in self.derived_columns]
+        if len(self.derived_columns) > 10:
+            raise ValueError("一个分析计划最多允许 10 个自定义列")
+        if len(derived_names) != len(set(derived_names)):
+            raise ValueError("自定义列名称不能重复")
+        if self.derived_columns and self.interface_mode != "professional":
+            raise ValueError("自定义列仅在专业模式开放")
+        derived_name_set = set(derived_names)
+        for column in self.derived_columns:
+            chained = sorted(set(column.source_columns) & derived_name_set)
+            if chained:
+                raise ValueError(f"自定义列不能引用其他自定义列: {chained}")
+        illegal_derived_roles = {
+            "分类因素": set(self.fixed_factors),
+            "协变量": set(self.covariates),
+            "随机因素": set(self.random_factors),
+            "随机斜率": set(self.random_slopes),
+            "拆分列": set(self.split_by),
+            "EMM 因素": set(self.emm_factors),
+            "对象 ID": {self.subject_id} if self.subject_id else set(),
+            "重复/时间因素": {self.repeated_factor} if self.repeated_factor else set(),
+        }
+        for role, columns in illegal_derived_roles.items():
+            overlap = sorted(derived_name_set & columns)
+            if overlap:
+                raise ValueError(f"自定义列只能作为因变量，不能作为{role}: {overlap}")
         spec = get_method(self.method)
         if not spec.is_runnable:
             raise ValueError(f"{spec.label_zh} 尚未实现，分析未执行。{spec.notes}")
@@ -316,6 +443,13 @@ class AnalysisPlan(BaseModel):
             if self.calibration_method == "baseline_center":
                 if not self.calibration_baseline_column or self.calibration_baseline_value is None:
                     raise ValueError("基线对齐校正必须指定基准列和基准值")
+            invalid_derived_calibration = sorted(
+                derived_name_set & set(self.calibration_columns) - set(self.dependent_variables)
+            )
+            if invalid_derived_calibration:
+                raise ValueError(
+                    f"自定义列仅在作为因变量时允许校准: {invalid_derived_calibration}"
+                )
         else:
             self.calibration_columns = []
             self.calibration_baseline_column = None
@@ -369,10 +503,29 @@ class AnalysisPlan(BaseModel):
             "重复因素": {self.repeated_factor} if self.repeated_factor else set(),
         }
         names = list(role_sets)
+        split_factor_overlap = role_sets["拆分列"] & role_sets["固定因素"]
+        if split_factor_overlap:
+            if self.interface_mode != "professional":
+                raise ValueError("拆分列兼作分类因素仅在专业模式开放")
+            rules = {rule.column: rule for rule in self.split_rules}
+            for column in sorted(split_factor_overlap):
+                rule = rules.get(column)
+                if rule is None:
+                    raise ValueError(f"拆分列 {column!r} 兼作分类因素时必须配置自定义分组")
+                if len(rule.groups) < 2:
+                    raise ValueError(f"拆分列 {column!r} 兼作分类因素时至少需要两个自定义组")
+                if rule.kind == "categorical":
+                    invalid = [group.label for group in rule.groups if len(group.values) < 2]
+                    if invalid:
+                        raise ValueError(
+                            f"拆分列 {column!r} 兼作分类因素时，每组至少需要两个原始因素水平: {invalid}"
+                        )
         for index, left_name in enumerate(names):
             for right_name in names[index + 1:]:
                 overlap = role_sets[left_name] & role_sets[right_name]
                 if overlap:
+                    if {left_name, right_name} == {"拆分列", "固定因素"}:
+                        continue
                     if "拆分列" in {left_name, right_name}:
                         raise ValueError(f"拆分列 {sorted(overlap)} 不能同时进入模型")
                     raise ValueError(f"列 {sorted(overlap)} 不能同时作为{left_name}和{right_name}")
@@ -444,6 +597,8 @@ class AnalysisPlan(BaseModel):
     @property
     def all_columns(self) -> list[str]:
         columns = self.dependent_variables + self.fixed_factors + self.random_factors + self.random_slopes + self.covariates + self.split_by + self.emm_factors + self.calibration_columns
+        for derived in self.derived_columns:
+            columns.extend(derived.source_columns)
         if self.subject_id:
             columns.append(self.subject_id)
         if self.repeated_factor:

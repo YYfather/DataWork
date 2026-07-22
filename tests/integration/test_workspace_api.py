@@ -62,6 +62,38 @@ def test_workspace_api_full_flow(tmp_path):
     assert len(project_detail["runs"]) == 1
 
 
+def test_workspace_derived_preview_and_saved_plan(tmp_path):
+    client = TestClient(create_app(workspace_root=tmp_path / "derived-workspace"))
+    project = client.post("/api/projects", json={"name": "Derived", "description": ""}).json()
+    dataset = client.post(
+        f"/api/projects/{project['id']}/datasets",
+        files={"file": ("sample.csv", CSV, "text/csv")},
+        data={"name": "原始数据"},
+    ).json()
+    definitions = [{"name": "value_plus_one", "formula": "[value] + 1", "source_columns": ["value"]}]
+    preview = client.post(
+        f"/api/datasets/{dataset['id']}/derived-preview",
+        json={"derived_columns": definitions},
+    )
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["preview"][0]["value_plus_one"] == 2
+    saved = client.post(
+        f"/api/projects/{project['id']}/plans",
+        json={
+            "dataset_id": dataset["id"], "name": "Derived plan",
+            "plan": {
+                "interface_mode": "professional",
+                "dependent_variables": ["value_plus_one"],
+                "fixed_factors": ["group"],
+                "derived_columns": definitions,
+                "method": "welch_ttest",
+            },
+        },
+    )
+    assert saved.status_code == 201, saved.text
+    assert saved.json()["plan_json"]["derived_columns"] == definitions
+
+
 def test_api_returns_structured_domain_error(tmp_path):
     client = TestClient(create_app(workspace_root=tmp_path))
     response = client.get("/api/projects/missing")

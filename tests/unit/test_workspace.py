@@ -60,6 +60,26 @@ def test_plan_clone_and_run_comparison(tmp_path: Path):
     assert {row["run_id"] for row in comparison["rows"]} == {first["id"], second["id"]}
 
 
+def test_workspace_automatically_persists_saved_derived_role_migration(tmp_path: Path):
+    service, project, _dataset, plan = _make_workspace(tmp_path)
+    old = {
+        "interface_mode": "professional", "method": "welch_ttest",
+        "dependent_variables": ["custom"], "fixed_factors": ["group"],
+        "split_by": ["custom"],
+        "derived_columns": [{"name": "custom", "formula": "[value] + 1", "source_columns": ["value"]}],
+    }
+    service.repository.update_plan(plan["id"], name=plan["name"], plan=old, plan_sha256="old")
+
+    migrated = service.list_plans(project["id"])[0]
+    assert migrated["plan_json"]["split_by"] == []
+    assert migrated["migration_warnings"]
+    migrated_revision = migrated["revision"]
+
+    loaded_again = service.list_plans(project["id"])[0]
+    assert loaded_again["migration_warnings"] == []
+    assert loaded_again["revision"] == migrated_revision
+
+
 def test_datawork_home_override_is_cross_platform(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("DATAWORK_HOME", str(tmp_path / "portable"))
     assert default_workspace_root() == (tmp_path / "portable").resolve()

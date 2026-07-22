@@ -227,6 +227,15 @@ def test_high_order_instant_analysis_exposes_professional_combinations_and_split
     assert "split_rules: serializeInstantSplitRules()" in APP
 
 
+def test_professional_derived_columns_and_dual_role_split_are_exposed():
+    assert "import DerivedColumnEditor" in APP
+    assert "derived_columns: professional ? derivedColumns.value : []" in APP
+    assert "split_rules: workspaceExpertMode.value ? serializeWorkspaceSplitRules() : []" in APP
+    assert "同时作为分类因素时，每组至少需要两个原始水平" in APP
+    for label in ("数据准备与拆分", "模型与检验", "比较与结果", "批量任务"):
+        assert label in APP
+
+
 def test_workspace_save_is_blocked_until_required_roles_are_selected():
     assert "workspaceMissingSelections" in APP
     assert "还需选择" in APP

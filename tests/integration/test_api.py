@@ -81,6 +81,75 @@ def test_profile_and_analyze_upload():
     assert payload["result"]["method"]["name"] == "welch_ttest"
 
 
+def test_derived_preview_and_professional_analysis():
+    response = client.post(
+        "/api/derived/preview",
+        files={"file": ("sample.csv", CSV, "text/csv")},
+        data={
+            "derived_columns_json": json.dumps([{
+                "name": "double_value",
+                "formula": "[value] * 2",
+                "source_columns": ["value"],
+            }]),
+        },
+    )
+    assert response.status_code == 200, response.text
+    preview = response.json()
+    assert "double_value" in preview["columns"]
+    assert preview["preview"][0]["double_value"] == 2
+
+    plan = {
+        "interface_mode": "professional",
+        "dependent_variables": ["double_value"],
+        "fixed_factors": ["group"],
+        "derived_columns": [{
+            "name": "double_value",
+            "formula": "[value] * 2",
+            "source_columns": ["value"],
+        }],
+        "method": "welch_ttest",
+    }
+    response = client.post(
+        "/api/analyze",
+        files={"file": ("sample.csv", CSV, "text/csv")},
+        data={"plan_json": json.dumps(plan)},
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["plan"]["derived_columns"][0]["name"] == "double_value"
+    operations = payload["provenance"]["cleaning_log"]
+    assert any(item["operation"] == "derive_column" for item in operations)
+
+
+def test_professional_split_factor_overlap_is_validated_per_group():
+    csv = (
+        "factor,value\n"
+        "A,1\nA,2\nB,3\nB,4\nC,5\nC,6\nD,7\nD,8\n"
+    ).encode()
+    plan = {
+        "interface_mode": "professional",
+        "dependent_variables": ["value"],
+        "fixed_factors": ["factor"],
+        "split_by": ["factor"],
+        "split_rules": [{
+            "column": "factor", "kind": "categorical",
+            "groups": [
+                {"label": "front", "values": ["A", "B"]},
+                {"label": "back", "values": ["C", "D"]},
+            ],
+        }],
+        "method": "oneway_anova",
+    }
+    response = client.post(
+        "/api/preflight",
+        files={"file": ("factor.csv", csv, "text/csv")},
+        data={"plan_json": json.dumps(plan)},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["ready"] is True
+    assert response.json()["batch_summary"]["group_count"] == 2
+
+
 def test_mixed_anova_returns_role_validation_error():
     plan = {
         "dependent_variables": ["value"],

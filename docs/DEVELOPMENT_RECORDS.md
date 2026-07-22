@@ -778,7 +778,7 @@ SqliteWorkspaceRepository
 
 减少重复入口和过时信息，建立文档的“当前有效”规则。
 
-### 3.1 Streamlit legacy UI
+### 3.1 Streamlit legacy UI（已于本轮移除）
 
 先做使用情况确认，再选择以下策略：
 

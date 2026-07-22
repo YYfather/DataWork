@@ -28,7 +28,6 @@ def venv_python() -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description="创建 DataWork 本地环境并安装依赖")
     parser.add_argument("--dev", action="store_true", help="安装测试工具")
-    parser.add_argument("--legacy-ui", action="store_true", help="安装旧版 Streamlit 界面")
     parser.add_argument("--legacy-excel", action="store_true", help="安装旧版 XLS 支持")
     parser.add_argument("--desktop-build", action="store_true", help="安装 PyInstaller 构建工具")
     parser.add_argument("--recreate", action="store_true", help="删除并重建现有 .venv")
@@ -52,7 +51,6 @@ def main() -> None:
     extras: list[str] = []
     for enabled, name in [
         (args.dev, "dev"),
-        (args.legacy_ui, "legacy-ui"),
         (args.legacy_excel, "legacy-excel"),
         (args.desktop_build, "desktop-build"),
     ]:

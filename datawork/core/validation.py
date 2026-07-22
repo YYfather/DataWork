@@ -1,7 +1,7 @@
 """分析计划与数据的统一校验。"""
 from __future__ import annotations
 
-from itertools import product
+from itertools import combinations, product
 import math
 
 import numpy as np
@@ -10,7 +10,12 @@ from pydantic import BaseModel, Field
 
 from .errors import IssueSeverity, PlanValidationError, ValidationIssue
 from .method_registry import get_method
-from .splitting import build_split_groups
+from .splitting import (
+    SPLIT_TASK_HARD_LIMIT,
+    SPLIT_TASK_WARNING_THRESHOLD,
+    build_split_groups,
+    projected_split_group_count,
+)
 
 
 class ValidationReport(BaseModel):
@@ -191,8 +196,117 @@ def validate_plan_dataframe(plan: "AnalysisPlan", frame: pd.DataFrame) -> Valida
         elif complete_count < max(10, minimum_complete * 2):
             issues.append(ValidationIssue(code="small_complete_sample", severity=IssueSeverity.WARNING, message=f"完整案例仅 {complete_count} 行，统计功效和诊断结果可能不稳定", details={"complete_cases": complete_count}))
 
-    if plan.split_by:
-        groups = build_split_groups(frame, plan)
+    projected_split_count = projected_split_group_count(frame, plan)
+    split_projection_blocked = projected_split_count > SPLIT_TASK_HARD_LIMIT
+    if split_projection_blocked:
+        issues.append(ValidationIssue(
+            code="split_group_limit_exceeded", field="split_by",
+            message=(f"当前拆分设置会生成 {projected_split_count} 个组合，超过安全上限 "
+                     f"{SPLIT_TASK_HARD_LIMIT}；请减少拆分列或分组数量"),
+            details={"split_group_count": projected_split_count, "hard_limit": SPLIT_TASK_HARD_LIMIT},
+        ))
+        groups: list[tuple[dict[str, str], pd.DataFrame]] = []
+    else:
+        groups = build_split_groups(frame, plan) if plan.split_by else [({}, frame)]
+    if spec.dependent_mode in {"none", "joint"}:
+        dependent_task_count = 1
+    else:
+        dependent_task_count = max(1, len(plan.dependent_variables))
+    if plan.factor_combinations_enabled:
+        factor_task_count = sum(
+            math.comb(len(plan.fixed_factors), order)
+            for order in range(
+                int(plan.factor_combination_min_order or 1),
+                int(plan.factor_combination_max_order or 1) + 1,
+            )
+        )
+    else:
+        factor_task_count = 1
+    expanded_task_count = dependent_task_count * factor_task_count * (
+        projected_split_count if split_projection_blocked else len(groups)
+    )
+    if expanded_task_count > SPLIT_TASK_HARD_LIMIT:
+        issues.append(ValidationIssue(
+            code="expanded_task_limit_exceeded", field="split_by",
+            message=(f"当前计划会生成 {expanded_task_count} 个分析任务，超过安全上限 "
+                     f"{SPLIT_TASK_HARD_LIMIT}；请减少因变量、因素组合或拆分组"),
+            details={"task_count": expanded_task_count, "hard_limit": SPLIT_TASK_HARD_LIMIT},
+        ))
+    elif expanded_task_count > SPLIT_TASK_WARNING_THRESHOLD:
+        issues.append(ValidationIssue(
+            code="large_expanded_task_plan", severity=IssueSeverity.WARNING, field="split_by",
+            message=f"当前计划将生成 {expanded_task_count} 个分析任务，执行和报告生成可能较慢",
+            details={"task_count": expanded_task_count, "warning_threshold": SPLIT_TASK_WARNING_THRESHOLD},
+        ))
+
+    if plan.split_by and not split_projection_blocked:
+        assigned_indices: set = set()
+        for _labels, subset in groups:
+            assigned_indices.update(subset.index.tolist())
+        excluded_rows = int(len(frame) - len(assigned_indices))
+        if excluded_rows:
+            issues.append(ValidationIssue(
+                code="unassigned_split_rows_excluded",
+                severity=IssueSeverity.WARNING,
+                field="split_by",
+                message=f"有 {excluded_rows} 行未落入任何自定义拆分组，将不参与本次计算",
+                details={"excluded_rows": excluded_rows, "total_rows": int(len(frame))},
+            ))
+
+        dual_role_columns = sorted(set(plan.split_by) & set(plan.fixed_factors))
+        if dual_role_columns:
+            if plan.factor_combinations_enabled:
+                factor_sets = [
+                    list(items)
+                    for order in range(
+                        int(plan.factor_combination_min_order or 1),
+                        int(plan.factor_combination_max_order or 1) + 1,
+                    )
+                    for items in combinations(plan.fixed_factors, order)
+                ]
+            else:
+                factor_sets = [list(plan.fixed_factors)]
+            if spec.dependent_mode == "none":
+                dependent_sets = [[]]
+            elif spec.dependent_mode == "joint":
+                dependent_sets = [list(plan.dependent_variables)]
+            else:
+                dependent_sets = [[item] for item in plan.dependent_variables]
+            invalid_groups: list[dict] = []
+            for labels, raw_subset in groups:
+                for dependent_set in dependent_sets:
+                    for factor_set in factor_sets:
+                        checked = [column for column in dual_role_columns if column in factor_set]
+                        if not checked:
+                            continue
+                        required = list(dict.fromkeys(
+                            dependent_set + factor_set + plan.covariates + plan.random_factors +
+                            plan.random_slopes +
+                            ([plan.subject_id] if plan.subject_id else []) +
+                            ([plan.repeated_factor] if plan.repeated_factor else [])
+                        ))
+                        complete = raw_subset.dropna(subset=required) if required else raw_subset
+                        for column in checked:
+                            level_count = int(complete[column].nunique(dropna=True))
+                            if level_count < 2:
+                                invalid_groups.append({
+                                    "group": dict(labels),
+                                    "factor": column,
+                                    "levels": level_count,
+                                    "rows": int(len(complete)),
+                                    "factor_set": factor_set,
+                                    "dependent_set": dependent_set,
+                                })
+            if invalid_groups:
+                issues.append(ValidationIssue(
+                    code="split_factor_insufficient_levels",
+                    field="split_by",
+                    message=(
+                        "拆分列兼作分类因素时，每个最终分析子集必须保留至少两个有效因素水平；"
+                        f"当前有 {len(invalid_groups)} 个任务不满足要求"
+                    ),
+                    details={"tasks": invalid_groups[:100], "total_invalid_tasks": len(invalid_groups)},
+                ))
         small_groups = {
             ", ".join(f"{column}={label}" for column, label in labels.items()): int(len(subset))
             for labels, subset in groups if len(subset) < minimum_complete

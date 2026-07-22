@@ -11,7 +11,7 @@
 ## 分层
 
 ```text
-Vue / CLI / Streamlit / Future Tauri
+Vue / CLI / Future Tauri
                  │
                  ▼
          application services

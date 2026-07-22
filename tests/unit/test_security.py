@@ -7,6 +7,6 @@ def test_source_contains_no_hardcoded_sk_key():
     assert "8908e51d" not in source
 
 
-def test_source_contains_no_builtin_eval_in_derive_variable():
-    source = Path("datawork/engine/batch.py").read_text(encoding="utf-8")
+def test_source_contains_no_builtin_eval_in_formula_core():
+    source = Path("datawork/core/formula.py").read_text(encoding="utf-8")
     assert "eval(expr)" not in source

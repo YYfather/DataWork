@@ -558,6 +558,29 @@ details summary { cursor:pointer;font-weight:800; }.preview-panel .table-wrap { 
 .advanced-method-panel summary { padding:14px 16px; cursor:pointer; font-weight:800; color:#365e49; background:#f6f9f7; list-style-position:inside; }
 .advanced-method-panel[open] summary { border-bottom:1px solid #e0e7e3; }
 .advanced-method-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; padding:16px; }
+.advanced-method-panel summary small { margin-left:8px; color:#7a8981; font-weight:600; }
+.professional-control-body { display:grid; gap:0; padding:8px 16px 16px; }
+.professional-control-body .factor-combination-panel { margin:8px 0 0; box-shadow:none; }
+.professional-subsection { margin:16px; padding:16px; border:1px solid #dce6e0; border-radius:14px; background:#f9fbfa; }
+.professional-subsection h4 { margin:0 0 6px; color:#315c46; }
+.professional-subsection p { margin:0 0 14px; color:var(--muted); font-size:12px; }
+.derived-column-editor { display:grid; gap:14px; }
+.derived-list { display:grid; gap:8px; }
+.derived-list article { display:flex; justify-content:space-between; gap:12px; padding:12px; border:1px solid #dce6e0; border-radius:12px; background:#fff; }
+.derived-list article strong,.derived-list article code,.derived-list article small { display:block; }
+.derived-list article code { margin:5px 0; white-space:normal; overflow-wrap:anywhere; color:#365e49; }
+.derived-list article small { color:var(--muted); }
+.derived-actions { display:flex; align-items:flex-start; gap:8px; }
+.danger-text { color:#a33f3f!important; }
+.derived-builder { display:grid; grid-template-columns:minmax(180px,.7fr) minmax(280px,1.3fr); gap:12px; }
+.derived-formula-field { min-width:0; }
+.formula-palette { grid-column:1/-1; display:grid; gap:10px; padding:12px; border-radius:12px; background:#eef4f0; }
+.formula-palette>div { display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+.formula-palette strong { min-width:92px; color:#4c6257; font-size:12px; }
+.formula-token { min-height:34px; padding:6px 10px; border:1px solid #cbdcd2; border-radius:9px; background:#fff; color:#315c46; font-weight:700; cursor:pointer; }
+.formula-token.operator { min-width:38px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+.derived-editor-actions { grid-column:1/-1; display:flex; justify-content:flex-end; gap:8px; }
+.dual-role-note { color:#996515!important; font-weight:800; }
 .method-parameter { min-width:0; }
 .parameter-checkbox { width:20px !important; height:20px; margin-top:8px; }
 .plan-summary small { display:block; margin-top:4px; color:#748179; font-size:11px; }

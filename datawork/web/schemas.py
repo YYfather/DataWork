@@ -31,6 +31,10 @@ class PlanClone(BaseModel):
     name: str | None = Field(default=None, max_length=160)
 
 
+class DerivedPreviewRequest(BaseModel):
+    derived_columns: list[dict[str, Any]] = Field(default_factory=list, max_length=50)
+
+
 class ReportCreate(BaseModel):
     title: str = Field(default="统计分析报告", min_length=1, max_length=200)
 
