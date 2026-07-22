@@ -18,6 +18,7 @@ DEFAULT_OUTPUT = ROOT / "发布包" / f"DataWork-v{VERSION}-网站部署版本"
 DEFAULT_WEB_ROOT = Path(r"E:\studywork\Web")
 SKIP_WEB_PARTS = {".git", ".agents", ".jj", ".reasonix", "node_modules"}
 SKIP_RUNTIME_PARTS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
+SKIP_MANIFEST_PARTS = SKIP_RUNTIME_PARTS | {".git"}
 SCRIPT_NAMES = ("服务器环境准备.sh", "设置工作区密码.sh")
 TEXT_SUFFIXES = {".css", ".html", ".ini", ".js", ".json", ".md", ".py", ".sh", ".toml", ".txt", ".xml", ".yaml", ".yml"}
 
@@ -72,7 +73,11 @@ def copy_tree(source: Path, destination: Path, *, skip_parts: set[str]) -> None:
 def write_manifest(root: Path) -> None:
     lines = []
     for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
-        if path.is_file() and path.name != "SHA256SUMS.txt" and ".git" not in path.parts:
+        if (
+            path.is_file()
+            and path.name != "SHA256SUMS.txt"
+            and not SKIP_MANIFEST_PARTS.intersection(path.relative_to(root).parts)
+        ):
             lines.append(f"{deployment_sha256(path)}  {path.relative_to(root).as_posix()}")
     (root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
