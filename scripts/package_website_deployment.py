@@ -63,7 +63,7 @@ def copy_tree(source: Path, destination: Path, *, skip_parts: set[str]) -> None:
 def write_manifest(root: Path) -> None:
     lines = []
     for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
-        if path.is_file() and path.name != "SHA256SUMS.txt":
+        if path.is_file() and path.name != "SHA256SUMS.txt" and ".git" not in path.parts:
             lines.append(f"{sha256(path)}  {path.relative_to(root).as_posix()}")
     (root / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
