@@ -9,11 +9,11 @@
 | 用户操作 | `USER_MANUAL.md` | 安装、即时分析、项目工作区、结果与 AI 使用 |
 | 统计规范 | `STATISTICAL_METHODS.md` | 方法、参数、假设、效应量与解释边界 |
 | 工程规范 | `PROJECT_STANDARD.md` | 架构、数据流、报告、AI、安全与发布约束 |
-| 测试记录 | `TEST_REPORTS.md` | 当前发布门禁与历次验证索引 |
-| 开发记录 | `DEVELOPMENT_LOG.md` | 关键决策、修复路径与技术演进 |
+| 测试记录 | `QUALITY_AUDIT_RECORDS.md` | 当前发布门禁与历次验证索引 |
+| 开发记录 | `DEVELOPMENT_RECORDS.md` | 关键决策、修复路径与技术演进 |
 | 版本记录 | `../CHANGELOG.md` | 所有版本对外变动 |
-| 技术债清单 | `TECHNICAL_DEBT_REPORT.md` | 遗留扫描、安全移除、依赖核对与保留边界 |
-| 发布操作 | `PACKAGING.md`、`RELEASE_CHECKLIST.md` | 构建、签名、冒烟与归档 |
+| 技术债清单 | `DEVELOPMENT_RECORDS.md` | 遗留扫描、安全移除、依赖核对与保留边界 |
+| 发布操作 | `RELEASE_DEPLOYMENT_GUIDE.md` | 构建、签名、冒烟与归档 |
 
 同一事实出现冲突时，现行权威文件优先于历史审计；统计计算结果优先于 AI 文字。
 
@@ -84,11 +84,11 @@ examples/                 最小示例数据
 
 发布前必须完成：版本一致性、前端生产构建、完整 pytest、黄金数据验证、参数矩阵、数据变体、结构检查、缓存清理、源码清单和 ZIP SHA-256。平台安装包还必须在目标系统完成原生构建、签名与首次启动冒烟；源码包通过不等于所有平台安装包已签名。
 
-当前门禁状态与历史验证统一记录在 `TEST_REPORTS.md`，具体命令见 `RELEASE_CHECKLIST.md`。
+当前门禁状态与历史验证统一记录在 `QUALITY_AUDIT_RECORDS.md`，具体命令见 `RELEASE_DEPLOYMENT_GUIDE.md`。
 
 ## 9. 文档治理
 
 - 现行行为只修改权威文档；历史审计文件不覆盖改写。
 - 同名重复审计只保留一份，索引文件不得复制完整正文。
-- 开发决策进入 `DEVELOPMENT_LOG.md`，用户可见变更进入根目录 `CHANGELOG.md`。
-- 每次发布更新 `TEST_REPORTS.md`、`RELEASE_MANIFEST.md` 和源码包内 SHA-256 清单。
+- 开发决策进入 `DEVELOPMENT_RECORDS.md`，用户可见变更进入根目录 `CHANGELOG.md`。
+- 每次发布更新 `QUALITY_AUDIT_RECORDS.md`、`RELEASE_DEPLOYMENT_GUIDE.md` 和源码包内 SHA-256 清单。

@@ -12,6 +12,10 @@ class ProjectCreate(BaseModel):
     description: str = Field(default="", max_length=2000)
 
 
+class WorkspaceAuthLogin(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
+
+
 class PlanCreate(BaseModel):
     dataset_id: str
     name: str = Field(min_length=1, max_length=160)
@@ -81,6 +85,18 @@ class AIResultExplainRequest(BaseModel):
     result: dict[str, Any] = Field(default_factory=dict)
     question: str = Field(default="", max_length=4000)
     context: dict[str, Any] = Field(default_factory=dict)
+    selection: AIResultContextSelection = Field(default_factory=AIResultContextSelection)
+    ai_report: dict[str, Any] | None = None
+    result_context_id: str = Field(default="", max_length=200)
+    ai_report_context_id: str = Field(default="", max_length=200)
+
+
+class AIAssistantAskRequest(BaseModel):
+    """小助手自由问答；上下文范围完全由界面选择器决定。"""
+
+    question: str = Field(min_length=1, max_length=4000)
+    context: dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] = Field(default_factory=dict)
     selection: AIResultContextSelection = Field(default_factory=AIResultContextSelection)
     ai_report: dict[str, Any] | None = None
     result_context_id: str = Field(default="", max_length=200)

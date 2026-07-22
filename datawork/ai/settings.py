@@ -1,6 +1,7 @@
 """AI 助手配置与跨平台密钥存储。
 
-非敏感设置写入工作区 JSON；API 密钥仅保存在当前进程内存或操作系统密钥库。
+非敏感设置写入工作区 JSON；API 密钥保存在当前进程内存、操作系统密钥库，
+或由服务器管理员显式启用的受限权限文件中。
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from enum import Enum
 import hashlib
 import json
 import logging
+import os
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -24,6 +26,7 @@ LOGGER = logging.getLogger(__name__)
 class SecretStorage(str, Enum):
     SESSION = "session"
     KEYRING = "keyring"
+    SERVER_FILE = "server_file"
 
 
 class PrivacyMode(str, Enum):
@@ -111,6 +114,7 @@ class AISettingsService:
     def __init__(self, paths: WorkspacePaths) -> None:
         self.paths = paths
         self.config_path = paths.root / "ai_settings.json"
+        self.server_secret_path = paths.root / "ai_secret.json"
         workspace_key = hashlib.sha256(str(paths.root).encode("utf-8")).hexdigest()[:16]
         self.service_name = "DataWork AI"
         self.account_prefix = f"workspace:{workspace_key}"
@@ -141,8 +145,13 @@ class AISettingsService:
                     warning = "系统密钥库不可用，API 密钥仅保留到本次程序关闭。"
                 else:
                     self._set_keyring_secret(settings.provider, api_key.strip())
+            elif secret_storage == SecretStorage.SERVER_FILE:
+                self._set_server_file_secret(settings.provider, api_key.strip())
             _SESSION_SECRETS[self._account(settings.provider)] = api_key.strip()
-        settings.remember_key = actual_storage == SecretStorage.KEYRING
+        settings.remember_key = actual_storage in {
+            SecretStorage.KEYRING,
+            SecretStorage.SERVER_FILE,
+        }
         self._write_non_secret(settings)
         return {
             "settings": self.public_status(settings),
@@ -162,6 +171,7 @@ class AISettingsService:
     def clear_key(self, provider: ProviderKind | None = None) -> None:
         provider = provider or self.load().provider
         _SESSION_SECRETS.pop(self._account(provider), None)
+        self._delete_server_file_secret(provider)
         if self.keyring_available():
             try:
                 import keyring
@@ -181,6 +191,10 @@ class AISettingsService:
         account = self._account(provider)
         if _SESSION_SECRETS.get(account):
             return _SESSION_SECRETS[account]
+        server_secret = self._server_file_secret(provider)
+        if server_secret:
+            _SESSION_SECRETS[account] = server_secret
+            return server_secret
         if self.keyring_available():
             try:
                 import keyring
@@ -269,6 +283,55 @@ class AISettingsService:
                 f"无法写入系统密钥库: {exc}",
                 status_code=422,
             ) from exc
+
+    def _server_file_secret(self, provider: ProviderKind) -> str:
+        if not self.server_secret_path.is_file():
+            return ""
+        try:
+            payload = json.loads(self.server_secret_path.read_text(encoding="utf-8"))
+            return str(payload.get(provider.value) or "").strip()
+        except Exception as exc:
+            LOGGER.warning("无法读取服务器 AI 密钥文件：%s", exc)
+            return ""
+
+    def _set_server_file_secret(self, provider: ProviderKind, api_key: str) -> None:
+        payload: dict[str, str] = {}
+        if self.server_secret_path.is_file():
+            try:
+                loaded = json.loads(self.server_secret_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    payload = {str(key): str(value) for key, value in loaded.items()}
+            except Exception:
+                payload = {}
+        payload[provider.value] = api_key
+        temporary = self.server_secret_path.with_suffix(".json.tmp")
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        os.chmod(temporary, 0o600)
+        temporary.replace(self.server_secret_path)
+        os.chmod(self.server_secret_path, 0o600)
+
+    def _delete_server_file_secret(self, provider: ProviderKind) -> None:
+        if not self.server_secret_path.is_file():
+            return
+        try:
+            payload = json.loads(self.server_secret_path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict) or provider.value not in payload:
+                return
+            payload.pop(provider.value, None)
+            if not payload:
+                self.server_secret_path.unlink(missing_ok=True)
+                return
+            temporary = self.server_secret_path.with_suffix(".json.tmp")
+            temporary.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            os.chmod(temporary, 0o600)
+            temporary.replace(self.server_secret_path)
+            os.chmod(self.server_secret_path, 0o600)
+        except Exception as exc:
+            LOGGER.warning("无法清除服务器 AI 密钥文件：%s", exc)
 
     def _account(self, provider: ProviderKind) -> str:
         return f"{self.account_prefix}:{provider.value}"

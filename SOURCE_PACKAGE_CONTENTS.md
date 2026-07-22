@@ -17,16 +17,22 @@
 - `pyproject.toml`：Python 依赖和命令入口；
 - `SOURCE_MANIFEST_SHA256.txt`：源码文件 SHA-256 清单。
 
-文档采用分层治理：`docs/PROJECT_STANDARD.md` 为统一工程规范，`docs/TEST_REPORTS.md` 独立归档测试状态，`docs/DEVELOPMENT_LOG.md` 保存开发决策，根目录 `CHANGELOG.md` 汇总全部版本变动，`docs/RELEASE_MANIFEST.md` 记录发布包含/排除范围。
+文档采用分层治理：`docs/PROJECT_STANDARD.md` 为统一工程规范，`docs/QUALITY_AUDIT_RECORDS.md` 汇总测试与审计，`docs/DEVELOPMENT_RECORDS.md` 保存开发决策，根目录 `CHANGELOG.md` 汇总版本变动，`docs/RELEASE_DEPLOYMENT_GUIDE.md` 统一说明发布与部署。
+
+## 通用源码与网站部署分支
+
+本包只保留通用、可继续开发的 DataWork 源码。个人主页副本、域名 `1490473838.cn`、
+宝塔专用 Nginx 配置、工作区密码摘要、服务器 AI 密钥和网站热补丁运行材料不属于通用源码。
+其中网站专用文件仅位于未压缩的 `发布包/DataWork-v0.4.9-网站部署版本/`，用于迁移个人网站；
+它不是源码包的组成部分，也不应被复制回通用开发分支。
 
 ## 0.4.9 发布重点
 
 - `golden_datasets/`：冻结输入、哈希、52 个案例和 425 个参考断言；
 - `scripts/run_golden_validation.py`：可独立运行黄金验证；
 - `tests/unit/test_golden_datasets.py`：黄金数据纳入常规回归；
-- `docs/GOLDEN_DATASET_AUDIT_0.4.9.md`：计算核心参考、发现与修复；
-- `docs/USABILITY_OPTIMIZATION_0.4.9.md`：简洁/专业参数层级与选项解释；
-- `docs/RELEASE_READINESS_AUDIT_0.4.9.md`：发布验证结论。
+- `docs/QUALITY_AUDIT_RECORDS.md`：计算核心参考、测试记录和发布验证结论；
+- `docs/DEVELOPMENT_RECORDS.md`：简洁/专业参数层级、交互优化与开发决策。
 
 ## 0.4.8 发布重点
 
@@ -69,4 +75,4 @@ python scripts/audit_method_parameters.py
 python scripts/audit_data_variants.py
 ```
 
-独立程序构建请阅读 `docs/PACKAGING.md`；正式发布逐项检查请阅读 `docs/RELEASE_CHECKLIST.md`。
+独立程序构建和正式发布检查请阅读 `docs/RELEASE_DEPLOYMENT_GUIDE.md`。

@@ -46,6 +46,10 @@ type AIStatus = {
   max_retries: number
   temperature: number
   max_tokens: number
+  server_managed?: boolean
+  configuration_source?: 'server' | 'personal'
+  owner_authenticated?: boolean
+  guest_quota?: { used: number; limit: number; remaining: number; resets_in_seconds: number }
 }
 
 const props = defineProps<{ open: boolean }>()
@@ -272,6 +276,12 @@ function capabilityText(item: ModelInfo) {
       <div class="privacy-notice">
         <strong>先测试，再选择 Model ID</strong>
         <p>测试成功后程序会拉取当前接口和密钥可见的全部模型。不会自动选择第一个模型，也不会自动继续调用。</p>
+      </div>
+
+      <div v-if="status?.server_managed" class="privacy-notice">
+        <strong>当前使用服务器提供的 AI 配置</strong>
+        <p v-if="status.owner_authenticated">你已通过工作区认证，可继续使用服务器 AI，不计入匿名次数。</p>
+        <p v-else>当前匿名额度剩余 {{ status.guest_quota?.remaining ?? 0 }} / {{ status.guest_quota?.limit ?? 10 }} 次，从首次提问起满 24 小时重置。也可以在下方填写自己的 API 密钥。</p>
       </div>
 
       <div class="settings-grid">

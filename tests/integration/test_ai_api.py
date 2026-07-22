@@ -206,7 +206,9 @@ def test_ai_settings_are_managed_without_leaking_secret(tmp_path):
     assert "api_key" not in payload["settings"]
     assert "test-secret-value" not in response.text
 
-    config_text = (tmp_path / "ai_settings.json").read_text(encoding="utf-8")
+    config_paths = list((tmp_path / "users").glob("*/ai_settings.json"))
+    assert len(config_paths) == 1
+    config_text = config_paths[0].read_text(encoding="utf-8")
     assert "test-secret-value" not in config_text
     assert "api_key" not in json.loads(config_text)
 
@@ -304,6 +306,84 @@ def test_builtin_step_help_works_without_ai_configuration(tmp_path):
     assert payload["source"] == "builtin"
     assert payload["explanation"]["title"] == "开始使用 DataWork"
     assert payload["setup_required"] is True
+
+
+def test_assistant_free_chat_returns_markdown_and_respects_selected_context(tmp_path, monkeypatch):
+    captured_messages = []
+
+    class FakeProvider:
+        async def generate_text(self, messages):
+            captured_messages.extend(messages)
+            return LLMResponse(
+                content="**直接回答：** 这份报告支持你刚才询问的结论。",
+                model="fake-chat-model",
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(
+        "datawork.application.ai_assistant_service.create_provider",
+        lambda config: FakeProvider(),
+    )
+    client = TestClient(create_app(workspace_root=tmp_path))
+    configured = client.put(
+        "/api/ai/settings",
+        json={
+            "enabled": True,
+            "provider": "deepseek",
+            "base_url": "https://api.deepseek.com",
+            "model": "fake-chat-model",
+            "privacy_mode": "metadata_only",
+            "secret_storage": "session",
+            "remember_key": False,
+            "api_key": "test-secret-value",
+        },
+    )
+    assert configured.status_code == 200
+
+    response = client.post(
+        "/api/ai/ask",
+        json={
+            "question": "只回答我问的结论，不要总结全部结果。",
+            "context": {
+                "mode": "instant",
+                "workflow_step": "interpret_results",
+                "workflow_progress": 5,
+                "data_profile": {"n_rows": 60},
+                "selected_method": "twoway_anova",
+            },
+            "result": RESULT_ENVELOPE,
+            "selection": {
+                "data_profile": False,
+                "analysis_plan": False,
+                "current_result": False,
+                "result_scope": "normative_evidence",
+                "include_ordering": True,
+                "ai_report": True,
+            },
+            "ai_report": {
+                "source": "ai",
+                "report": {
+                    "title": "已有 AI 报告",
+                    "conclusion": ["A×B 交互达到统计显著。"],
+                },
+            },
+            "result_context_id": "instant:1",
+            "ai_report_context_id": "instant:1",
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["source"] == "ai"
+    assert payload["answer_markdown"].startswith("**直接回答：**")
+    assert [item["key"] for item in payload["context_basis"]["items"]] == ["ai_report"]
+
+    user_packet = json.loads(captured_messages[-1]["content"])
+    assert set(user_packet["selected_context"]) == {"ai_generated_report"}
+    assert "normative_evidence" not in user_packet["selected_context"]
+    assert "data_profile" not in user_packet["selected_context"]
+    assert "不要固定输出‘核心发现’" in captured_messages[0]["content"]
 
 
 def test_analysis_guidance_uses_current_method_and_data(tmp_path):

@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = (ROOT / "frontend/src/App.vue").read_text(encoding="utf-8")
@@ -90,7 +91,8 @@ def test_ai_and_guidance_requests_ignore_stale_responses():
 
 def test_ai_assistant_is_a_contextual_non_blocking_sidebar():
     assert "assistant-side-panel" in ASSISTANT
-    assert "当前步骤" in ASSISTANT
+    assert "当前工作流信息" in ASSISTANT
+    assert 'class="assistant-welcome-card"' not in ASSISTANT
     assert "快捷提问" in ASSISTANT
     assert "activeTab" not in ASSISTANT
     assert "minimized" in ASSISTANT
@@ -113,7 +115,7 @@ def test_ai_assistant_is_a_contextual_non_blocking_sidebar():
     assert ".assistant-message-list" in STYLE
 
 
-def test_ai_assistant_has_stage_presets_selectable_context_and_persistent_history():
+def test_ai_assistant_has_workflow_presets_user_controlled_context_and_markdown_chat():
     assert "assistantNavigationKey" not in APP
     assert "assistantLaunchMode" not in APP
     assert "assistantLaunchQuestion" not in APP
@@ -124,6 +126,14 @@ def test_ai_assistant_has_stage_presets_selectable_context_and_persistent_histor
     assert "在小助手中提问" not in AI_RESULT_REPORT
     assert "PRESETS" in ASSISTANT
     assert "sendPreset" in ASSISTANT
+    preset_body = re.search(
+        r"async function sendPreset\(preset: PresetPrompt\) \{(?P<body>.*?)\n\}",
+        ASSISTANT,
+        re.DOTALL,
+    )
+    assert preset_body
+    assert "selectedContext.value" not in preset_body.group("body")
+    assert "await sendQuestion(preset.prompt)" in preset_body.group("body")
     assert "selectedContext" in ASSISTANT
     assert "数据画像" in ASSISTANT
     assert "分析计划" in ASSISTANT
@@ -145,6 +155,22 @@ def test_ai_assistant_has_stage_presets_selectable_context_and_persistent_histor
     assert "messages.value = []" in ASSISTANT
     assert "response.value = null" not in ASSISTANT
     assert "liveContextItems" in ASSISTANT
+    assert "['模式'" in ASSISTANT
+    assert "['方法'" in ASSISTANT
+    assert "['因变量'" in ASSISTANT
+    assert "['因素'" in ASSISTANT
+    assert "['拆分列'" in ASSISTANT
+    assert "['结果状态'" in ASSISTANT
+    assert "data: true" in ASSISTANT
+    assert "plan: false" in ASSISTANT
+    assert "result: false" in ASSISTANT
+    assert "aiReport: false" in ASSISTANT
+    assert "setDefaultContexts" not in ASSISTANT
+    assert "'/api/ai/ask'" in ASSISTANT
+    assert "answer_markdown" in ASSISTANT
+    assert "renderMarkdown" in ASSISTANT
+    assert 'class="assistant-welcome-card"' not in ASSISTANT
+    assert "<h3>核心发现</h3>" not in ASSISTANT
     assert "原始数据行默认不发送" in ASSISTANT
     assert "Enter 发送，Shift + Enter 换行" in ASSISTANT
 
@@ -370,6 +396,9 @@ def test_ai_normative_report_is_additional_and_independently_downloadable():
     assert "void prepareResultReports('instant', result.value)" in APP
     assert "void prepareResultReports('workspace', payload.result_json)" in APP
     assert "background: true" in APP
+    assert "automaticAIReportAllowed" in APP
+    assert "aiStatus.value?.configuration_source === 'personal'" in APP
+    assert "aiStatus.value?.owner_authenticated" in APP
     assert "builtinReportLoading" in APP
     assert "if (loading) activePage.value = 'builtin'" in AI_RESULT_REPORT
     assert "AI 总结 · 守卫删减" in AI_RESULT_REPORT
@@ -398,7 +427,10 @@ def test_batch_results_render_before_background_exports_are_ready():
     assert "批次结果已可查看" in APP
     assert "下载文件正在后台整理，不影响结果总览和逐批查看" in APP
     backend = (ROOT / "datawork/web/app.py").read_text(encoding="utf-8")
-    assert "background_tasks.add_task(generate_batch_export_artifacts" in backend
+    assert re.search(
+        r"background_tasks\.add_task\(\s*generate_batch_export_artifacts",
+        backend,
+    )
     assert 'status="preparing"' in backend
     assert 'status="ready"' in backend
 
@@ -426,7 +458,8 @@ def test_assistant_contexts_are_disabled_until_their_sources_exist():
     assert "available: Boolean(props.context.data_profile && props.context.selected_method)" in ASSISTANT
     assert "available: Boolean(props.result)" in ASSISTANT
     assert ':disabled="!item.available"' in ASSISTANT
-    assert "if (!item.available) next[item.key] = false" in ASSISTANT
+    assert "function contextEnabled" in ASSISTANT
+    assert "if (!item.available) next[item.key] = false" not in ASSISTANT
 
 
 def test_batch_and_combination_reports_expose_all_merged_exports():

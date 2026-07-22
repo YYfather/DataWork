@@ -83,7 +83,7 @@ datawork-web
 
 正式发布的独立安装包应由发布者在对应操作系统原生构建并签名。用户不需要安装 Python 或 Node.js。首次启动后，桌面外壳会启动本地 `datawork-sidecar`，等待健康检查通过再显示界面。
 
-当前源码包主要用于审计和构建；构建人员请阅读 `docs/PACKAGING.md`，发布人员请逐项执行 `docs/RELEASE_CHECKLIST.md`。
+当前源码包主要用于审计和构建；构建人员请阅读 `docs/RELEASE_DEPLOYMENT_GUIDE.md`，发布人员请逐项执行 `docs/RELEASE_DEPLOYMENT_GUIDE.md`。
 
 遇到独立版无法启动时，先检查：安装路径是否可读、用户数据目录是否可写、防火墙或杀毒软件是否阻止本地 sidecar、端口是否被占用，以及安装包 SHA-256 是否正确。
 
@@ -463,14 +463,14 @@ npm ci
 npm run build
 ```
 
-详细架构：`docs/ARCHITECTURE.md`  
-统一工程规范：`docs/PROJECT_STANDARD.md`  
-测试报告总档：`docs/TEST_REPORTS.md`  
-发布清单：`docs/RELEASE_MANIFEST.md`  
-统计方法：`docs/STATISTICAL_METHODS.md`  
-AI 助手：`docs/AI_ASSISTANT.md`  
-批量工作流：`docs/BATCH_WORKFLOW.md`  
-交互审查：`docs/INTERACTION_AUDIT.md`
+详细架构：`docs/ARCHITECTURE.md`
+统一工程规范：`docs/PROJECT_STANDARD.md`
+测试报告总档：`docs/QUALITY_AUDIT_RECORDS.md`
+发布清单：`docs/RELEASE_DEPLOYMENT_GUIDE.md`
+统计方法：`docs/STATISTICAL_METHODS.md`
+AI 助手：`docs/AI_ASSISTANT.md`
+批量工作流：`docs/BATCH_WORKFLOW.md`
+交互审查：`docs/QUALITY_AUDIT_RECORDS.md`
 
 ## AI 操作助手悬浮窗
 

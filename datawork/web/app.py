@@ -10,6 +10,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import time
 import zipfile
 from typing import Any
 from uuid import uuid4
@@ -37,10 +38,19 @@ from datawork.core.method_registry import list_methods
 from datawork.core.plan import AnalysisPlan
 from datawork.engine.batch import BatchAnalysisResult
 from datawork.engine.result import StatisticalResult
+from datawork.infrastructure.paths import resolve_workspace_paths
 from datawork.web.schemas import (
-    AIAnalysisExplainRequest, AIExplainRequest, AIResultExplainRequest, AIResultReportRequest, AISettingsUpdate, InstantReportCreate, PlanClone, PlanCreate,
-    PlanUpdate, ProjectCreate, ReportCreate, RunCompare,
+    AIAnalysisExplainRequest, AIAssistantAskRequest, AIExplainRequest, AIResultExplainRequest, AIResultReportRequest, AISettingsUpdate, InstantReportCreate, PlanClone, PlanCreate,
+    PlanUpdate, ProjectCreate, ReportCreate, RunCompare, WorkspaceAuthLogin,
 )
+from datawork.web.sessions import (
+    CURRENT_SESSION,
+    SessionCapacityError,
+    SessionExpiredError,
+    SessionRegistry,
+    SessionResourceProxy,
+)
+from datawork.web.workspace_auth import WorkspaceAuthService
 
 
 MAX_UPLOAD_BYTES = DEFAULT_MAX_BYTES
@@ -59,7 +69,22 @@ def _package_version() -> str:
     return __version__
 
 
-def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
+def _directory_size(root: Path) -> int:
+    total = 0
+    for path in root.rglob("*"):
+        try:
+            if path.is_file() and not path.is_symlink():
+                total += path.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def create_app(
+    *,
+    workspace_root: str | Path | None = None,
+    session_registry: SessionRegistry | None = None,
+) -> FastAPI:
     application = FastAPI(
         title="DataWork API",
         version=_package_version(),
@@ -76,11 +101,130 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
     design_service = DesignService()
     preflight_service = PreflightService()
     report_service = ReportService()
-    workspace = WorkspaceService(workspace_root)
-    ai_settings = AISettingsService(workspace.paths)
-    ai_assistant = AIAssistantService(ai_settings)
-    application.state.workspace = workspace
+    registry = session_registry or SessionRegistry(
+        workspace_root,
+        max_sessions=int(os.getenv("DATAWORK_MAX_ACTIVE_USERS", "3")),
+        timeout_seconds=int(os.getenv("DATAWORK_SESSION_TIMEOUT_SECONDS", "600")),
+        presence_timeout_seconds=int(os.getenv("DATAWORK_PRESENCE_TIMEOUT_SECONDS", "300")),
+        ai_guest_question_limit=int(os.getenv("DATAWORK_AI_GUEST_QUESTION_LIMIT", "10")),
+    )
+    workspace_auth = WorkspaceAuthService(registry.root)
+    registry.cleanup_expired_data = workspace_auth.cleanup_expired_sessions
+    owner_workspace = WorkspaceService(registry.root / "owner") if workspace_auth.configured else None
+    session_workspace = SessionResourceProxy(lambda session: session.workspace)
+    project_workspace = SessionResourceProxy(
+        lambda session: owner_workspace if owner_workspace is not None else session.workspace,
+    )
+    ai_settings = SessionResourceProxy(lambda session: session.ai_settings)
+    ai_assistant = SessionResourceProxy(lambda session: session.ai_assistant)
+    server_ai_settings = AISettingsService(
+        resolve_workspace_paths(registry.root / "server_ai")
+    )
+    server_ai_assistant = AIAssistantService(server_ai_settings)
+    application.state.session_registry = registry
+    application.state.workspace = project_workspace
+    application.state.workspace_auth = workspace_auth
     application.state.ai_settings = ai_settings
+    application.state.server_ai_settings = server_ai_settings
+
+    def request_session_id(request: Request) -> str | None:
+        return request.headers.get("X-DataWork-Session") or request.cookies.get("datawork_session")
+
+    def request_client_id(request: Request) -> str | None:
+        return request.headers.get("X-DataWork-Client")
+
+    def session_error(status_code: int, code: str, message: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "detail": message,
+                "error": {
+                    "code": code,
+                    "message": message,
+                    "issues": [],
+                    "details": {
+                        "active_users": registry.status(None)["active_users"],
+                        "max_users": registry.max_sessions,
+                        "idle_timeout_seconds": registry.timeout_seconds,
+                    },
+                },
+            },
+        )
+
+    public_api_paths = {
+        "/api/health",
+        "/api/capabilities",
+        "/api/methods",
+        "/api/help/steps",
+        "/api/session/status",
+        "/api/session/heartbeat",
+        "/api/session/activity",
+        "/api/session/release",
+    }
+    workspace_api_prefixes = (
+        "/api/workspace",
+        "/api/projects",
+        "/api/datasets",
+        "/api/plans",
+        "/api/runs",
+        "/api/reports",
+    )
+
+    def is_workspace_api(path: str) -> bool:
+        return any(path == prefix or path.startswith(prefix + "/") for prefix in workspace_api_prefixes)
+
+    def workspace_auth_error() -> JSONResponse:
+        message = "项目工作区仅限所有者使用，请先输入工作区密码。"
+        return JSONResponse(
+            status_code=401,
+            content={
+                "detail": message,
+                "error": {
+                    "code": ErrorCode.WORKSPACE_AUTH_REQUIRED.value,
+                    "message": message,
+                    "issues": [],
+                    "details": {},
+                },
+            },
+        )
+
+    @application.middleware("http")
+    async def session_isolation(request: Request, call_next):
+        path = request.scope.get("path", request.url.path)
+        root_path = request.scope.get("root_path", "").rstrip("/")
+        if root_path and path.startswith(root_path + "/"):
+            path = path[len(root_path):]
+        if not path.startswith("/api/") or path in public_api_paths:
+            return await call_next(request)
+
+        try:
+            session = registry.acquire(request_session_id(request), request_client_id(request))
+        except SessionCapacityError as exc:
+            return session_error(429, "session_capacity_reached", str(exc))
+        except SessionExpiredError as exc:
+            return session_error(440, "session_expired", str(exc))
+
+        token = CURRENT_SESSION.set(session)
+        try:
+            if is_workspace_api(path) and workspace_auth.configured and not session.workspace_authenticated:
+                response = workspace_auth_error()
+            else:
+                response = await call_next(request)
+        finally:
+            CURRENT_SESSION.reset(token)
+        status = registry.status(session.session_id)
+        response.headers["X-DataWork-Active-Users"] = str(status["active_users"])
+        response.headers["X-DataWork-Max-Users"] = str(status["max_users"])
+        response.set_cookie(
+            "datawork_session",
+            session.session_id,
+            httponly=True,
+            secure=request.headers.get("x-forwarded-proto", "").lower() == "https",
+            samesite="lax",
+            path="/",
+            max_age=registry.timeout_seconds,
+        )
+        return response
 
     def batch_export_payload(export_id: str, result: BatchAnalysisResult, *, status: str, error: str = "", artifacts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         return {
@@ -106,16 +250,25 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
             ],
         }
 
-    def write_batch_export_status(export_id: str, payload: dict[str, Any]) -> None:
-        export_root = workspace.paths.reports / "generic_batch_exports"
+    def write_batch_export_status(
+        export_id: str,
+        payload: dict[str, Any],
+        target_workspace: WorkspaceService | None = None,
+    ) -> None:
+        target_workspace = target_workspace or session_workspace.current()
+        export_root = target_workspace.paths.reports / "generic_batch_exports"
         status_path = export_root / export_id / "status.json"
         status_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = status_path.with_suffix(".json.tmp")
         temporary.write_text(json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8")
         temporary.replace(status_path)
 
-    def generate_batch_export_artifacts(export_id: str, result: BatchAnalysisResult) -> None:
-        export_dir = workspace.paths.reports / "generic_batch_exports"
+    def generate_batch_export_artifacts(
+        export_id: str,
+        result: BatchAnalysisResult,
+        target_workspace: WorkspaceService,
+    ) -> None:
+        export_dir = target_workspace.paths.reports / "generic_batch_exports"
         export_path = export_dir / f"{export_id}.xlsx"
         report_dir = export_dir / export_id
         try:
@@ -138,12 +291,14 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
                     status="ready",
                     artifacts=[item.model_dump(mode="json") for item in bundle.artifacts],
                 ),
+                target_workspace,
             )
         except Exception as exc:
             LOGGER.exception("批量导出后台生成失败: %s", export_id)
             write_batch_export_status(
                 export_id,
                 batch_export_payload(export_id, result, status="failed", error=str(exc)),
+                target_workspace,
             )
 
     def require_ai_access(request: Request) -> None:
@@ -156,6 +311,98 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
                 "远程 AI 功能默认关闭。共享部署必须先配置认证，再由管理员使用 --allow-remote-ai 启用。",
                 status_code=403,
             )
+
+    def _current_session_resources():
+        session = CURRENT_SESSION.get()
+        if session is None:
+            raise RuntimeError("当前请求没有 DataWork 会话上下文")
+        return session
+
+    def _ai_access_payload(
+        session,
+        *,
+        source: str,
+        quota: dict[str, int] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "configuration_source": source,
+            "using_personal_api": source == "personal",
+            "owner_authenticated": bool(session.workspace_authenticated),
+            "workspace_auth_available": bool(workspace_auth.configured),
+            "guest_quota": quota or registry.ai_quota_status(session.session_id),
+        }
+
+    def _effective_ai_status() -> dict[str, Any]:
+        session = _current_session_resources()
+        personal = session.ai_settings.public_status()
+        server = server_ai_settings.public_status()
+        if personal["enabled"] and personal["configured"]:
+            payload = dict(personal)
+            source = "personal"
+        elif server["enabled"] and server["configured"]:
+            payload = dict(server)
+            source = "server"
+        else:
+            payload = dict(personal)
+            source = "personal"
+        payload.update(_ai_access_payload(session, source=source))
+        payload["server_configuration_available"] = bool(
+            server["enabled"] and server["configured"]
+        )
+        payload["server_managed"] = source == "server"
+        return payload
+
+    def _select_ai_runtime(
+        *,
+        consume_guest_quota: bool,
+        connection_test: bool = False,
+    ) -> tuple[AIAssistantService, dict[str, Any]]:
+        session = _current_session_resources()
+        personal = session.ai_settings.public_status()
+        personal_ready = bool(
+            personal["connection_ready"]
+            if connection_test
+            else personal["enabled"] and personal["configured"]
+        )
+        if personal_ready:
+            return session.ai_assistant, _ai_access_payload(
+                session, source="personal"
+            )
+
+        server = server_ai_settings.public_status()
+        server_ready = bool(
+            server["connection_ready"]
+            if connection_test
+            else server["enabled"] and server["configured"]
+        )
+        if not server_ready:
+            return session.ai_assistant, _ai_access_payload(
+                session, source="personal"
+            )
+        if session.workspace_authenticated:
+            return server_ai_assistant, _ai_access_payload(
+                session, source="server"
+            )
+        quota = registry.ai_quota_status(session.session_id)
+        if consume_guest_quota:
+            quota = registry.consume_ai_guest_question(session.session_id)
+            if quota is None:
+                raise DataWorkError(
+                    ErrorCode.AI_FREE_QUOTA_EXHAUSTED,
+                    "本浏览器的 10 次免费 AI 提问额度已用完。请验证工作区密码，或在 AI 设置中填写自己的 API 密钥。",
+                    status_code=429,
+                    details={
+                        "limit": registry.ai_guest_question_limit,
+                        "remaining": 0,
+                        "reset_seconds": registry.ai_quota_status(
+                            session.session_id
+                        )["resets_in_seconds"],
+                        "workspace_auth_available": workspace_auth.configured,
+                    },
+                )
+        return server_ai_assistant, _ai_access_payload(
+            session, source="server", quota=quota
+        )
 
     @application.exception_handler(DataWorkError)
     async def handle_datawork_error(_request, exc: DataWorkError) -> JSONResponse:
@@ -186,13 +433,123 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
 
     @application.get("/api/health")
     def health() -> dict[str, Any]:
+        session_status = registry.status(None)
         return {
             "status": "ok",
             "version": _package_version(),
             "python": platform.python_version(),
             "platform": platform.system(),
-            "workspace": workspace.info(include_paths=False),
+            "workspace": {
+                "enabled": True,
+                "storage": "sqlite",
+                "isolation": "owner_only" if workspace_auth.configured else "per_session",
+                "authentication_required": workspace_auth.configured,
+                "schema_version": 1,
+            },
+            "sessions": {
+                "active_users": session_status["active_users"],
+                "max_users": session_status["max_users"],
+                "idle_timeout_seconds": session_status["idle_timeout_seconds"],
+            },
         }
+
+    @application.get("/api/session")
+    def current_session() -> dict[str, Any]:
+        session = CURRENT_SESSION.get()
+        if session is None:
+            raise RuntimeError("会话中间件未建立上下文")
+        status = registry.status(session.session_id)
+        status["session_id"] = session.session_id
+        status["workspace"] = {
+            "enabled": True,
+            "authentication_required": workspace_auth.configured,
+            "authenticated": session.workspace_authenticated if workspace_auth.configured else True,
+        }
+        return status
+
+    @application.get("/api/session/status")
+    def current_session_status(request: Request) -> dict[str, object]:
+        return registry.status(request_session_id(request), touch=False)
+
+    @application.post("/api/session/heartbeat")
+    def session_heartbeat(request: Request) -> dict[str, object]:
+        return registry.heartbeat(request_session_id(request), request_client_id(request))
+
+    @application.post("/api/session/activity")
+    def session_activity(request: Request) -> dict[str, object]:
+        return registry.record_activity(request_session_id(request), request_client_id(request))
+
+    @application.post("/api/session/release")
+    async def session_release(request: Request) -> dict[str, object]:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+        session_id = request_session_id(request) or payload.get("session_id")
+        client_id = request_client_id(request) or payload.get("client_id")
+        return registry.release(session_id, client_id)
+
+    @application.get("/api/workspace-auth/status")
+    def workspace_auth_status() -> dict[str, Any]:
+        session = CURRENT_SESSION.get()
+        if session is None:
+            raise RuntimeError("会话中间件未建立上下文")
+        return {
+            "required": workspace_auth.configured,
+            "authenticated": session.workspace_authenticated if workspace_auth.configured else True,
+            "idle_timeout_seconds": registry.timeout_seconds,
+            "temporary_session_cleanup": registry.cleanup_expired_data,
+        }
+
+    @application.post("/api/workspace-auth/login")
+    def workspace_auth_login(request: WorkspaceAuthLogin) -> dict[str, Any]:
+        session = CURRENT_SESSION.get()
+        if session is None:
+            raise RuntimeError("会话中间件未建立上下文")
+        if not workspace_auth.configured:
+            session.workspace_authenticated = True
+            return workspace_auth_status()
+
+        now = time.monotonic()
+        if session.workspace_auth_locked_until > now:
+            wait_seconds = max(1, math.ceil(session.workspace_auth_locked_until - now))
+            raise DataWorkError(
+                ErrorCode.WORKSPACE_AUTH_LOCKED,
+                f"密码连续错误次数过多，请 {wait_seconds} 秒后重试。",
+                status_code=429,
+                details={"retry_after_seconds": wait_seconds},
+            )
+        if not workspace_auth.verify(request.password):
+            session.workspace_auth_failures += 1
+            remaining = max(0, 5 - session.workspace_auth_failures)
+            if remaining == 0:
+                session.workspace_auth_locked_until = now + 300
+                session.workspace_auth_failures = 0
+                raise DataWorkError(
+                    ErrorCode.WORKSPACE_AUTH_LOCKED,
+                    "密码连续错误 5 次，工作区登录已锁定 5 分钟。",
+                    status_code=429,
+                    details={"retry_after_seconds": 300},
+                )
+            raise DataWorkError(
+                ErrorCode.WORKSPACE_AUTH_FAILED,
+                f"工作区密码不正确，还可尝试 {remaining} 次。",
+                status_code=401,
+                details={"remaining_attempts": remaining},
+            )
+
+        session.workspace_authenticated = True
+        session.workspace_auth_failures = 0
+        session.workspace_auth_locked_until = 0.0
+        return workspace_auth_status()
+
+    @application.post("/api/workspace-auth/logout")
+    def workspace_auth_logout() -> dict[str, Any]:
+        session = CURRENT_SESSION.get()
+        if session is None:
+            raise RuntimeError("会话中间件未建立上下文")
+        session.workspace_authenticated = False
+        return workspace_auth_status()
 
     @application.get("/api/capabilities")
     def capabilities() -> dict[str, Any]:
@@ -224,7 +581,7 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
 
     @application.get("/api/ai/status")
     def ai_status() -> dict[str, Any]:
-        payload = ai_settings.public_status()
+        payload = _effective_ai_status()
         bind_host = os.getenv("DATAWORK_BIND_HOST", "127.0.0.1")
         payload["access_scope"] = "remote_enabled" if os.getenv("DATAWORK_ALLOW_REMOTE_AI") == "1" else "local_only"
         payload["bind_host"] = bind_host
@@ -254,18 +611,27 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
                 f"AI 设置无效: {exc}",
                 status_code=422,
             ) from exc
-        return _sanitize(ai_settings.save(settings, api_key=request.api_key, secret_storage=storage))
+        payload = ai_settings.save(
+            settings, api_key=request.api_key, secret_storage=storage
+        )
+        payload["settings"] = _effective_ai_status()
+        return _sanitize(payload)
 
     @application.delete("/api/ai/key")
     def clear_ai_key(request: Request) -> dict[str, Any]:
         require_ai_access(request)
         ai_settings.clear_key()
-        return {"ok": True, "status": ai_settings.public_status()}
+        return {"ok": True, "status": _sanitize(_effective_ai_status())}
 
     @application.post("/api/ai/test")
     async def test_ai_connection(request: Request) -> dict[str, Any]:
         require_ai_access(request)
-        return _sanitize(await ai_assistant.test_connection())
+        assistant, access = _select_ai_runtime(
+            consume_guest_quota=False, connection_test=True
+        )
+        payload = await assistant.test_connection()
+        payload["ai_access"] = access
+        return _sanitize(payload)
 
     @application.get("/api/help/steps")
     def help_steps() -> dict[str, Any]:
@@ -274,23 +640,54 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
     @application.post("/api/ai/explain/step")
     async def explain_step(request: AIExplainRequest, http_request: Request) -> dict[str, Any]:
         require_ai_access(http_request)
-        return _sanitize(await ai_assistant.explain_step(
+        assistant, access = _select_ai_runtime(consume_guest_quota=True)
+        payload = await assistant.explain_step(
             request.step, context=request.context, question=request.question
-        ))
+        )
+        payload["ai_access"] = access
+        return _sanitize(payload)
+
+    @application.post("/api/ai/ask")
+    async def ask_ai_assistant(
+        request: AIAssistantAskRequest, http_request: Request
+    ) -> dict[str, Any]:
+        require_ai_access(http_request)
+        assistant, access = _select_ai_runtime(consume_guest_quota=True)
+        payload = await assistant.ask(
+            question=request.question,
+            context=request.context,
+            result=request.result,
+            selection=request.selection.model_dump(mode="json"),
+            ai_report=request.ai_report,
+            result_context_id=request.result_context_id,
+            ai_report_context_id=request.ai_report_context_id,
+        )
+        payload["ai_access"] = access
+        return _sanitize(payload)
 
     @application.post("/api/ai/explain/analysis-plan")
     async def explain_analysis_plan(
         request: AIAnalysisExplainRequest, http_request: Request
     ) -> dict[str, Any]:
         require_ai_access(http_request)
-        return _sanitize(await ai_assistant.explain_analysis_plan(
+        if request.use_ai:
+            assistant, access = _select_ai_runtime(consume_guest_quota=True)
+        else:
+            assistant = _current_session_resources().ai_assistant
+            access = _ai_access_payload(
+                _current_session_resources(), source="personal"
+            )
+        payload = await assistant.explain_analysis_plan(
             request.context, question=request.question, use_ai=request.use_ai
-        ))
+        )
+        payload["ai_access"] = access
+        return _sanitize(payload)
 
     @application.post("/api/ai/explain/result")
     async def explain_result(request: AIResultExplainRequest, http_request: Request) -> dict[str, Any]:
         require_ai_access(http_request)
-        return _sanitize(await ai_assistant.explain_result(
+        assistant, access = _select_ai_runtime(consume_guest_quota=True)
+        payload = await assistant.explain_result(
             request.result,
             question=request.question,
             context=request.context,
@@ -298,7 +695,9 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
             ai_report=request.ai_report,
             result_context_id=request.result_context_id,
             ai_report_context_id=request.ai_report_context_id,
-        ))
+        )
+        payload["ai_access"] = access
+        return _sanitize(payload)
 
     @application.post("/api/ai/report/result")
     async def generate_ai_result_report(
@@ -306,12 +705,20 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         if request.use_ai:
             require_ai_access(http_request)
-        return _sanitize(await ai_assistant.generate_result_report(
+            assistant, access = _select_ai_runtime(consume_guest_quota=True)
+        else:
+            assistant = _current_session_resources().ai_assistant
+            access = _ai_access_payload(
+                _current_session_resources(), source="personal"
+            )
+        payload = await assistant.generate_result_report(
             request.result,
             title=request.title,
             use_ai=request.use_ai,
             analysis_context=request.analysis_context,
-        ))
+        )
+        payload["ai_access"] = access
+        return _sanitize(payload)
 
     @application.get("/api/methods")
     def methods() -> list[dict[str, Any]]:
@@ -412,7 +819,7 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
     def download_generic_batch(export_id: str) -> FileResponse:
         if not re.fullmatch(r"[0-9a-f]{32}", export_id):
             raise DataWorkError(ErrorCode.REPORT_FAILED, "无效的批量结果标识", status_code=404)
-        export_root = (workspace.paths.reports / "generic_batch_exports").resolve()
+        export_root = (session_workspace.paths.reports / "generic_batch_exports").resolve()
         path = (export_root / f"{export_id}.xlsx").resolve()
         if export_root not in path.parents or not path.exists():
             raise DataWorkError(ErrorCode.REPORT_FAILED, "批量结果文件不存在", status_code=404)
@@ -426,7 +833,7 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
     def generic_batch_export_status(export_id: str) -> dict[str, Any]:
         if not re.fullmatch(r"[0-9a-f]{32}", export_id):
             raise DataWorkError(ErrorCode.REPORT_FAILED, "无效的批量结果标识", status_code=404)
-        export_root = (workspace.paths.reports / "generic_batch_exports").resolve()
+        export_root = (session_workspace.paths.reports / "generic_batch_exports").resolve()
         status_path = (export_root / export_id / "status.json").resolve()
         if export_root not in status_path.parents or not status_path.exists():
             raise DataWorkError(ErrorCode.REPORT_FAILED, "批量导出状态不存在", status_code=404)
@@ -436,7 +843,7 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
     def download_standardized_batch_report(export_id: str, artifact: str) -> FileResponse:
         if not re.fullmatch(r"[0-9a-f]{32}", export_id):
             raise DataWorkError(ErrorCode.REPORT_FAILED, "无效的批量结果标识", status_code=404)
-        export_root = (workspace.paths.reports / "generic_batch_exports").resolve()
+        export_root = (session_workspace.paths.reports / "generic_batch_exports").resolve()
         choices = {
             "zip": (export_root / f"{export_id}.zip", "DataWork_规范化批量分析报告.zip", "application/zip"),
             "xlsx": (export_root / f"{export_id}.xlsx", "DataWork_规范化批量分析结果.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
@@ -484,8 +891,14 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
         if isinstance(execution.result, BatchAnalysisResult):
             export_id = uuid4().hex
             payload["batch_export"] = batch_export_payload(export_id, execution.result, status="preparing")
-            write_batch_export_status(export_id, payload["batch_export"])
-            background_tasks.add_task(generate_batch_export_artifacts, export_id, execution.result)
+            target_workspace = session_workspace.current()
+            write_batch_export_status(export_id, payload["batch_export"], target_workspace)
+            background_tasks.add_task(
+                generate_batch_export_artifacts,
+                export_id,
+                execution.result,
+                target_workspace,
+            )
         return _sanitize(payload)
 
     @application.post("/api/instant/reports", status_code=201)
@@ -503,7 +916,7 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
             raise DataWorkError(ErrorCode.REPORT_FAILED, f"结果结构无效，无法生成报告: {exc}", status_code=422) from exc
 
         export_id = uuid4().hex
-        export_root = workspace.paths.reports / "instant_exports"
+        export_root = session_workspace.paths.reports / "instant_exports"
         report_dir = export_root / export_id
         archive_path = export_root / f"{export_id}.zip"
         export_root.mkdir(parents=True, exist_ok=True)
@@ -531,7 +944,7 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
     def download_instant_report(export_id: str, artifact: str) -> FileResponse:
         if not re.fullmatch(r"[0-9a-f]{32}", export_id):
             raise DataWorkError(ErrorCode.REPORT_FAILED, "无效的即时报告标识", status_code=404)
-        export_root = (workspace.paths.reports / "instant_exports").resolve()
+        export_root = (session_workspace.paths.reports / "instant_exports").resolve()
         choices = {
             "zip": (export_root / f"{export_id}.zip", "DataWork_完整统计报告.zip", "application/zip"),
             "xlsx": (export_root / export_id / "results.xlsx", "DataWork_统计结果.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
@@ -549,27 +962,30 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
 
     @application.get("/api/workspace")
     def workspace_info() -> dict[str, Any]:
-        return workspace.info(include_paths=False)
+        payload = project_workspace.info(include_paths=False)
+        payload["used_bytes"] = _directory_size(project_workspace.paths.root)
+        payload["owner_only"] = workspace_auth.configured
+        return payload
 
     @application.get("/api/projects")
     def list_projects() -> list[dict[str, Any]]:
-        return workspace.repository.list_projects()
+        return project_workspace.repository.list_projects()
 
     @application.post("/api/projects", status_code=201)
     def create_project(request: ProjectCreate) -> dict[str, Any]:
-        return workspace.create_project(request.name, request.description)
+        return project_workspace.create_project(request.name, request.description)
 
     @application.get("/api/projects/{project_id}")
     def get_project(project_id: str) -> dict[str, Any]:
-        project = workspace.repository.get_project(project_id)
-        project["datasets"] = workspace.repository.list_datasets(project_id)
-        project["plans"] = workspace.repository.list_plans(project_id)
-        project["runs"] = workspace.repository.list_runs(project_id)
+        project = project_workspace.repository.get_project(project_id)
+        project["datasets"] = project_workspace.repository.list_datasets(project_id)
+        project["plans"] = project_workspace.repository.list_plans(project_id)
+        project["runs"] = project_workspace.repository.list_runs(project_id)
         return _sanitize(project)
 
     @application.get("/api/projects/{project_id}/datasets")
     def list_datasets(project_id: str) -> list[dict[str, Any]]:
-        return _sanitize(workspace.repository.list_datasets(project_id))
+        return _sanitize(project_workspace.repository.list_datasets(project_id))
 
     @application.post("/api/projects/{project_id}/datasets", status_code=201)
     async def create_dataset(
@@ -581,7 +997,7 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
         fill_merged_like_cells: bool = Form(default=False),
     ) -> dict[str, Any]:
         content = await file.read(MAX_UPLOAD_BYTES + 1)
-        return _sanitize(workspace.add_dataset(
+        return _sanitize(project_workspace.add_dataset(
             project_id,
             content=content,
             filename=file.filename or "upload.csv",
@@ -593,16 +1009,16 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
 
     @application.get("/api/datasets/{dataset_id}")
     def get_dataset(dataset_id: str) -> dict[str, Any]:
-        return _sanitize(workspace.repository.get_dataset(dataset_id))
+        return _sanitize(project_workspace.repository.get_dataset(dataset_id))
 
     @application.get("/api/projects/{project_id}/plans")
     def list_plans(project_id: str) -> list[dict[str, Any]]:
-        return _sanitize(workspace.repository.list_plans(project_id))
+        return _sanitize(project_workspace.repository.list_plans(project_id))
 
     @application.post("/api/projects/{project_id}/plans", status_code=201)
     def create_plan(project_id: str, request: PlanCreate) -> dict[str, Any]:
         try:
-            return _sanitize(workspace.create_plan(
+            return _sanitize(project_workspace.create_plan(
                 project_id,
                 request.dataset_id,
                 name=request.name,
@@ -613,48 +1029,48 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
 
     @application.get("/api/plans/{plan_id}")
     def get_plan(plan_id: str) -> dict[str, Any]:
-        return _sanitize(workspace.repository.get_plan(plan_id))
+        return _sanitize(project_workspace.repository.get_plan(plan_id))
 
     @application.put("/api/plans/{plan_id}")
     def update_plan(plan_id: str, request: PlanUpdate) -> dict[str, Any]:
         try:
-            return _sanitize(workspace.update_plan(plan_id, name=request.name, plan_data=request.plan))
+            return _sanitize(project_workspace.update_plan(plan_id, name=request.name, plan_data=request.plan))
         except ValidationError as exc:
             raise DataWorkError(ErrorCode.INVALID_PLAN, f"分析计划无效: {exc}") from exc
 
     @application.post("/api/plans/{plan_id}/clone", status_code=201)
     def clone_plan(plan_id: str, request: PlanClone) -> dict[str, Any]:
-        return _sanitize(workspace.clone_plan(plan_id, name=request.name))
+        return _sanitize(project_workspace.clone_plan(plan_id, name=request.name))
 
     @application.get("/api/plans/{plan_id}/preflight")
     def preflight_plan(plan_id: str) -> dict[str, Any]:
-        return _sanitize(workspace.preflight_plan(plan_id))
+        return _sanitize(project_workspace.preflight_plan(plan_id))
 
     @application.post("/api/plans/{plan_id}/runs", status_code=201)
     def run_plan(plan_id: str) -> dict[str, Any]:
-        return _sanitize(workspace.run_plan(plan_id))
+        return _sanitize(project_workspace.run_plan(plan_id))
 
     @application.get("/api/projects/{project_id}/runs")
     def list_runs(project_id: str) -> list[dict[str, Any]]:
-        return _sanitize(workspace.repository.list_runs(project_id))
+        return _sanitize(project_workspace.repository.list_runs(project_id))
 
     @application.get("/api/runs/{run_id}")
     def get_run(run_id: str) -> dict[str, Any]:
-        record = workspace.repository.get_run(run_id)
-        record["reports"] = workspace.repository.list_reports(run_id)
+        record = project_workspace.repository.get_run(run_id)
+        record["reports"] = project_workspace.repository.list_reports(run_id)
         return _sanitize(record)
 
     @application.post("/api/runs/compare")
     def compare_runs(request: RunCompare) -> dict[str, Any]:
-        return _sanitize(workspace.compare_runs(request.run_ids))
+        return _sanitize(project_workspace.compare_runs(request.run_ids))
 
     @application.post("/api/runs/{run_id}/reports", status_code=201)
     def create_report(run_id: str, request: ReportCreate) -> dict[str, Any]:
-        return _sanitize(workspace.generate_report(run_id, title=request.title))
+        return _sanitize(project_workspace.generate_report(run_id, title=request.title))
 
     @application.get("/api/reports/{report_id}/download")
     def download_report(report_id: str) -> FileResponse:
-        report, path = workspace.report_path(report_id)
+        report, path = project_workspace.report_path(report_id)
         if report.get("format") == "xlsx":
             return FileResponse(
                 path,
@@ -669,7 +1085,7 @@ def create_app(*, workspace_root: str | Path | None = None) -> FastAPI:
 
     @application.get("/api/reports/{report_id}/artifacts/{artifact}")
     def download_report_artifact(report_id: str, artifact: str) -> FileResponse:
-        report, primary_path = workspace.report_path(report_id)
+        report, primary_path = project_workspace.report_path(report_id)
         if report.get("format") != "xlsx":
             raise DataWorkError(ErrorCode.REPORT_FAILED, "该报告没有批量合并附件", status_code=404)
         report_dir = primary_path.parent.resolve()

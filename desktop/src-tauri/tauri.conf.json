@@ -14,6 +14,7 @@
         "height": 920,
         "minWidth": 980,
         "minHeight": 680,
+        "maximized": true,
         "resizable": true,
         "url": "index.html"
       }
@@ -34,6 +35,19 @@
     ],
     "externalBin": [
       "binaries/datawork-sidecar"
-    ]
+    ],
+    "windows": {
+      "wix": {
+        "language": "zh-CN"
+      },
+      "nsis": {
+        "languages": [
+          "SimpChinese"
+        ],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "startMenuFolder": "DataWork"
+      }
+    }
   }
 }

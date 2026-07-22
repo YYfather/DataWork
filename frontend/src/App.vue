@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { apiRequest, errorMessage, friendlyError } from './api'
+import { apiRequest, appUrl, errorMessage, friendlyError, releaseDataworkSession, resetDataworkSession } from './api'
 import AIAssistantPanel from './components/AIAssistantPanel.vue'
 import AISettingsPanel from './components/AISettingsPanel.vue'
 import AIResultReportPanel from './components/AIResultReportPanel.vue'
@@ -88,6 +88,21 @@ type WorkspaceProject = { id: string; name: string; description: string; dataset
 type WorkspaceDataset = { id: string; name: string; original_filename: string; profile_json: ProfileResponse['profile']; fingerprint_json: Record<string, any> }
 type WorkspacePlan = { id: string; name: string; dataset_id: string; revision: number; plan_json: Record<string, any> }
 type WorkspaceRun = { id: string; status: string; plan_id: string; plan_name?: string; dataset_name?: string; result_json?: any; error_json?: any; started_at: string; completed_at?: string }
+type SessionState = {
+  active: boolean
+  expired: boolean
+  active_users: number
+  max_users: number
+  idle_timeout_seconds: number
+  session_label?: string | null
+  expires_in_seconds: number
+}
+type WorkspaceAuthState = {
+  required: boolean
+  authenticated: boolean
+  idle_timeout_seconds: number
+  temporary_session_cleanup: boolean
+}
 type WorkspaceProjectDetail = WorkspaceProject & { datasets: WorkspaceDataset[]; plans: WorkspacePlan[]; runs: WorkspaceRun[] }
 type FactorOverflowPrompt = {
   open: boolean
@@ -181,7 +196,20 @@ let batchExportPollId = 0
 const workspaceResultInvalidated = ref(false)
 const workspaceResultInvalidatedReason = ref('')
 const health = ref<any>(null)
+const sessionState = ref<SessionState | null>(null)
+const sessionAccessError = ref<any>(null)
+let sessionStatusTimer: number | undefined
+const SESSION_HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000
+const SESSION_ACTIVITY_THROTTLE_MS = 30 * 1000
+let lastSessionActivityAt = 0
 const mode = ref<'instant' | 'workspace'>('instant')
+const workspaceAuthState = ref<WorkspaceAuthState | null>(null)
+const workspaceAuthOpen = ref(false)
+const workspaceAuthPassword = ref('')
+const workspaceAuthLoading = ref(false)
+const workspaceAuthError = ref<any>(null)
+const workspaceAuthPurpose = ref<'workspace' | 'ai'>('workspace')
+const workspaceInfo = ref<any>(null)
 const workspaceProjects = ref<WorkspaceProject[]>([])
 const workspaceProject = ref<WorkspaceProjectDetail | null>(null)
 const workspaceProjectName = ref('')
@@ -448,6 +476,12 @@ const assistantAIReportContextId = computed(() => mode.value === 'instant'
   ? instantAIReportContextId.value
   : workspaceAIReportContextId.value)
 const aiReady = computed(() => Boolean(aiStatus.value?.enabled && aiStatus.value?.configured))
+const automaticAIReportAllowed = computed(() => Boolean(
+  aiReady.value && (
+    aiStatus.value?.configuration_source === 'personal'
+    || aiStatus.value?.owner_authenticated
+  ),
+))
 
 watch(result, current => {
   if (current) return
@@ -944,26 +978,180 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   if (event.key !== 'Escape') return
   if (factorOverflowPrompt.value.open) closeFactorOverflowPrompt()
   else if (preflightOpen.value) preflightOpen.value = false
+  else if (workspaceAuthOpen.value && !workspaceAuthLoading.value) workspaceAuthOpen.value = false
   else if (aiSettingsOpen.value) aiSettingsOpen.value = false
   else if (aiAssistantOpen.value) closeHelp()
+}
+
+function handleSessionError(event: Event) {
+  sessionAccessError.value = (event as CustomEvent).detail
+  operationTitle.value = ''
+  operationDetail.value = ''
+}
+
+function retrySessionAdmission() {
+  resetDataworkSession()
+  window.location.reload()
+}
+
+function clearWorkspaceView() {
+  workspaceProjects.value = []
+  workspaceProject.value = null
+  workspaceInfo.value = null
+  workspaceDatasetId.value = ''
+  workspaceSelectedPlanId.value = ''
+  workspaceRun.value = null
+  workspaceReportId.value = ''
+  workspaceReportLinks.value = null
+}
+
+function handleWorkspaceAuthRequired(event: Event) {
+  workspaceAuthPurpose.value = 'workspace'
+  workspaceAuthState.value = workspaceAuthState.value
+    ? { ...workspaceAuthState.value, authenticated: false }
+    : { required: true, authenticated: false, idle_timeout_seconds: 600, temporary_session_cleanup: true }
+  workspaceAuthError.value = (event as CustomEvent).detail
+  workspaceAuthPassword.value = ''
+  workspaceAuthOpen.value = true
+  mode.value = 'instant'
+  clearWorkspaceView()
+}
+
+async function enterWorkspace() {
+  if (interactionBusy.value) return
+  workspaceAuthPurpose.value = 'workspace'
+  if (!workspaceAuthState.value) {
+    try {
+      workspaceAuthState.value = await apiRequest('/api/workspace-auth/status', undefined, '工作区认证状态读取失败')
+    } catch (cause) {
+      workspaceAuthError.value = friendlyError(cause, '工作区认证状态读取失败')
+      workspaceAuthOpen.value = true
+      return
+    }
+  }
+  const access = workspaceAuthState.value
+  if (!access?.authenticated) {
+    workspaceAuthError.value = null
+    workspaceAuthPassword.value = ''
+    workspaceAuthOpen.value = true
+    return
+  }
+  mode.value = 'workspace'
+  try {
+    await refreshWorkspaceProjects()
+  } catch (cause) {
+    applyWorkspaceError(cause, '项目列表读取失败')
+  }
+}
+
+function authenticateForAi() {
+  workspaceAuthPurpose.value = 'ai'
+  workspaceAuthError.value = null
+  workspaceAuthPassword.value = ''
+  workspaceAuthOpen.value = true
+}
+
+async function unlockWorkspace() {
+  if (!workspaceAuthPassword.value || workspaceAuthLoading.value) return
+  workspaceAuthLoading.value = true
+  workspaceAuthError.value = null
+  try {
+    workspaceAuthState.value = await apiRequest('/api/workspace-auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: workspaceAuthPassword.value }),
+    }, '工作区登录失败')
+    workspaceAuthPassword.value = ''
+    workspaceAuthOpen.value = false
+    if (workspaceAuthPurpose.value === 'ai') {
+      aiStatus.value = await apiRequest('/api/ai/status', undefined, 'AI 状态读取失败')
+    } else {
+      mode.value = 'workspace'
+      await refreshWorkspaceProjects()
+    }
+  } catch (cause) {
+    workspaceAuthError.value = friendlyError(cause, '工作区登录失败')
+  } finally {
+    workspaceAuthLoading.value = false
+  }
+}
+
+async function logoutWorkspace() {
+  if (workspaceLoading.value) return
+  try {
+    workspaceAuthState.value = await apiRequest('/api/workspace-auth/logout', { method: 'POST' }, '工作区退出失败')
+  } finally {
+    mode.value = 'instant'
+    clearWorkspaceView()
+  }
+}
+
+async function refreshSessionStatus() {
+  try {
+    const status = await apiRequest('/api/session/heartbeat', { method: 'POST' }, '用户状态读取失败') as SessionState
+    sessionState.value = status
+    if (!status.active) {
+      const code = status.expired ? 'session_expired' : 'session_capacity_reached'
+      sessionAccessError.value = friendlyError({
+        error: {
+          code,
+          message: status.expired
+            ? '当前会话已因超过 10 分钟未实际操作而退出。'
+            : '当前会话已不在活跃用户列表中。',
+        },
+      })
+    }
+  } catch (cause) {
+    const problem = friendlyError(cause, '用户状态读取失败')
+    if (problem.code === 'session_expired' || problem.code === 'session_capacity_reached') {
+      sessionAccessError.value = problem
+    }
+  }
+}
+
+function recordSessionActivity() {
+  const now = Date.now()
+  if (now - lastSessionActivityAt < SESSION_ACTIVITY_THROTTLE_MS) return
+  lastSessionActivityAt = now
+  void apiRequest('/api/session/activity', { method: 'POST' }, '用户活动状态更新失败')
+    .then(status => { sessionState.value = status as SessionState })
+    .catch(() => undefined)
+}
+
+function handlePageHide(event: PageTransitionEvent) {
+  if (!event.persisted) releaseDataworkSession()
 }
 
 onMounted(async () => {
   window.addEventListener('keydown', handleGlobalKeydown)
   window.addEventListener('scroll', handlePageScroll, { passive: true })
+  window.addEventListener('datawork-session-error', handleSessionError)
+  window.addEventListener('datawork-workspace-auth-required', handleWorkspaceAuthRequired)
+  window.addEventListener('pagehide', handlePageHide)
+  window.addEventListener('pointerdown', recordSessionActivity, { passive: true })
+  window.addEventListener('keydown', recordSessionActivity)
   handlePageScroll()
   operationTitle.value = '正在初始化 DataWork'
   operationDetail.value = '正在检查统计方法、工作区与可选 AI 配置。'
+  try {
+    sessionState.value = await apiRequest('/api/session', undefined, '用户会话建立失败')
+  } catch (cause) {
+    sessionAccessError.value = friendlyError(cause, '用户会话建立失败')
+    operationTitle.value = ''
+    operationDetail.value = ''
+    return
+  }
+  sessionStatusTimer = window.setInterval(refreshSessionStatus, SESSION_HEARTBEAT_INTERVAL_MS)
   const requests = await Promise.allSettled([
     apiRequest('/api/methods', undefined, '统计方法目录读取失败'),
     apiRequest('/api/health', undefined, '服务状态读取失败'),
-    apiRequest('/api/projects', undefined, '项目列表读取失败'),
+    apiRequest('/api/workspace-auth/status', undefined, '工作区认证状态读取失败'),
     apiRequest('/api/ai/status', undefined, 'AI 状态读取失败'),
   ])
   if (requests[0].status === 'fulfilled') methods.value = requests[0].value
   else applyInstantError(requests[0].reason, '统计方法目录读取失败')
   if (requests[1].status === 'fulfilled') health.value = requests[1].value
-  if (requests[2].status === 'fulfilled') workspaceProjects.value = requests[2].value
+  if (requests[2].status === 'fulfilled') workspaceAuthState.value = requests[2].value
   if (requests[3].status === 'fulfilled') aiStatus.value = requests[3].value
   methodParameters.value = defaultMethodParameters(currentMethod.value)
   workspaceMethodParameters.value = defaultMethodParameters(workspaceCurrentMethod.value)
@@ -976,7 +1164,13 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
   window.removeEventListener('scroll', handlePageScroll)
+  window.removeEventListener('datawork-session-error', handleSessionError)
+  window.removeEventListener('datawork-workspace-auth-required', handleWorkspaceAuthRequired)
+  window.removeEventListener('pagehide', handlePageHide)
+  window.removeEventListener('pointerdown', recordSessionActivity)
+  window.removeEventListener('keydown', recordSessionActivity)
   if (workflowJumpTimer !== undefined) window.clearTimeout(workflowJumpTimer)
+  if (sessionStatusTimer !== undefined) window.clearInterval(sessionStatusTimer)
 })
 
 function handlePageScroll() {
@@ -1594,7 +1788,7 @@ async function monitorBatchExport(execution: any) {
 
 async function prepareResultReports(target: 'instant' | 'workspace', execution: any) {
   const builtin = await loadBuiltinResultReport(target, execution)
-  if (!builtin || !isCurrentExecution(target, execution) || !aiReady.value) return
+  if (!builtin || !isCurrentExecution(target, execution) || !automaticAIReportAllowed.value) return
   void generateAIResultReport(target, { background: true, execution })
 }
 
@@ -1669,7 +1863,12 @@ async function generateAIResultReport(
 }
 
 async function refreshWorkspaceProjects(selectId?: string) {
-  workspaceProjects.value = await apiRequest('/api/projects', undefined, '项目列表读取失败')
+  const [projects, info] = await Promise.all([
+    apiRequest('/api/projects', undefined, '项目列表读取失败'),
+    apiRequest('/api/workspace', undefined, '工作区存储信息读取失败'),
+  ])
+  workspaceProjects.value = projects
+  workspaceInfo.value = info
   const target = selectId ?? workspaceProject.value?.id
   if (target) await loadWorkspaceProject(target)
 }
@@ -1915,6 +2114,7 @@ async function generateWorkspaceReport(runId: string) {
       workspaceRun.value = await apiRequest(`/api/runs/${runId}`, undefined, '运行记录读取失败')
       if (workspaceRun.value?.result_json) void prepareResultReports('workspace', workspaceRun.value.result_json)
     } catch { /* 报告已成功，不因刷新失败撤销 */ }
+    try { workspaceInfo.value = await apiRequest('/api/workspace', undefined, '工作区存储信息读取失败') } catch { /* 报告已成功 */ }
   } catch (cause) {
     applyWorkspaceError(cause, '报告生成失败')
   } finally { workspaceLoading.value = false; endOperation() }
@@ -1925,11 +2125,50 @@ function formatNumber(value: unknown, digits = 4) {
   const numeric = Number(value)
   return Number.isFinite(numeric) ? numeric.toFixed(digits) : String(value)
 }
+
+function formatBytes(value: unknown) {
+  const bytes = Number(value ?? 0)
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const amount = bytes / (1024 ** index)
+  return `${amount.toFixed(index === 0 ? 0 : amount >= 10 ? 1 : 2)} ${units[index]}`
+}
 </script>
 
 <template>
   <main class="shell">
     <LoadingOverlay :active="Boolean(operationTitle)" :title="operationTitle" :detail="operationDetail" />
+    <div v-if="sessionAccessError" class="session-gate" role="alertdialog" aria-modal="true" aria-labelledby="session-gate-title">
+      <div class="session-gate-card">
+        <span class="session-gate-icon">👥</span>
+        <p class="eyebrow">DATAWORK 使用席位</p>
+        <h2 id="session-gate-title">{{ sessionAccessError.title }}</h2>
+        <p>{{ sessionAccessError.message }}</p>
+        <ul v-if="sessionAccessError.hints?.length"><li v-for="hint in sessionAccessError.hints" :key="hint">{{ hint }}</li></ul>
+        <button type="button" class="primary" @click="retrySessionAdmission">重新加入</button>
+      </div>
+    </div>
+    <div v-if="workspaceAuthOpen" class="modal-backdrop workspace-auth-backdrop" @click.self="!workspaceAuthLoading && (workspaceAuthOpen = false)">
+      <form class="modal-card workspace-auth-card" role="dialog" aria-modal="true" aria-labelledby="workspace-auth-title" @submit.prevent="unlockWorkspace">
+        <div class="workspace-auth-mark" aria-hidden="true">⌂</div>
+        <p class="eyebrow">{{ workspaceAuthPurpose === 'ai' ? 'OWNER AI ACCESS' : 'OWNER WORKSPACE' }}</p>
+        <h2 id="workspace-auth-title">{{ workspaceAuthPurpose === 'ai' ? '验证后继续使用服务器 AI' : '所有者工作区认证' }}</h2>
+        <p class="workspace-auth-copy">{{ workspaceAuthPurpose === 'ai' ? '匿名 10 次额度已用完。验证工作区密码后，本浏览器可继续使用服务器配置的 AI。' : '这里会长期保存原始数据、分析计划和报告。为节省服务器空间，只有所有者验证后才能进入；其他访客仍可使用即时分析。' }}</p>
+        <label class="field workspace-password-field">工作区密码
+          <input v-model="workspaceAuthPassword" type="password" autocomplete="current-password" autofocus :disabled="workspaceAuthLoading" placeholder="请输入工作区密码" />
+        </label>
+        <div class="workspace-auth-error" v-if="workspaceAuthError" role="alert">
+          <strong>{{ workspaceAuthError.title }}</strong><p>{{ workspaceAuthError.message }}</p>
+          <small v-for="hint in workspaceAuthError.hints" :key="hint">{{ hint }}</small>
+        </div>
+        <div class="workspace-auth-notes"><span>密码只发送到当前服务器验证</span><span>连续错误 5 次锁定 5 分钟</span><span>10 分钟无操作后需重新认证</span></div>
+        <div class="modal-actions">
+          <button type="button" class="secondary" :disabled="workspaceAuthLoading" @click="workspaceAuthOpen = false">取消</button>
+          <button type="submit" class="primary" :disabled="workspaceAuthLoading || !workspaceAuthPassword">{{ workspaceAuthLoading ? '正在验证…' : workspaceAuthPurpose === 'ai' ? '验证并继续使用 AI' : '验证并进入' }}</button>
+        </div>
+      </form>
+    </div>
     <header class="hero">
       <div>
         <p class="eyebrow">DATAWORK {{ health?.version ?? '0.4.9' }}</p>
@@ -1937,6 +2176,10 @@ function formatNumber(value: unknown, digits = 4) {
         <p class="hero-copy">同一套 Python 统计核心，可在 Windows、Linux、macOS 本地运行，也可部署为网页服务。</p>
       </div>
       <div class="hero-statuses">
+        <div class="status-card session-status-card" v-if="sessionState?.active">
+          <span class="status-dot session-dot"></span>
+          <div><strong>{{ sessionState.session_label }} · {{ sessionState.active_users }}/{{ sessionState.max_users }}</strong><small>{{ workspaceAuthState?.authenticated && workspaceAuthState?.required ? '所有者工作区已解锁' : '临时会话' }} · 10 分钟无操作退出</small></div>
+        </div>
         <div class="status-card" v-if="health">
           <span class="status-dot"></span>
           <div><strong>服务已就绪</strong><small>{{ health.platform }} · Python {{ health.python }}</small></div>
@@ -1950,7 +2193,7 @@ function formatNumber(value: unknown, digits = 4) {
 
     <nav class="mode-switch">
       <button :disabled="interactionBusy" :class="{ active: mode === 'instant' }" @click="mode = 'instant'">即时分析</button>
-      <button :disabled="interactionBusy" :class="{ active: mode === 'workspace' }" @click="mode = 'workspace'">项目工作区</button>
+      <button :disabled="interactionBusy" :class="{ active: mode === 'workspace' }" @click="enterWorkspace">{{ workspaceAuthState?.required ? '🔒 项目工作区' : '项目工作区' }}</button>
       <button @click="aiSettingsOpen = true">AI 设置</button>
     </nav>
 
@@ -2238,13 +2481,13 @@ function formatNumber(value: unknown, digits = 4) {
           <template #actions>
             <button type="button" class="secondary compact" :disabled="interactionBusy || builtinReportLoading.instant || aiReportLoadingTarget === 'instant'" @click="generateAIResultReport('instant')">{{ builtinReportLoading.instant ? '正在准备排序与三表…' : aiReportLoadingTarget === 'instant' ? 'AI 总结中…' : instantAIReport ? '重新生成 AI 文字总结' : '生成 AI 文字总结' }}</button>
             <button v-if="result.kind === 'single' && !instantReportLinks" type="button" class="primary compact" :disabled="instantReportLoading" @click="generateInstantReport">{{ instantReportLoading ? '正在生成…' : '生成下载文件' }}</button>
-            <a v-if="instantReportLinks" class="download-link compact-link" :href="instantReportLinks.xlsx">下载结果 Excel</a>
-            <a v-if="instantReportLinks" class="download-link compact-link secondary-link" :href="instantReportLinks.zip">下载完整报告 ZIP</a>
+            <a v-if="instantReportLinks" class="download-link compact-link" :href="appUrl(instantReportLinks.xlsx)">下载结果 Excel</a>
+            <a v-if="instantReportLinks" class="download-link compact-link secondary-link" :href="appUrl(instantReportLinks.zip)">下载完整报告 ZIP</a>
           </template>
           <template #batch-actions>
             <div v-if="result.batch_export?.status === 'preparing'" class="batch-export-preparing" role="status"><span class="inline-spinner"></span><div><strong>批次结果已可查看</strong><small>下载文件正在后台整理，不影响结果总览和逐批查看。</small></div></div>
             <div v-else-if="result.batch_export?.status === 'failed'" class="batch-export-failed"><strong>下载文件准备失败</strong><small>{{ result.batch_export.error || '计算结果不受影响，可重新执行后生成。' }}</small></div>
-            <div v-else class="result-toolbar-actions"><a class="download-link" v-if="result.batch_export?.download_url" :href="result.batch_export.download_url">下载合并结果 XLSX</a><a class="download-link secondary-link" v-if="result.batch_export?.standardized_report?.download_url" :href="result.batch_export.standardized_report.download_url">下载完整规范报告 ZIP</a><a class="download-link secondary-link" v-if="result.batch_export?.standardized_report?.markdown_download_url" :href="result.batch_export.standardized_report.markdown_download_url">下载规范报告 Markdown</a><a class="download-link secondary-link" v-if="result.batch_export?.standardized_report?.json_download_url" :href="result.batch_export.standardized_report.json_download_url">下载完整结果 JSON</a></div>
+            <div v-else class="result-toolbar-actions"><a class="download-link" v-if="result.batch_export?.download_url" :href="appUrl(result.batch_export.download_url)">下载合并结果 XLSX</a><a class="download-link secondary-link" v-if="result.batch_export?.standardized_report?.download_url" :href="appUrl(result.batch_export.standardized_report.download_url)">下载完整规范报告 ZIP</a><a class="download-link secondary-link" v-if="result.batch_export?.standardized_report?.markdown_download_url" :href="appUrl(result.batch_export.standardized_report.markdown_download_url)">下载规范报告 Markdown</a><a class="download-link secondary-link" v-if="result.batch_export?.standardized_report?.json_download_url" :href="appUrl(result.batch_export.standardized_report.json_download_url)">下载完整结果 JSON</a></div>
           </template>
         </AnalysisResultView>
       </section>
@@ -2272,6 +2515,9 @@ function formatNumber(value: unknown, digits = 4) {
       <section class="workspace-layout">
         <aside id="workspace-project-selection" class="panel workspace-sidebar workflow-jump-target" :class="{ 'workflow-jump-highlight': workflowJumpTarget === 'workspace-project-selection' }">
           <div class="section-heading compact"><div><span>01</span><h2>项目</h2></div></div>
+          <div class="workspace-storage-card" v-if="workspaceInfo">
+            <span>所有者持久存储</span><strong>{{ formatBytes(workspaceInfo.used_bytes) }}</strong><small>{{ workspaceInfo.project_count }} 个项目 · 访客临时数据会在闲置退出后清理</small>
+          </div>
           <div class="project-list">
             <button v-for="project in workspaceProjects" :key="project.id" :class="{ active: workspaceProject?.id === project.id }" @click="loadWorkspaceProject(project.id)">
               <strong>{{ project.name }}</strong><small>{{ project.dataset_count ?? 0 }} 数据集 · {{ project.run_count ?? 0 }} 运行</small>
@@ -2281,6 +2527,7 @@ function formatNumber(value: unknown, digits = 4) {
             <input v-model="workspaceProjectName" placeholder="新项目名称" />
             <textarea v-model="workspaceProjectDescription" placeholder="项目说明（可选）"></textarea>
             <button class="primary" :disabled="workspaceLoading || !workspaceProjectName.trim()" @click="createWorkspaceProject">创建项目</button>
+            <button v-if="workspaceAuthState?.required" class="secondary workspace-logout" :disabled="workspaceLoading" @click="logoutWorkspace">锁定并退出工作区</button>
           </div>
         </aside>
 
@@ -2380,8 +2627,8 @@ function formatNumber(value: unknown, digits = 4) {
             <section id="workspace-latest-result" class="panel workflow-jump-target" :class="{ 'workflow-jump-highlight': workflowJumpTarget === 'workspace-latest-result' }" v-if="workspaceRun?.result_json">
               <div class="section-heading"><div><span>05</span><h2>最新运行</h2></div><div class="heading-tools"><p>运行 ID：{{ workspaceRun.id }}</p></div></div>
               <AnalysisResultView :execution="workspaceRun.result_json" :detailed="workspaceDetailedResults" :professional="workspaceExpertMode" @toggle-details="workspaceDetailedResults = !workspaceDetailedResults">
-                <template #actions><button type="button" class="secondary compact" :disabled="interactionBusy || builtinReportLoading.workspace || aiReportLoadingTarget === 'workspace'" @click="generateAIResultReport('workspace')">{{ builtinReportLoading.workspace ? '正在准备排序与三表…' : aiReportLoadingTarget === 'workspace' ? 'AI 总结中…' : workspaceAIReport ? '重新生成 AI 文字总结' : '生成 AI 文字总结' }}</button><button type="button" class="primary compact" :disabled="workspaceLoading" @click="generateWorkspaceReport(workspaceRun.id)">{{ workspaceLoading ? '处理中…' : workspaceReportId ? '重新生成报告' : '生成报告' }}</button><a class="download-link compact-link" v-if="workspaceReportId && workspaceRun.result_json.kind === 'single'" :href="`/api/reports/${workspaceReportId}/download`">下载报告 ZIP</a></template>
-                <template #batch-actions><div class="result-toolbar-actions" v-if="workspaceReportId"><a class="download-link" :href="workspaceReportLinks?.xlsx || `/api/reports/${workspaceReportId}/download`">下载合并结果 XLSX</a><a class="download-link secondary-link" v-if="workspaceReportLinks?.zip" :href="workspaceReportLinks.zip">下载完整规范报告 ZIP</a><a class="download-link secondary-link" v-if="workspaceReportLinks?.markdown" :href="workspaceReportLinks.markdown">下载规范报告 Markdown</a><a class="download-link secondary-link" v-if="workspaceReportLinks?.json" :href="workspaceReportLinks.json">下载完整结果 JSON</a></div></template>
+                <template #actions><button type="button" class="secondary compact" :disabled="interactionBusy || builtinReportLoading.workspace || aiReportLoadingTarget === 'workspace'" @click="generateAIResultReport('workspace')">{{ builtinReportLoading.workspace ? '正在准备排序与三表…' : aiReportLoadingTarget === 'workspace' ? 'AI 总结中…' : workspaceAIReport ? '重新生成 AI 文字总结' : '生成 AI 文字总结' }}</button><button type="button" class="primary compact" :disabled="workspaceLoading" @click="generateWorkspaceReport(workspaceRun.id)">{{ workspaceLoading ? '处理中…' : workspaceReportId ? '重新生成报告' : '生成报告' }}</button><a class="download-link compact-link" v-if="workspaceReportId && workspaceRun.result_json.kind === 'single'" :href="appUrl(`/api/reports/${workspaceReportId}/download`)">下载报告 ZIP</a></template>
+                <template #batch-actions><div class="result-toolbar-actions" v-if="workspaceReportId"><a class="download-link" :href="appUrl(workspaceReportLinks?.xlsx || `/api/reports/${workspaceReportId}/download`)">下载合并结果 XLSX</a><a class="download-link secondary-link" v-if="workspaceReportLinks?.zip" :href="appUrl(workspaceReportLinks.zip)">下载完整规范报告 ZIP</a><a class="download-link secondary-link" v-if="workspaceReportLinks?.markdown" :href="appUrl(workspaceReportLinks.markdown)">下载规范报告 Markdown</a><a class="download-link secondary-link" v-if="workspaceReportLinks?.json" :href="appUrl(workspaceReportLinks.json)">下载完整结果 JSON</a></div></template>
               </AnalysisResultView>
             </section>
             <section class="panel report-preparing-panel" v-if="workspaceRun?.result_json && builtinReportLoading.workspace && !workspaceBuiltinReport" aria-live="polite">
@@ -2431,6 +2678,7 @@ function formatNumber(value: unknown, digits = 4) {
       :ai-ready="aiReady"
       @close="closeHelp"
       @settings="aiSettingsOpen = true"
+      @authenticate="authenticateForAi"
     />
     <AISettingsPanel
       :open="aiSettingsOpen"

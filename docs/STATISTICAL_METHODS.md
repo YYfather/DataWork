@@ -11,7 +11,7 @@
 - 普通模式每个方法最多显示 1–2 个常用参数；所有低频和专业参数仍保留。
 - 单因素 ANOVA 事后检验默认自动选择 Tukey/Games–Howell；析因 ANOVA 与 MANOVA 默认 Tukey。
 - MANOVA 默认输出 Pillai；Wilks、Hotelling–Lawley、Roy 和全部四种判据在专业模式中可选。
-- 黄金数据及更新规则见 `golden_datasets/README.md` 和 `docs/GOLDEN_DATASET_AUDIT_0.4.9.md`。
+- 黄金数据及更新规则见 `golden_datasets/README.md` 和 `docs/QUALITY_AUDIT_RECORDS.md`。
 
 ## 0.4.6 计算与解释约定
 

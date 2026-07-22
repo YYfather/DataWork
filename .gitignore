@@ -32,3 +32,6 @@ desktop/src-tauri/binaries/datawork-sidecar-*
 .env
 .env.*
 !.env.example
+
+# 本地发布产物：完整源码包、安装器和网站部署目录通过发布流程单独交付。
+/发布包/

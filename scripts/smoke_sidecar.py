@@ -100,31 +100,32 @@ def main() -> None:
                 health = _wait_for_health(base_url, process, args.timeout)
                 if args.expected_version and health.get("version") != args.expected_version:
                     raise RuntimeError(f"sidecar 版本异常: {health}")
-                capabilities = httpx.get(f"{base_url}/api/capabilities", timeout=10)
-                capabilities.raise_for_status()
-                method_count = int(capabilities.json().get("statistics", {}).get("runnable_method_count", 0))
-                if method_count < 46:
-                    raise RuntimeError("sidecar 方法清单不完整")
+                # DataWork 的分析和报告归属于浏览器会话；必须复用同一个 Client，
+                # 以携带服务端写入的 datawork_session Cookie。
+                with httpx.Client(base_url=base_url, timeout=60) as client:
+                    capabilities = client.get("/api/capabilities")
+                    capabilities.raise_for_status()
+                    method_count = int(capabilities.json().get("statistics", {}).get("runnable_method_count", 0))
+                    if method_count < 46:
+                        raise RuntimeError("sidecar 方法清单不完整")
 
-                analysis = httpx.post(
-                    f"{base_url}/api/analyze",
-                    files={"file": ("smoke.csv", csv_data, "text/csv")},
-                    data={"plan_json": json.dumps(plan)},
-                    timeout=60,
-                )
-                analysis.raise_for_status()
-                execution = analysis.json()
-                if execution.get("kind") != "single":
-                    raise RuntimeError(f"sidecar 分析结果类型异常: {execution.get('kind')}")
+                    analysis = client.post(
+                        "/api/analyze",
+                        files={"file": ("smoke.csv", csv_data, "text/csv")},
+                        data={"plan_json": json.dumps(plan)},
+                    )
+                    analysis.raise_for_status()
+                    execution = analysis.json()
+                    if execution.get("kind") != "single":
+                        raise RuntimeError(f"sidecar 分析结果类型异常: {execution.get('kind')}")
 
-                report = httpx.post(
-                    f"{base_url}/api/instant/reports",
-                    json={"execution": execution, "title": "DataWork sidecar smoke"},
-                    timeout=60,
-                )
-                report.raise_for_status()
-                archive = httpx.get(f"{base_url}{report.json()['download_url']}", timeout=30)
-                archive.raise_for_status()
+                    report = client.post(
+                        "/api/instant/reports",
+                        json={"execution": execution, "title": "DataWork sidecar smoke"},
+                    )
+                    report.raise_for_status()
+                    archive = client.get(report.json()["download_url"], timeout=30)
+                    archive.raise_for_status()
                 with zipfile.ZipFile(io.BytesIO(archive.content)) as bundle:
                     required = {"results.xlsx", "statistical_report.md", "canonical_result.json"}
                     if not required.issubset(bundle.namelist()):

@@ -365,6 +365,156 @@ class AIAssistantService:
             payload_key="explanation",
         )
 
+    async def ask(
+        self,
+        *,
+        question: str,
+        context: dict[str, Any] | None = None,
+        result: dict[str, Any] | None = None,
+        selection: dict[str, Any] | None = None,
+        ai_report: dict[str, Any] | None = None,
+        result_context_id: str = "",
+        ai_report_context_id: str = "",
+    ) -> dict[str, Any]:
+        """按用户选择的依据进行自由问答，直接返回 Markdown 正文。"""
+
+        assistant_context = context if isinstance(context, dict) else {}
+        result_payload = result if isinstance(result, dict) else {}
+        selected = _normalize_result_context_selection(selection)
+        selected["current_result"] = bool(selected["current_result"] and result_payload)
+        report_prose, report_issue = _assistant_ai_report_prose(
+            ai_report,
+            requested=selected["ai_report"],
+            result_context_id=result_context_id,
+            ai_report_context_id=ai_report_context_id,
+        )
+        basis = _assistant_context_basis(selected, report_prose, report_issue)
+
+        selected_context: dict[str, Any] = {}
+        if selected["data_profile"] and assistant_context.get("data_profile"):
+            selected_context["data_profile"] = _sanitize_context(
+                assistant_context.get("data_profile"), include_preview=False
+            )
+        if selected["analysis_plan"]:
+            selected_context["analysis_plan"] = _assistant_analysis_plan_context(
+                assistant_context
+            )
+        if selected["current_result"]:
+            normative = _deterministic_normative_report(
+                result_payload, title="AI 小助手规范化证据"
+            )
+            evidence = _build_ai_report_evidence_packet(
+                normative,
+                _assistant_normative_evidence_context(
+                    assistant_context, result_payload
+                ),
+                result=result_payload,
+                include_preview=False,
+            )
+            if not selected["include_ordering"]:
+                evidence.pop("read_only_ordering", None)
+            selected_context["normative_evidence"] = evidence
+            if selected["result_scope"] == "full_result":
+                selected_context["full_result_and_diagnostics"] = (
+                    _assistant_full_result_diagnostics(result_payload)
+                )
+        if report_prose is not None:
+            selected_context["ai_generated_report"] = report_prose
+
+        workflow = {
+            "mode": assistant_context.get("mode"),
+            "workflow_step": assistant_context.get("workflow_step"),
+            "workflow_progress": assistant_context.get("workflow_progress"),
+        }
+        settings = self.settings_service.load()
+        status = self.settings_service.public_status(settings)
+        if not settings.enabled or not status["configured"]:
+            return {
+                "source": "builtin",
+                "answer_markdown": "AI 尚未启用或配置完成，请先打开 **AI 设置**。",
+                "setup_required": not status["configured"],
+                "context_basis": basis,
+            }
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是 DataWork 中的自由问答助手。只使用 selected_context 中由用户明确选择的资料回答；"
+                    "workflow 只用于理解用户目前所在阶段，不能用它补充未选择的数据、计划或结果。"
+                    "直接回答用户实际提出的问题，篇幅与问题相称。不要自动总结整份资料，不要固定输出‘核心发现’、"
+                    "‘下一步’或其他模板栏目，也不要把证据逐行改写成清单；只有问题确实需要时才使用标题、列表或表格。"
+                    "不得编造统计数值；AI 生成的文字报告属于辅助材料，若与统计结果证据冲突，以统计结果证据为准。"
+                    "使用简洁、可直接显示的中文 Markdown 返回正文，不要用 JSON，也不要在全文外包裹 Markdown 代码围栏。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "question": question.strip(),
+                        "workflow": workflow,
+                        "selected_context": selected_context,
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                ),
+            },
+        ]
+        try:
+            config = self.settings_service.provider_config()
+            provider = create_provider(config=config)
+            if provider is None:
+                return {
+                    "source": "builtin",
+                    "answer_markdown": "AI 服务当前不可用，请检查 **AI 设置**。",
+                    "warning": "AI 服务不可用。",
+                    "context_basis": basis,
+                }
+            try:
+                response = await provider.generate_text(messages)
+                if response.error or not response.content.strip():
+                    response = await provider.generate_text([
+                        *messages,
+                        {
+                            "role": "system",
+                            "content": "上一次回答为空。请只返回针对用户问题的简洁 Markdown 正文。",
+                        },
+                    ])
+            finally:
+                await provider.close()
+            if response.error or not response.content.strip():
+                return {
+                    "source": "builtin",
+                    "answer_markdown": "这次没有收到有效的 AI 回答，请稍后重试。",
+                    "warning": response.error or "AI 返回了空内容。",
+                    "context_basis": basis,
+                }
+            return {
+                "source": "ai",
+                "answer_markdown": _clean_markdown_response(response.content),
+                "provider": settings.provider.value,
+                "model": response.model or settings.model,
+                "usage": response.usage,
+                "cost_usd_estimate": response.cost_usd,
+                "context_basis": basis,
+            }
+        except DataWorkError as exc:
+            return {
+                "source": "builtin",
+                "answer_markdown": "AI 请求未能完成，请检查 **AI 设置** 后重试。",
+                "warning": exc.message,
+                "setup_required": True,
+                "context_basis": basis,
+            }
+        except Exception as exc:
+            return {
+                "source": "builtin",
+                "answer_markdown": "AI 请求未能完成，请稍后重试。",
+                "warning": f"AI 请求失败：{exc}",
+                "context_basis": basis,
+            }
+
     async def explain_result(
         self,
         result: dict[str, Any],
@@ -852,6 +1002,18 @@ class AIAssistantService:
                 payload_key: fallback.model_dump(mode="json"),
                 "warning": f"AI 请求失败：{exc}",
             }
+
+
+def _clean_markdown_response(content: str) -> str:
+    """移除模型偶尔包在整段回答外层的 Markdown 代码围栏。"""
+
+    text = content.strip()
+    lowered = text.lower()
+    if lowered.startswith("```markdown") and text.endswith("```"):
+        return text[len("```markdown"): -3].strip()
+    if text.startswith("```") and text.endswith("```"):
+        return text[3:-3].strip()
+    return text
 
 
 def _sanitize_context(value: Any, *, include_preview: bool, depth: int = 0) -> Any:

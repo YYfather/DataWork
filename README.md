@@ -14,7 +14,7 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - 批次结果改为“结果总览 / 逐批查看”双页面；参数后移，下载的 Excel 按总览、各批次、失败与警告、分析设置拆分为多个子表。
 - 260 项自动化测试、344 组高级参数、387 组数据结构变体（190 个合法配置）和浏览器全流程审查通过。
 
-详细记录见 [`docs/GOLDEN_DATASET_AUDIT_0.4.9.md`](docs/GOLDEN_DATASET_AUDIT_0.4.9.md)、[`docs/USABILITY_OPTIMIZATION_0.4.9.md`](docs/USABILITY_OPTIMIZATION_0.4.9.md) 和 [`docs/RELEASE_READINESS_AUDIT_0.4.9.md`](docs/RELEASE_READINESS_AUDIT_0.4.9.md)。
+详细记录见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)、[`docs/DEVELOPMENT_RECORDS.md`](docs/DEVELOPMENT_RECORDS.md) 和 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)。
 
 ## 0.4.8 简洁工作流、统一下载与 AI 窗口修复
 
@@ -23,7 +23,7 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - 结果页默认展示核心结论，详细数值和扩展表格可切换查看或从报告中下载。
 - AI 操作助手支持八方向调整大小、稳定拖动、左右停靠、最大化/还原和越界自动修正。
 
-详细记录见 [`docs/INTERACTION_REPORT_AUDIT_0.4.8.md`](docs/INTERACTION_REPORT_AUDIT_0.4.8.md)。
+详细记录见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)。
 
 ## 0.4.7 固定 MANOVA 方法与必要设置修复
 
@@ -35,7 +35,7 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - 修复 MANOVA 交互效应名称还原中的列名边界问题，避免 `MF2` 等因素名被错误转换为 `MMF2` 并导致简单效应阶段失败。
 - 205 项自动化测试全部通过，前端 TypeScript 与生产构建通过，全部 47 个可见统计方法均通过 HTTP 预检与执行矩阵。
 
-专项记录见 [`docs/MANOVA_FIXED_METHODS_AUDIT_0.4.7.md`](docs/MANOVA_FIXED_METHODS_AUDIT_0.4.7.md)。
+专项记录见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)。
 
 ## 0.4.6 发布前全链路与计算核心审查
 
@@ -46,7 +46,7 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - 最终交互优化增加工作流进度、结果失效说明、缺失角色即时提示、推荐角色恢复、多选参数状态、组合任务明细预览和 Esc 关闭弹窗；
 - 155 项自动化测试、236 组高级参数实际执行和 360 组数据结构变体完成验证；180 个合法数据配置全部成功执行，浏览器完整工作流与前端生产构建通过。
 
-详细记录见 [`docs/RELEASE_READINESS_AUDIT_0.4.6.md`](docs/RELEASE_READINESS_AUDIT_0.4.6.md)，独立程序构建见 [`docs/PACKAGING.md`](docs/PACKAGING.md)。
+详细记录见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)，独立程序构建见 [`docs/RELEASE_DEPLOYMENT_GUIDE.md`](docs/RELEASE_DEPLOYMENT_GUIDE.md)。
 
 ## 0.4.5 阶数控制、事后检验多选与显著性字母分组
 
@@ -55,7 +55,7 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - 新增紧凑显著性字母分组（CLD），网页、Markdown、Excel 和批量汇总均可显示 `a / ab / b`。
 - Duncan 保留农业领域兼容性提示；Dunnett 因不覆盖全部组对，不补造完整字母分组。
 
-完整验证见 [`docs/FACTOR_ORDER_POSTHOC_CLD_AUDIT_0.4.5.md`](docs/FACTOR_ORDER_POSTHOC_CLD_AUDIT_0.4.5.md)。
+完整验证见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)。
 
 ## 0.4.4 因素组合确认与 MANOVA 定义一致性修复
 
@@ -67,7 +67,7 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - Bartlett 改为残差相关结构诊断，条件数基于标准化因变量，Box's M 使用独立严格阈值；
 - Dunnett 支持按因素分别指定对照；报告同步输出简单效应原始与校正后 p 值。
 
-完整验证见 [`docs/ANOVA_MANOVA_COMBINATION_AUDIT_0.4.4.md`](docs/ANOVA_MANOVA_COMBINATION_AUDIT_0.4.4.md)。
+完整验证见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)。
 
 ## 0.4.3 智能设计审查、扩展 MANOVA 与自适应混合模型
 
@@ -82,7 +82,7 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - MixedLM 明确报告 Wald χ²、随机效应方差、收敛状态、AIC/BIC、模型 EMM 和多重比较，不把 Wald χ²伪装为经典 F；
 - 后端 125 项自动化测试、193 组高级参数变体和 350 组数据变体全部通过；前端 TypeScript、生产构建和浏览器交互审查通过。
 
-完整验证见 [`docs/MANOVA_MIXED_DESIGN_AUDIT_0.4.3.md`](docs/MANOVA_MIXED_DESIGN_AUDIT_0.4.3.md)。
+完整验证见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)。
 
 ## 0.4.2 MANOVA 完善重点
 
@@ -95,7 +95,7 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - 明确区分对象间双因素 MANOVA 与重复测量混合 MANOVA。
 - 本版本最终回归：121 项自动化测试、105 组高级参数变体和 350 组数据变体通过。
 
-完整验证见 [`docs/MANOVA_AUDIT_0.4.2.md`](docs/MANOVA_AUDIT_0.4.2.md)。
+完整验证见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)。
 
 ## 0.4.1 全交互审查重点
 
@@ -109,7 +109,7 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - 错误提示支持重试、关闭和返回定位，并保留当前选择；
 - 新增三个可重复发布审查脚本。
 
-完整记录见 [`docs/INTERACTION_AUDIT.md`](docs/INTERACTION_AUDIT.md)。
+完整记录见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)。
 
 ## 0.4.0 第三阶段重点
 
@@ -208,7 +208,7 @@ datawork-web --workspace ./DataWorkWorkspace
 
 组合数安全上限为 1000。详见 [`docs/FACTOR_COMBINATIONS.md`](docs/FACTOR_COMBINATIONS.md)。
 
-第三阶段能力详见 [`docs/PHASE3.md`](docs/PHASE3.md)，最终审查见 [`docs/FINAL_AUDIT.md`](docs/FINAL_AUDIT.md)。
+第三阶段能力详见 [`docs/DEVELOPMENT_RECORDS.md`](docs/DEVELOPMENT_RECORDS.md)，最终审查见 [`docs/QUALITY_AUDIT_RECORDS.md`](docs/QUALITY_AUDIT_RECORDS.md)。
 
 ## 高级参数
 
@@ -309,12 +309,11 @@ pytest -q
 ## 完整源码包文档入口
 
 - [项目规范总册](docs/PROJECT_STANDARD.md)
-- [测试报告总档](docs/TEST_REPORTS.md)
-- [开发日志](docs/DEVELOPMENT_LOG.md)
+- [质量与审计总档](docs/QUALITY_AUDIT_RECORDS.md)
+- [开发记录总档](docs/DEVELOPMENT_RECORDS.md)
 - [用户使用手册](docs/USER_MANUAL.md)
-- [发布清单](docs/RELEASE_MANIFEST.md)
+- [发布与部署指南](docs/RELEASE_DEPLOYMENT_GUIDE.md)
 - [完整源码包内容说明](SOURCE_PACKAGE_CONTENTS.md)
 - [系统架构](docs/ARCHITECTURE.md)
 - [统计方法手册](docs/STATISTICAL_METHODS.md)
 - [AI 助手说明](docs/AI_ASSISTANT.md)
-- [交互审查报告](docs/INTERACTION_AUDIT.md)

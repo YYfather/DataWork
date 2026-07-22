@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import DOMPurify from 'dompurify'
+import { marked } from 'marked'
 import { apiRequest, errorMessage } from '../api'
 
 type ContextKey = 'data' | 'plan' | 'result' | 'aiReport'
@@ -24,14 +26,14 @@ const props = defineProps<{
   aiReportContextId?: string
   aiReady?: boolean
 }>()
-const emit = defineEmits<{ close: []; settings: [] }>()
+const emit = defineEmits<{ close: []; settings: []; authenticate: [] }>()
 
-const guides = ref<Record<string, any>>({})
 const question = ref('')
 const loading = ref(false)
 const error = ref('')
+const errorCode = ref('')
 const messages = ref<ConversationMessage[]>([])
-const selectedContext = ref<Record<ContextKey, boolean>>({ data: true, plan: false, result: false, aiReport: false })
+const selectedContext = ref<Record<ContextKey, boolean>>({ data: false, plan: false, result: false, aiReport: false })
 const resultScope = ref<ResultScope>('normative_evidence')
 const includeOrdering = ref(true)
 const minimized = ref(false)
@@ -44,6 +46,7 @@ const detached = ref(false)
 let pointerAction: null | { mode: 'drag' | 'resize'; x: number; y: number; start: typeof geometry.value; pointerId: number } = null
 let requestId = 0
 let messageId = 0
+let dataDefaultApplied = false
 
 const PLAN_STEPS = new Set(['build_plan', 'choose_method', 'review_plan', 'run_analysis'])
 const STEP_LABELS: Record<string, string> = {
@@ -84,7 +87,6 @@ const panelStyle = computed(() => mobileMode.value || minimized.value || expande
   left: `${geometry.value.x}px`, top: `${geometry.value.y}px`,
   width: `${geometry.value.width}px`, height: `${geometry.value.height}px`,
 })
-const guide = computed(() => guides.value[props.step] ?? guides.value.welcome ?? null)
 const isPlanStep = computed(() => PLAN_STEPS.has(props.step))
 const methodLabel = computed(() => String(props.context.selected_method_label || props.context.selected_method || '未选择'))
 const presets = computed(() => PRESETS[props.step] ?? (isPlanStep.value ? PRESETS.build_plan : PRESETS.import_data))
@@ -108,20 +110,20 @@ const selectedContextLabel = computed(() => availableContexts.value
   .filter(item => item.available && selectedContext.value[item.key])
   .map(item => item.key === 'result'
     ? `当前分析结果（${resultScope.value === 'full_result' ? '完整结果与诊断' : '规范化证据'}${includeOrdering.value ? '，含组别排序' : ''}）`
-    : item.label).join('、') || '仅当前步骤')
+    : item.label).join('、') || '未选择额外依据')
 const liveContextItems = computed(() => [
-  ['步骤', STEP_LABELS[props.step] ?? guide.value?.title ?? props.step],
-  ['模式', props.context.interface_mode === 'professional' ? '专业模式' : '简洁模式'],
+  ['模式', props.context.mode === 'workspace' ? '项目工作区' : '即时分析'],
   ['方法', methodLabel.value],
-  ['因变量', Array.isArray(props.context.dependent_variables) ? props.context.dependent_variables.join('、') || '未选择' : '未选择'],
-  ['因素', Array.isArray(props.context.fixed_factors) ? props.context.fixed_factors.join('、') || '未选择' : '未选择'],
+  ['因变量', summarizeSelection(props.context.dependent_variables)],
+  ['因素', summarizeSelection(props.context.fixed_factors)],
+  ['拆分列', summarizeSelection(props.context.split_by)],
+  ['结果状态', props.result ? '已完成，可用于问答' : '尚无分析结果'],
 ])
 
 onMounted(() => {
-  loadGuides()
   restoreGeometry()
   updateViewport()
-  setDefaultContexts(props.step)
+  applyInitialContextDefaults()
   window.addEventListener('resize', updateViewport)
   window.addEventListener('pointermove', movePanel)
   window.addEventListener('pointerup', endPointerAction)
@@ -138,7 +140,6 @@ onBeforeUnmount(() => {
 
 watch(() => props.step, (current, previous) => {
   question.value = ''
-  setDefaultContexts(current)
   if (previous && current !== previous && messages.value.length) {
     messages.value.push({ id: ++messageId, role: 'system', text: `工作流已切换到“${STEP_LABELS[current] ?? current}”，后续问题将使用新的上下文。` })
     scrollToLatest()
@@ -149,34 +150,30 @@ watch(() => props.open, open => {
   if (!open) return
   minimized.value = false
   clampGeometry()
-  if (!Object.keys(guides.value).length) loadGuides()
   scrollToLatest()
 })
 
-watch(
-  () => availableContexts.value.map(item => `${item.key}:${item.available}`).join('|'),
-  () => {
-    const next = { ...selectedContext.value }
-    for (const item of availableContexts.value) {
-      if (!item.available) next[item.key] = false
-    }
-    selectedContext.value = next
-  },
-)
+watch(() => Boolean(props.context.data_profile), (available, wasAvailable) => {
+  if (available && !wasAvailable) applyInitialContextDefaults()
+})
 
-function setDefaultContexts(step: string) {
-  const resultStep = step === 'interpret_results'
-  const planStep = PLAN_STEPS.has(step) || resultStep
+function applyInitialContextDefaults() {
   const hasData = Boolean(props.context.data_profile)
-  const hasPlan = Boolean(hasData && props.context.selected_method)
+  if (!hasData || dataDefaultApplied) return
   selectedContext.value = {
-    data: hasData && !resultStep,
-    plan: hasPlan && planStep,
-    result: resultStep && Boolean(props.result),
+    data: true,
+    plan: false,
+    result: false,
     aiReport: false,
   }
-  resultScope.value = 'normative_evidence'
-  includeOrdering.value = true
+  dataDefaultApplied = true
+}
+
+function summarizeSelection(value: unknown) {
+  if (!Array.isArray(value) || !value.length) return '未选择'
+  const labels = value.map(item => String(item)).filter(Boolean)
+  if (labels.length <= 3) return labels.join('、')
+  return `${labels.slice(0, 3).join('、')} 等 ${labels.length} 项`
 }
 
 function formatResultTimestamp(value: string) {
@@ -191,6 +188,13 @@ function toggleContext(key: ContextKey) {
   const item = availableContexts.value.find(candidate => candidate.key === key)
   if (!item?.available) return
   selectedContext.value = { ...selectedContext.value, [key]: !selectedContext.value[key] }
+}
+
+function contextEnabled(key: ContextKey) {
+  return Boolean(
+    selectedContext.value[key]
+    && availableContexts.value.find(item => item.key === key)?.available
+  )
 }
 
 function defaultGeometry() {
@@ -265,25 +269,17 @@ function toggleExpanded() {
   if (!expanded.value) clampGeometry()
 }
 
-async function loadGuides() {
-  try {
-    guides.value = await apiRequest('/api/help/steps', undefined, '操作说明读取失败')
-  } catch (cause) {
-    if (!Object.keys(guides.value).length) error.value = errorMessage(cause)
-  }
-}
-
 function filteredContext() {
   const context = props.context ?? {}
   const output: Record<string, unknown> = {
     mode: context.mode, workflow_step: props.step, workflow_progress: context.workflow_progress,
     interface_mode: context.interface_mode,
   }
-  if (selectedContext.value.data) {
+  if (contextEnabled('data')) {
     output.source_name = context.source_name
     output.data_profile = context.data_profile
   }
-  if (selectedContext.value.plan) {
+  if (contextEnabled('plan')) {
     const keys = [
       'selected_method', 'selected_method_label', 'dependent_variables', 'fixed_factors', 'covariates',
       'random_factors', 'random_slopes', 'estimate_marginal_means', 'emm_factors', 'subject_id',
@@ -294,19 +290,12 @@ function filteredContext() {
     ]
     for (const key of keys) output[key] = context[key]
   }
-  output.result_available = Boolean(selectedContext.value.result && props.result)
+  output.result_available = Boolean(contextEnabled('result') && props.result)
   output.result_context_id = props.resultContextId || ''
   return output
 }
 
 async function sendPreset(preset: PresetPrompt) {
-  const next: Record<ContextKey, boolean> = { data: false, plan: false, result: false, aiReport: false }
-  for (const key of preset.contexts) {
-    const item = availableContexts.value.find(candidate => candidate.key === key)
-    if (item?.available) next[key] = true
-  }
-  selectedContext.value = next
-  await nextTick()
   await sendQuestion(preset.prompt)
 }
 
@@ -314,51 +303,49 @@ async function sendQuestion(text = question.value) {
   const prompt = text.trim()
   if (!prompt || loading.value) return
   const currentRequest = ++requestId
-  const stepSnapshot = props.step
   const contextSnapshot = filteredContext()
   const resultSnapshot = props.result ?? {}
   const selectionSnapshot = {
-    data_profile: selectedContext.value.data,
-    analysis_plan: selectedContext.value.plan,
-    current_result: selectedContext.value.result,
+    data_profile: contextEnabled('data'),
+    analysis_plan: contextEnabled('plan'),
+    current_result: contextEnabled('result'),
     result_scope: resultScope.value,
     include_ordering: includeOrdering.value,
-    ai_report: selectedContext.value.aiReport,
+    ai_report: contextEnabled('aiReport'),
   }
-  const aiReportSnapshot = selectedContext.value.aiReport ? props.aiReport : null
+  const aiReportSnapshot = contextEnabled('aiReport') ? props.aiReport : null
   const contextLabel = selectedContextLabel.value
   messages.value.push({ id: ++messageId, role: 'user', text: prompt, contextLabel })
   question.value = ''
   loading.value = true
   error.value = ''
+  errorCode.value = ''
   let responseAdded = false
   scrollToLatest()
   try {
-    const useResult = stepSnapshot === 'interpret_results' && Boolean(props.result || aiReportSnapshot)
-    const usePlan = PLAN_STEPS.has(stepSnapshot) && Boolean(contextSnapshot.selected_method)
-    const endpoint = useResult ? '/api/ai/explain/result' : usePlan ? '/api/ai/explain/analysis-plan' : '/api/ai/explain/step'
-    const body = useResult
-      ? {
-          result: resultSnapshot,
-          context: contextSnapshot,
-          selection: selectionSnapshot,
-          ai_report: aiReportSnapshot,
-          result_context_id: props.resultContextId || '',
-          ai_report_context_id: props.aiReportContextId || '',
-          question: prompt,
-        }
-      : usePlan
-        ? { context: contextSnapshot, question: prompt, use_ai: Boolean(props.aiReady) }
-        : { step: stepSnapshot, context: contextSnapshot, question: prompt }
-    const payload = await apiRequest(endpoint, {
+    const body = {
+      question: prompt,
+      context: contextSnapshot,
+      result: contextEnabled('result') ? resultSnapshot : {},
+      selection: selectionSnapshot,
+      ai_report: aiReportSnapshot,
+      result_context_id: props.resultContextId || '',
+      ai_report_context_id: props.aiReportContextId || '',
+    }
+    const payload = await apiRequest('/api/ai/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    }, '解释请求失败')
+    }, '问答请求失败')
     if (currentRequest === requestId) {
       messages.value.push({ id: ++messageId, role: 'assistant', payload, contextLabel })
       responseAdded = true
     }
   } catch (cause) {
-    if (currentRequest === requestId) error.value = errorMessage(cause)
+    if (currentRequest === requestId) {
+      error.value = errorMessage(cause)
+      errorCode.value = cause && typeof cause === 'object' && 'code' in cause
+        ? String((cause as any).code || '')
+        : ''
+    }
   } finally {
     if (currentRequest === requestId) loading.value = false
     scrollToLatest(responseAdded)
@@ -369,6 +356,11 @@ function handleComposerKeydown(event: KeyboardEvent) {
   if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
   event.preventDefault()
   void sendQuestion()
+}
+
+function renderMarkdown(value: unknown) {
+  const markdown = typeof value === 'string' ? value : ''
+  return DOMPurify.sanitize(marked.parse(markdown, { breaks: true, gfm: true }) as string)
 }
 
 async function scrollToLatest(showResponseStart = false) {
@@ -394,6 +386,7 @@ function clearConversation() {
   if (loading.value) return
   messages.value = []
   error.value = ''
+  errorCode.value = ''
 }
 </script>
 
@@ -404,8 +397,8 @@ function clearConversation() {
       <header v-else class="assistant-head assistant-simple-drag" title="拖动标题栏移动助手" @pointerdown="startDrag">
         <div class="assistant-brand-mark" aria-hidden="true">AI</div>
         <div class="assistant-title-block">
-          <p class="assistant-kicker">DataWork 小助手</p>
-          <h2>{{ STEP_LABELS[step] || guide?.title || '当前工作流' }}</h2>
+          <p class="assistant-kicker">DataWork</p>
+          <h2>AI 小助手</h2>
           <small><span aria-hidden="true">✓</span> 统计值由本地计算锁定</small>
         </div>
         <div class="assistant-window-actions">
@@ -423,7 +416,7 @@ function clearConversation() {
           </summary>
           <div class="assistant-context-body">
             <div class="assistant-context-choices" role="group" aria-label="选择发送给助手的上下文">
-              <button v-for="item in availableContexts" :key="item.key" type="button" :disabled="!item.available" :class="{ active: selectedContext[item.key] }" :aria-pressed="selectedContext[item.key]" @click="toggleContext(item.key)">
+              <button v-for="item in availableContexts" :key="item.key" type="button" :disabled="!item.available" :class="{ active: item.available && selectedContext[item.key] }" :aria-pressed="item.available && selectedContext[item.key]" @click="toggleContext(item.key)">
                 <span class="assistant-context-indicator" aria-hidden="true">{{ selectedContext[item.key] ? '✓' : '+' }}</span>
                 <span class="assistant-context-choice-copy">
                   <strong>{{ item.label }}</strong>
@@ -447,21 +440,13 @@ function clearConversation() {
           </div>
         </details>
 
-        <div class="assistant-preset-bar" aria-label="当前步骤的快捷提问">
+        <div class="assistant-preset-bar" aria-label="当前工作流的快捷提问">
           <span>可直接提问</span>
           <div><button v-for="preset in presets" :key="preset.label" type="button" :disabled="loading" @click="sendPreset(preset)">{{ preset.label }}</button></div>
         </div>
 
         <div class="assistant-chat-shell">
           <div ref="messageListRef" class="assistant-message-list" aria-live="polite">
-            <section v-if="!messages.length" class="assistant-welcome-card">
-              <p class="assistant-welcome-kicker">当前步骤</p>
-              <h3>{{ guide?.title || '从快捷提问开始' }}</h3>
-              <p>{{ guide?.summary || '选择上方预设问题，或在下方输入你想了解的内容。' }}</p>
-              <details v-if="guide?.actions?.length" class="assistant-welcome-actions"><summary>查看本步检查要点</summary><ol><li v-for="item in guide.actions" :key="item">{{ item }}</li></ol></details>
-              <div v-if="guide?.cautions?.length" class="guide-warning"><strong>需要留意</strong><p v-for="item in guide.cautions" :key="item">{{ item }}</p></div>
-            </section>
-
             <template v-for="message in messages" :key="message.id">
               <div v-if="message.role === 'system'" class="assistant-system-message">{{ message.text }}</div>
               <article v-else-if="message.role === 'user'" class="assistant-message user-message">
@@ -469,43 +454,28 @@ function clearConversation() {
                 <p>{{ message.text }}</p>
               </article>
               <article v-else class="assistant-message assistant-response-message">
-                <div class="assistant-message-meta"><strong>{{ message.payload?.source === 'ai' ? 'AI 建议' : '内置建议' }}</strong><small v-if="message.payload?.model">{{ message.payload.provider }} · {{ message.payload.model }}</small><small v-else>{{ message.contextLabel }}</small></div>
+                <div class="assistant-message-meta"><strong>{{ message.payload?.source === 'ai' ? 'AI 回答' : '系统提示' }}</strong><small v-if="message.payload?.model">{{ message.payload.provider }} · {{ message.payload.model }}</small><small v-else>{{ message.contextLabel }}</small></div>
                 <section v-if="message.payload?.context_basis?.items?.length || message.payload?.context_basis?.warning" class="assistant-context-basis">
                   <strong>本回答依据</strong>
                   <div v-if="message.payload?.context_basis?.items?.length"><span v-for="item in message.payload.context_basis.items" :key="item.key">{{ item.label }}</span></div>
                   <p v-if="message.payload?.context_basis?.warning">{{ message.payload.context_basis.warning }}</p>
                   <small v-if="message.payload?.context_basis?.raw_rows_sent === false">未发送原始数据行</small>
                 </section>
-                <template v-if="message.payload?.guidance">
-                  <section class="assistant-verdict" :class="message.payload.guidance.suitability_status">
-                    <span>方法审查结论</span><strong>{{ message.payload.guidance.suitability_label || '需要核对' }}</strong>
-                    <p>{{ message.payload.guidance.suitability_reason || message.payload.guidance.design_review_summary }}</p>
-                  </section>
-                  <section class="answer-section"><h3>判断依据</h3><p>{{ message.payload.guidance.method_reason }}</p><ul v-if="message.payload.guidance.data_basis?.length"><li v-for="item in message.payload.guidance.data_basis" :key="item">{{ item }}</li></ul></section>
-                  <section class="answer-section" v-if="message.payload.guidance.design_checks?.length"><h3>设计核对</h3><ul><li v-for="item in message.payload.guidance.design_checks" :key="item">{{ item }}</li></ul></section>
-                  <section class="answer-section recommended" v-if="message.payload.guidance.recommended_actions?.length"><h3>建议修改</h3><ol><li v-for="item in message.payload.guidance.recommended_actions" :key="item">{{ item }}</li></ol></section>
-                  <section class="answer-section" v-if="message.payload.guidance.alternatives?.length"><h3>可比较的替代方法</h3><ul><li v-for="item in message.payload.guidance.alternatives" :key="item">{{ item }}</li></ul></section>
-                  <details class="assistant-answer-details"><summary>查看分析目的、预期输出和方法边界</summary><p>{{ message.payload.guidance.analysis_purpose }}</p><p>{{ message.payload.guidance.expected_outcome }}</p><ul v-if="message.payload.guidance.limitations?.length"><li v-for="item in message.payload.guidance.limitations" :key="item">{{ item }}</li></ul></details>
-                </template>
-                <template v-else-if="message.payload?.result_guidance">
-                  <h3>{{ message.payload.result_guidance.title }}</h3><p>{{ message.payload.result_guidance.summary }}</p>
-                  <section class="answer-section" v-if="message.payload.result_guidance.findings?.length"><h3>核心发现</h3><ul><li v-for="item in message.payload.result_guidance.findings" :key="item">{{ item }}</li></ul></section>
-                  <section class="answer-section" v-if="message.payload.result_guidance.next_checks?.length"><h3>下一步核对</h3><ul><li v-for="item in message.payload.result_guidance.next_checks" :key="item">{{ item }}</li></ul></section>
-                  <div class="guide-warning" v-if="message.payload.result_guidance.cautions?.length"><strong>解释边界</strong><p v-for="item in message.payload.result_guidance.cautions" :key="item">{{ item }}</p></div>
-                </template>
-                <template v-else-if="message.payload?.explanation">
-                  <h3>{{ message.payload.explanation.title }}</h3>
-                  <p>{{ message.payload.explanation.purpose }}</p>
-                  <section class="answer-section" v-if="message.payload.explanation.what_to_check?.length"><h3>需要检查</h3><ul><li v-for="item in message.payload.explanation.what_to_check" :key="item">{{ item }}</li></ul></section>
-                  <section class="answer-section" v-if="message.payload.explanation.next_actions?.length"><h3>下一步</h3><ul><li v-for="item in message.payload.explanation.next_actions" :key="item">{{ item }}</li></ul></section>
-                </template>
+                <div class="assistant-markdown" v-html="renderMarkdown(message.payload?.answer_markdown)"></div>
+                <small v-if="message.payload?.ai_access?.configuration_source === 'server' && !message.payload?.ai_access?.owner_authenticated" class="assistant-quota-note">服务器免费额度：剩余 {{ message.payload.ai_access.guest_quota?.remaining ?? 0 }} / {{ message.payload.ai_access.guest_quota?.limit ?? 10 }}，首次提问满 24 小时重置</small>
                 <div class="assistant-inline-note" v-if="message.payload?.warning">{{ message.payload.warning }}</div>
                 <button v-if="message.payload?.setup_required" class="text-button" @click="emit('settings')">打开 AI 设置</button>
               </article>
             </template>
 
             <div v-if="loading" class="assistant-loading" role="status"><span class="inline-spinner"></span><div><strong>正在结合当前上下文整理建议</strong><p>你可以继续查看之前的回答。</p></div></div>
-            <div class="alert" v-if="error">{{ error }}</div>
+            <div class="alert assistant-quota-alert" v-if="error">
+              <span>{{ error }}</span>
+              <div v-if="errorCode === 'ai_free_quota_exhausted'" class="assistant-quota-actions">
+                <button type="button" class="primary" @click="emit('authenticate')">验证工作区密码</button>
+                <button type="button" class="secondary" @click="emit('settings')">填写自己的 API</button>
+              </div>
+            </div>
           </div>
 
           <div class="assistant-chat-composer">

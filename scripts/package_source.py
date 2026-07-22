@@ -12,10 +12,10 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUDED_DIRS = {
     ".git", ".pytest_cache", ".mypy_cache", ".ruff_cache", "__pycache__",
-    ".venv", "venv", "node_modules", "build", "dist", "wheelhouse",
+    ".venv", "venv", "node_modules", "build", "dist", "发布包", "target", "wheelhouse",
     "datawork.egg-info", ".audit", ".test-runtime", ".tmp", ".cache",
 }
-EXCLUDED_DIR_PREFIXES = (".pytest-", ".tmp-pytest-")
+EXCLUDED_DIR_PREFIXES = (".pytest-", ".tmp-")
 EXCLUDED_SUFFIXES = {".pyc", ".pyo", ".log", ".tmp", ".tsbuildinfo"}
 EXCLUDED_NAMES = {".DS_Store", "Thumbs.db", "SOURCE_MANIFEST_SHA256.txt"}
 

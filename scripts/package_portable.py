@@ -39,7 +39,7 @@ def main() -> None:
     system = platform.system() or "Unknown"
     architecture = "x64" if platform.machine().lower() in {"amd64", "x86_64"} else platform.machine()
     executable_name = "DataWork.exe" if suffix else "DataWork"
-    package_name = f"DataWork-v{version}-{system}-{architecture}-portable.zip"
+    package_name = f"DataWork-v{version}-{system}-{architecture}-中文便携版.zip"
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     package = output_dir / package_name
@@ -47,13 +47,14 @@ def main() -> None:
     readme = f"""DataWork {version} 便携版
 
 使用方法：
-1. 解压整个 ZIP；
+1. 将整个 ZIP 解压到任意有写权限的位置，该目录就是便携程序位置；
 2. 双击 {executable_name}；
 3. 程序启动本地统计服务并自动打开浏览器；
 4. 使用期间不要关闭程序窗口，关闭后本地服务随即停止。
 
 说明：
 - 不需要另行安装 Python、Node.js 或统计依赖；
+- 不写入系统安装目录，不需要管理员权限，可整体移动或删除；
 - 默认只监听 127.0.0.1，不向局域网开放；
 - 用户项目保存在系统用户数据目录，不写入程序目录；
 - 首次启动需要解压单文件运行环境，可能等待十余秒；

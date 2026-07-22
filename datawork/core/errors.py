@@ -15,12 +15,16 @@ class ErrorCode(str, Enum):
     EXECUTION_FAILED = "execution_failed"
     RESOURCE_NOT_FOUND = "resource_not_found"
     WORKSPACE_CONFLICT = "workspace_conflict"
+    WORKSPACE_AUTH_REQUIRED = "workspace_auth_required"
+    WORKSPACE_AUTH_FAILED = "workspace_auth_failed"
+    WORKSPACE_AUTH_LOCKED = "workspace_auth_locked"
     UNSUPPORTED_FILE = "unsupported_file"
     FILE_TOO_LARGE = "file_too_large"
     REPORT_FAILED = "report_failed"
     AI_CONFIG_ERROR = "ai_config_error"
     AI_UNAVAILABLE = "ai_unavailable"
     AI_REQUEST_FAILED = "ai_request_failed"
+    AI_FREE_QUOTA_EXHAUSTED = "ai_free_quota_exhausted"
     INTERNAL_ERROR = "internal_error"
 
 
