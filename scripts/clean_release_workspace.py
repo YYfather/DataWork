@@ -18,11 +18,31 @@ ROOT_CACHE_NAMES = {
 ROOT_CACHE_PREFIXES = (".pytest-", ".tmp-pytest-")
 RECURSIVE_CACHE_NAMES = {"__pycache__", ".mypy_cache", ".ruff_cache", ".vite"}
 GENERATED_FILE_SUFFIXES = {".pyc", ".pyo", ".log", ".tmp", ".tsbuildinfo"}
+REPRODUCIBLE_DEPENDENCY_DIRS = (
+    ".r-validation-lib",
+    "frontend/node_modules",
+    "desktop/node_modules",
+    "desktop/src-tauri/target",
+)
+PRESERVED_RELEASE_PREFIXES = (
+    "DataWork-v1.0-网站部署版本",
+    "DataWork-v0.4.9-自定义列与拆分继承-服务器热补丁-20260723",
+)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true", help="execute deletion; default is dry-run")
+    parser.add_argument(
+        "--dependencies",
+        action="store_true",
+        help="also remove reproducible R, Node.js and Rust dependency/build directories",
+    )
+    parser.add_argument(
+        "--old-releases",
+        action="store_true",
+        help="remove superseded local release artifacts while preserving v1.0 server deployment and its upgrade hotfix",
+    )
     return parser.parse_args()
 
 
@@ -34,7 +54,7 @@ def within_root(path: Path) -> bool:
         return False
 
 
-def artifact_targets() -> list[Path]:
+def artifact_targets(*, include_dependencies: bool = False, include_old_releases: bool = False) -> list[Path]:
     targets: set[Path] = set()
     for child in ROOT.iterdir():
         if child.is_dir() and (
@@ -58,6 +78,15 @@ def artifact_targets() -> list[Path]:
     binary_root = ROOT / "desktop" / "src-tauri" / "binaries"
     if binary_root.exists():
         targets.update(binary_root.glob("datawork-sidecar-*"))
+    if include_dependencies:
+        targets.update(ROOT / relative for relative in REPRODUCIBLE_DEPENDENCY_DIRS if (ROOT / relative).exists())
+    if include_old_releases:
+        release_root = ROOT / "发布包"
+        if release_root.is_dir():
+            targets.update(
+                child for child in release_root.iterdir()
+                if not child.name.startswith(PRESERVED_RELEASE_PREFIXES)
+            )
     return sorted(targets, key=lambda item: (len(item.parts), item.as_posix()), reverse=True)
 
 
@@ -69,7 +98,10 @@ def path_size(path: Path) -> int:
 
 def main() -> int:
     args = parse_args()
-    targets = artifact_targets()
+    targets = artifact_targets(
+        include_dependencies=args.dependencies,
+        include_old_releases=args.old_releases,
+    )
     total = sum(path_size(path) for path in targets if path.exists())
     action = "REMOVE" if args.apply else "DRY-RUN"
     for path in targets:

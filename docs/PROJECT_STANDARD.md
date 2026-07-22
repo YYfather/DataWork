@@ -1,6 +1,6 @@
 # DataWork 项目规范总册
 
-本文件是 DataWork 0.4.9 的统一工程规范入口。用户操作以 `USER_MANUAL.md` 为准，统计定义以 `STATISTICAL_METHODS.md` 为准，历史审计只作为不可变验证证据，不再承担现行规范说明。
+本文件是 DataWork v1.0（内部版本 `1.0.0`）的统一工程规范入口。用户操作以 `USER_MANUAL.md` 为准，统计定义以 `STATISTICAL_METHODS.md` 为准，历史审计只作为不可变验证证据，不再承担现行规范说明。
 
 ## 1. 权威文档分层
 

@@ -1,4 +1,4 @@
-DataWork 0.4.9 宝塔面板部署说明
+DataWork v1.0 宝塔面板部署说明
 ================================
 
 一、这个压缩包是什么
@@ -58,7 +58,7 @@ Python 路径不同，请把 python3.11 换成该 Python 3.11/3.12 的完整路�
 
    .venv/bin/python -c "import datawork, fastapi, uvicorn; print(datawork.__version__)"
 
-正常应输出 0.4.9。
+正常应输出 1.0.0。
 
 如果提示 python3.11 不存在，可在宝塔“网站 -> Python 项目”或 Python 项目管理器中
 安装 Python 3.11/3.12，再复制面板显示的解释器完整路径。不要改用宝塔面板运行所用的

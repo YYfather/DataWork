@@ -36,3 +36,6 @@ desktop/src-tauri/binaries/datawork-sidecar-*
 # 本地发布产物：完整源码包、安装器和网站部署目录通过发布流程单独交付。
 /发布包/
 .r-validation-lib/
+
+# 本机个人主页与服务器快照：保留用于部署核对，但禁止进入通用源码分支。
+/web主页本地部分/

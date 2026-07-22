@@ -2415,7 +2415,7 @@ function formatBytes(value: unknown) {
     </div>
     <header class="hero">
       <div>
-        <p class="eyebrow">DATAWORK {{ health?.version ?? '0.4.9' }}</p>
+        <p class="eyebrow">DATAWORK {{ health?.version ?? '1.0.0' }}</p>
         <h1>实验统计分析平台</h1>
         <p class="hero-copy">同一套 Python 统计核心，可在 Windows、Linux、macOS 本地运行，也可部署为网页服务。</p>
       </div>

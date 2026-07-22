@@ -1,10 +1,10 @@
-# DataWork 统计方法手册（0.4.9）
+# DataWork 统计方法与计算核心依赖手册（1.0.0）— v1.0
 
-本手册由方法注册表生成，界面说明、预检与执行器使用同一份元数据。
+本手册由方法注册表生成，界面说明、预检与执行器使用同一份元数据。前半部分同时作为项目组维护计算核心时的方法—依赖对照，后续各节面向使用者说明方法用途、变量要求和解释边界。
 
-## 0.4.9 黄金验证与默认参数约定
+## v1.0 黄金验证与默认参数约定
 
-- 全部 46 个可执行方法均有冻结黄金案例；当前共 50 个案例和 418 个参考断言。
+- 全部 47 个可执行方法均有冻结黄金案例；当前共 52 个案例和 425 个参考断言。
 - t 检验主要结果直接报告带方向的 t，不再用 `t²` 代替用户可见结果。
 - 无可用推断 p 值时使用空值并显示“未提供推断检验”，禁止使用 `p=1` 占位。
 - 核心结果保持完整浮点精度，显示层再格式化。
@@ -12,6 +12,78 @@
 - 单因素 ANOVA 事后检验默认自动选择 Tukey/Games–Howell；析因 ANOVA 与 MANOVA 默认 Tukey。
 - MANOVA 默认输出 Pillai；Wilks、Hotelling–Lawley、Roy 和全部四种判据在专业模式中可选。
 - 黄金数据及更新规则见 `golden_datasets/README.md` 和 `docs/QUALITY_AUDIT_RECORDS.md`。
+
+## 项目组：计算核心与依赖包对照
+
+### 依赖边界
+
+- 所有 47 个可执行方法都以 `pandas>=2.0` 完成列选择、缺失值处理、分组和列联表整理，并以 `numpy>=1.26` 完成数组、矩阵、线性代数及效应量辅助计算；下表只列各方法在此共同基础之外的主要统计后端。
+- `scipy>=1.11` 提供概率分布、参数/非参数检验、精确检验、相关分析和假设检验。
+- `statsmodels>=0.14` 提供 OLS/GLM/MixedLM、ANOVA/MANOVA、比例检验、列联表、Kappa、多重校正和模型诊断。
+- `patsy` 由 `statsmodels` 安装，但 DataWork 会直接使用其公式设计矩阵、Sum 对比和预测矩阵接口；升级 `statsmodels` 时必须把 `patsy` 视为同一兼容性单元并重跑黄金套件。
+- `matplotlib>=3.9` 只负责诊断图和报告图，不参与统计量或 p 值计算；`openpyxl>=3.1` 只负责 XLSX 导出；可选 `xlrd>=2.0` 只负责读取旧 XLS。三者都不是统计后端。
+- R 仅用于开发期独立对照，不属于应用、桌面包或服务器运行依赖。项目当前使用 R 4.6.1 对 47 种方法执行交叉验证，说明见 `docs/REPRODUCIBILITY.md`。
+
+### 统计方法—主要后端矩阵
+
+表中“共同基础”均为 `pandas + NumPy`；“Patsy”表示该路径直接使用公式或设计矩阵。一个方法同时列出 SciPy 与 statsmodels 时，两者都参与正式计算或后处理，不能按“只保留一个后端”理解。
+
+| 类别 | 统计方法（方法 ID） | 共同基础之外的主要依赖 | 在该方法中的职责 |
+|---|---|---|---|
+| 描述 | 描述统计（`descriptive_statistics`） | SciPy | 偏度、峰度和分布辅助量 |
+| t 检验 | 单样本 t 检验（`one_sample_ttest`） | SciPy | t 分布、p 值和置信区间 |
+| t 检验 | Welch 独立样本 t 检验（`welch_ttest`） | SciPy | 不等方差 t 检验及自由度 |
+| t 检验 | Student 独立样本 t 检验（`independent_ttest`） | SciPy | 等方差 t 检验及分布计算 |
+| t 检验 | 配对样本 t 检验（`paired_ttest`） | SciPy | 配对差值 t 检验 |
+| 非参数 | Mann–Whitney U（`mann_whitney_u`） | SciPy | 秩检验与 p 值 |
+| 非参数 | Wilcoxon 符号秩（`wilcoxon_signed_rank`） | SciPy | 配对秩检验与 p 值 |
+| 方差分析 | 单因素 ANOVA（`oneway_anova`） | SciPy + statsmodels | F 检验、Welch 后端、事后比较与多重校正 |
+| 方差分析 | Welch 单因素 ANOVA（`welch_anova`） | SciPy + statsmodels | Welch ANOVA、Games–Howell 和多重校正 |
+| 非参数 | Kruskal–Wallis（`kruskal_wallis`） | SciPy + statsmodels | H 检验、Dunn 比较及 Holm 等校正 |
+| 方差分析 | 双因素 ANOVA（`twoway_anova`） | statsmodels + SciPy + Patsy | OLS、Type I/II/III ANOVA、Sum 对比、诊断与后续比较 |
+| 方差分析 | 三因素 ANOVA（`threeway_anova`） | statsmodels + SciPy + Patsy | 高阶 OLS 效应、交互、简单效应和诊断 |
+| 方差分析 | 四至八因素 ANOVA（`multifactor_anova`） | statsmodels + SciPy + Patsy | 完整高阶 OLS 模型、ANOVA 表和条件诊断 |
+| 方差分析 | ANCOVA（`ancova`） | statsmodels + SciPy + Patsy | OLS 协变量校正、斜率检查、EMM 和诊断 |
+| 相关 | Pearson 相关（`pearson_correlation`） | SciPy | Pearson r、p 值和区间 |
+| 相关 | Spearman 秩相关（`spearman_correlation`） | SciPy | Spearman ρ 与 p 值 |
+| 相关 | Kendall τ（`kendall_correlation`） | SciPy | Kendall τ 与 p 值 |
+| 回归 | 线性回归（`linear_regression`） | statsmodels + SciPy + Patsy | OLS、系数推断、VIF、异方差检验和诊断 |
+| 回归 | 二元 Logistic 回归（`logistic_regression`） | statsmodels + SciPy + Patsy | GLM/Logit 拟合、似然推断和优势比 |
+| 分类 | 卡方独立性/幂散度（`chi_square_independence`） | SciPy | 渐近、置换或 Monte Carlo 列联表检验 |
+| 分类 | Fisher 精确检验（`fisher_exact`） | SciPy + statsmodels | 精确 p 值、优势比及其区间 |
+| 分类 | 卡方拟合优度（`chi_square_goodness_of_fit`） | SciPy | 观察频数与期望频数检验 |
+| 分类 | McNemar 检验（`mcnemar_test`） | statsmodels | 配对二分类精确/渐近检验 |
+| 比例 | 精确二项检验（`exact_binomial_test`） | SciPy | 二项精确 p 值和比例区间 |
+| 比例 | 单样本比例 z 检验（`one_sample_proportion_ztest`） | statsmodels + SciPy | 比例 z 检验和正态区间 |
+| 比例 | 两独立比例 z 检验（`two_proportion_ztest`） | statsmodels + SciPy | 两比例检验、风险差/比与优势比 |
+| 比例 | 多组比例卡方（`k_proportion_chi_square`） | statsmodels | 多组比例总体检验、成对比较和多重校正 |
+| 精确检验 | Barnard 精确检验（`barnard_exact`） | SciPy + statsmodels | 无条件精确检验及优势比区间 |
+| 精确检验 | Boschloo 精确检验（`boschloo_exact`） | SciPy + statsmodels | Boschloo 精确 p 值及优势比区间 |
+| 配对分类 | Cochran Q（`cochran_q_test`） | statsmodels | 三个及以上配对二元比例检验 |
+| 配对分类 | Bowker 对称性（`bowker_symmetry`） | statsmodels | 方形列联表对称性检验 |
+| 配对分类 | Stuart–Maxwell/Bhapkar（`stuart_maxwell`） | statsmodels | 多分类边际同质性检验 |
+| 分层分类 | Cochran–Mantel–Haenszel（`cochran_mantel_haenszel`） | statsmodels | 分层 2×2 合并优势比及检验 |
+| 分层分类 | Breslow–Day（`breslow_day`） | statsmodels | 分层优势比同质性检验 |
+| 一致性 | Cohen's kappa（`cohen_kappa`） | statsmodels | 双评分者一致性、区间和推断 |
+| 一致性 | Fleiss/Randolph kappa（`fleiss_kappa`） | statsmodels | 多评分者一致性点估计 |
+| 趋势 | Cochran–Armitage（`cochran_armitage_trend`） | SciPy | 有序比例趋势 z 检验 |
+| 分类回归 | 多项 Logistic（`multinomial_logistic_regression`） | statsmodels + Patsy | MNLogit、似然比、系数和相对风险比 |
+| 分类回归 | 有序 Logistic/Probit（`ordinal_logistic_regression`） | statsmodels | OrderedModel、阈值和链接函数 |
+| 重复测量 | 单因素重复测量 ANOVA（`repeated_measures_anova`） | statsmodels + SciPy | AnovaRM、球形性诊断和校正 |
+| 重复测量 | Friedman 检验（`friedman_test`） | SciPy | 配对秩总体检验和 Kendall's W |
+| 混合模型 | 线性混合效应模型（`linear_mixed_model`） | statsmodels + SciPy + Patsy | MixedLM、Wald 检验、随机效应和 EMM |
+| 多变量 | 单因素 MANOVA（`oneway_manova`） | statsmodels + SciPy + Patsy | MANOVA 四判据、残差诊断和单变量跟进 |
+| 多变量 | 双因素 MANOVA（`twoway_manova`） | statsmodels + SciPy + Patsy | 主效应/交互的多元检验和跟进 |
+| 多变量 | 三因素 MANOVA（`threeway_manova`） | statsmodels + SciPy + Patsy | 高阶多元效应、诊断和跟进 |
+| 混合设计 | 自适应混合设计（`mixed_anova`） | statsmodels + SciPy + Patsy | 经典重复测量或 MixedLM 自适应路径 |
+| 多变量 | 四至八因素 MANOVA（`multifactor_manova`） | statsmodels + SciPy + Patsy | 完整高阶多元模型、四判据和单变量跟进 |
+
+### 项目组升级与复核规则
+
+1. 方法清单以 `datawork/core/method_registry.py` 为唯一来源，执行器以 `datawork/application/executors.py` 为准；文档名称不能代替注册表配置。
+2. 修改 `pandas`、`NumPy`、`SciPy`、`statsmodels` 或其传递依赖 `patsy` 的版本后，必须运行 `pytest -q`、黄金数据集及 `DATAWORK_RUN_R_REFERENCE=1` 的 R/Python 全方法对照。
+3. 新增方法时必须同时补齐注册表、执行器、预检、报告、黄金案例、本表和方法正文；文档契约测试会阻止“代码已注册但手册未列出”的提交。
+4. 不得使用 R、AI 服务、前端代码或 Excel 引擎重新计算正式结果；这些组件分别只承担开发对照、文字解释、交互和文件输入输出。
 
 ## 0.4.6 计算与解释约定
 
@@ -200,6 +272,20 @@
 - **模型后处理**：支持估计边际均值与校正后的两两对比。
 - **诊断图**：支持结构化模型诊断图。
 - **补充说明**：显著二阶或三阶交互会触发校正后的条件简单效应；复杂三阶结构仍需结合图形和专业判断复核。超额因素确认后按 `C(n,3)` 个独立三因素模型执行。
+
+### 四至八因素方差分析
+
+- **方法 ID**：`multifactor_anova`
+- **状态**：实验性
+- **通常用于**：在专业模式下拟合恰好 4–8 个分类因素组成的完整高阶析因模型。
+- **变量作用关系**：所选因素的主效应及直到指定阶数的全部交互共同作用于一个连续因变量。
+- **需要的变量**：
+  - 因变量（1 个）：连续数值变量；
+  - 固定因素（4–8 个）：数量必须与“模型因素阶数”完全一致。
+- **主要输出**：Type I/II/III ANOVA 表；各阶主效应与交互；F 值、自由度、p 值和偏 η²；模型诊断及可用的 EMM。
+- **常见场景**：需要保留完整高阶结构的多环境、多处理析因设计。
+- **主要条件**：观测独立；模型矩阵满秩；残差近似正态且方差齐；每个有效组合具有足够重复。
+- **补充说明**：该方法运行一个完整高阶模型，不使用因素候选池组合模式；高阶交互会快速消耗自由度，使用前必须检查空单元格、混杂和任务规模。
 
 ## 方差分析与校正
 
@@ -709,9 +795,19 @@
 - **组合规则**：额外因素仅在明确确认后作为候选池，按当前方法的固定因素数执行 `C(n,k)` 个独立模型；界面不再显示 MANOVA 最小/最大阶数；
 - **边界**：均为对象间 MANOVA，不处理对象内重复或随机效应。
 
+### 四至八因素多元方差分析（MANOVA）
+
+- **方法 ID**：`multifactor_manova`
+- **状态**：实验性
+- **固定模型**：恰好 4–8 个对象间分类因素，数量必须与“模型因素阶数”完全一致；检验完整高阶模型中的多元主效应和交互。
+- **联合因变量**：至少 2 个相关连续变量，作为联合响应向量分析。
+- **主要输出**：Pillai、Wilks、Hotelling–Lawley、Roy 四种判据，近似 F、自由度和 p 值；残差结构诊断及校正后的单变量跟进。
+- **主要条件**：观测独立；联合响应不存在完全线性依赖；设计矩阵和各效应具有足够秩；每个有效因素组合有足够样本。
+- **边界**：运行一个完整高阶对象间 MANOVA，不进入因素候选池组合模式，也不处理对象内重复或随机效应；高阶模型应重点审查空单元格、协方差矩阵和自由度。
+
 ### 旧版统一 MANOVA 计划兼容
 
-旧方法 ID `manova` 不再出现在新建分析列表中。读取旧项目时，程序根据保存的 `factor_model_order`；若不存在则根据原固定因素数量，自动迁移为上述三个方法之一。
+旧方法 ID `manova` 不再出现在新建分析列表中。读取旧项目时，程序根据保存的 `factor_model_order`；若不存在则根据原固定因素数量，自动迁移为单因素、双因素或三因素 MANOVA 之一。
 
 ## 重复测量与层级数据（续）
 
