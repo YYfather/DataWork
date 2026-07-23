@@ -1,0 +1,268 @@
+# {{ title }}
+
+> 生成时间：{{ generated_at }}
+
+---
+
+## 一、研究设计
+
+{% if result.method.research_question %}
+**研究问题**：{{ result.method.research_question }}
+{% endif %}
+
+- **分析方法**：{{ result.method.label_zh }}
+- **模型或关系式**：`{{ result.method.formula }}`
+- **观测数**：{{ result.design.n_observations }}
+{% if result.design.n_subjects %}- **对象/受试者数**：{{ result.design.n_subjects }}{% endif %}
+
+{% if result.method.reasoning %}
+### 选择理由
+{% for reason in result.method.reasoning %}
+- {{ reason }}
+{% endfor %}
+{% endif %}
+
+### 变量设计
+
+| 角色 | 变量 |
+|---|---|
+{% for v in result.design.variables %}
+| {{ v.role.value }} | {{ v.name }}{% if v.levels %}（{{ v.levels|join('、') }}）{% endif %} |
+{% endfor %}
+
+---
+
+## 二、描述性统计或频数摘要
+
+{% if result.descriptive_stats %}
+{% set keys = result.descriptive_stats[0].keys()|list %}
+| {% for key in keys %}{{ key }} |{% endfor %}
+| {% for key in keys %}--- |{% endfor %}
+{% for row in result.descriptive_stats %}
+| {% for key in keys %}{{ row.get(key, '') }} |{% endfor %}
+{% endfor %}
+{% else %}
+未提供描述统计或频数摘要。
+{% endif %}
+
+---
+
+## 三、主要检验结果
+
+{% if result.primary_tests %}
+| 效应或关系 | 统计量 | 值 | df₁ | df₂ | p 值 | 效应量 | 95% CI | 显著 |
+|---|---|---:|---:|---:|---:|---|---|---|
+{% for test in result.primary_tests %}
+| {{ test.effect }} | {{ test.statistic_name }} | {{ test.statistic_value|round(5) }} | {{ test.df_num if test.df_num is not none else '' }} | {{ test.df_den if test.df_den is not none else '' }} | {{ test.p_value|format_p if test.p_value is not none else 'N/A' }} | {% if test.effect_size_name %}{{ test.effect_size_name }}={{ test.effect_size_value|round(5) if test.effect_size_value is not none else 'N/A' }}{% endif %} | {% if test.ci_lower is not none and test.ci_upper is not none %}[{{ test.ci_lower|round(5) }}, {{ test.ci_upper|round(5) }}]{% endif %} | {% if test.is_significant is none %}未检验{% elif test.is_significant %}**是**{% else %}否{% endif %} |
+{% if test.detail %}
+
+- {{ test.effect }}：{{ test.detail }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if result.omnibus_tests %}
+### 方差分析或总体模型检验
+
+{% if result.method.name == 'manova' %}
+| 效应 | 多元检验统计量 | 统计量值 | 近似 F | df₁ | df₂ | p 值 | 显著 |
+|---|---|---:|---:|---:|---:|---:|---|
+{% for ot in result.omnibus_tests %}
+| {{ ot.effect }} | {{ ot.statistic_name }} | {{ ot.statistic_value|round(6) }} | {{ ot.f_value|format_f }} | {{ ot.df_num }} | {{ ot.df_den }} | {{ ot.p_value|format_p }} | {% if ot.is_significant %}**是**{% else %}否{% endif %} |
+{% endfor %}
+{% else %}
+| 效应 | F | df₁ | df₂ | p 值 | 偏 η² | 显著 |
+|---|---:|---:|---:|---:|---:|---|
+{% for ot in result.omnibus_tests %}
+| {{ ot.effect }} | {{ ot.f_value|format_f }} | {{ ot.df_num }} | {{ ot.df_den }} | {{ ot.p_value|format_p }} | {{ ot.eta_sq_p|round(4) }} | {% if ot.is_significant %}**是**{% else %}否{% endif %} |
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if result.follow_up_tests %}
+### MANOVA 单变量跟进检验
+
+| 因变量 | 效应 | SS 类型 | F | df₁ | df₂ | 原始 p | 校正 p | 偏 η² | 显著 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+{% for item in result.follow_up_tests %}
+| {{ item.outcome }} | {{ item.effect }} | {{ item.ss_type }} | {{ item.f_value|format_f }} | {{ item.df_num }} | {{ item.df_den }} | {{ item.p_value|format_p }} | {{ item.p_adjusted|format_p }} | {{ item.eta_sq_p|round(4) }} | {% if item.significant %}**是**{% else %}否{% endif %} |
+{% endfor %}
+
+> 单变量跟进用于定位联合效应可能涉及的响应变量；其校正方法为 {{ result.follow_up_tests[0].correction }}，不能取代 MANOVA 联合检验。
+
+{% endif %}
+
+{% if result.omnibus_tests %}
+{% for ot in result.omnibus_tests %}
+{% if ot.adjustments %}
+#### {{ ot.effect }} 的自由度校正
+
+| 校正 | df₁ | df₂ | p 值 | 显著 |
+|---|---:|---:|---:|---|
+{% for item in ot.adjustments %}
+| {{ item.correction }} | {{ item.df_num|round(4) }} | {{ item.df_den|round(4) }} | {{ item.p_value|format_p }} | {% if item.is_significant %}**是**{% else %}否{% endif %} |
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if not result.primary_tests and not result.omnibus_tests %}
+该方法没有单独的总体假设检验表，请结合描述统计、模型系数或拟合指标阅读。
+{% endif %}
+
+---
+
+## 四、模型系数与拟合指标
+
+{% if result.coefficients %}
+### 模型系数
+
+| 项 | 估计值 | SE | 统计量 | p 值 | 95% CI | 变换后指标 | 显著 |
+|---|---:|---:|---|---:|---|---|---|
+{% for coef in result.coefficients %}
+| {{ coef.term }} | {{ coef.estimate|round(6) }} | {{ coef.se|round(6) }} | {{ coef.statistic_name }}={{ coef.statistic_value|round(5) }} | {{ coef.p_value|format_p }} | {% if coef.ci_lower is not none and coef.ci_upper is not none %}[{{ coef.ci_lower|round(6) }}, {{ coef.ci_upper|round(6) }}]{% endif %} | {% if coef.transformed_name %}{{ coef.transformed_name }}={{ coef.transformed_value|round(6) if coef.transformed_value is not none else 'N/A' }}{% endif %} | {% if coef.significant %}**是**{% else %}否{% endif %} |
+{% endfor %}
+{% else %}
+本方法不产生回归或模型系数。
+{% endif %}
+
+{% if result.fit_statistics %}
+### 拟合与方差组成
+
+| 指标 | 值 | 说明 |
+|---|---:|---|
+{% for item in result.fit_statistics %}
+| {{ item.name }} | {{ item.value|round(6) }} | {{ item.detail }} |
+{% endfor %}
+{% endif %}
+
+---
+
+## 五、模型诊断与注意事项
+
+{% if result.diagnostics %}
+| 检验 | 统计量 | p 值 | 通过 | 说明 |
+|---|---:|---:|---|---|
+{% for d in result.diagnostics %}
+| {{ d.test_name }} | {{ d.statistic|round(4) if d.statistic is not none else 'N/A' }} | {{ d.p_value|format_p if d.p_value is not none else 'N/A' }} | {% if d.passed %}是{% else %}否{% endif %} | {{ d.detail }} |
+{% endfor %}
+{% else %}
+未提供单独的诊断检验。
+{% endif %}
+
+{% if result.sphericity %}
+### 球形性
+
+- Mauchly W：{{ result.sphericity.statistic|round(6) }}
+- χ²({{ result.sphericity.df|round(2) }})：{{ result.sphericity.chi_square|round(5) }}
+- p：{{ result.sphericity.p_value|format_p }}
+- Greenhouse–Geisser ε：{{ result.sphericity.epsilon_gg|round(5) }}
+- Huynh–Feldt ε：{{ result.sphericity.epsilon_hf|round(5) }}
+- 结论：{{ result.sphericity.detail }}
+{% endif %}
+
+{% if plot_files %}
+### 诊断图
+{% for plot in plot_files %}
+#### {{ plot.title }}
+
+![{{ plot.title }}]({{ plot.path }})
+{% endfor %}
+{% endif %}
+
+{% if result.warnings %}
+### 注意事项
+{% for warning in result.warnings %}
+- {{ warning }}
+{% endfor %}
+{% endif %}
+
+---
+
+## 六、事后比较与简单效应
+
+{% if result.contrasts %}
+### 成对比较
+
+| 比较 | 估计差 | 统计量 | 原始 p | 校正 p | 校正方法 | 显著 |
+|---|---:|---:|---:|---:|---|---|
+{% for ct in result.contrasts %}
+| {{ ct.contrast }} | {{ ct.estimate|round(5) }} | {{ ct.statistic_name }}={{ ct.t_value|round(5) }} | {{ ct.p_value|format_p }} | {{ ct.p_adjusted|format_p }} | {{ ct.correction }} | {% if ct.significant %}**是**{% else %}否{% endif %} |
+{% endfor %}
+{% endif %}
+
+{% if result.simple_effects %}
+### 简单效应
+
+| 固定条件 | 被检验效应 | F | df₁ | df₂ | 原始 p | 校正后 p | 校正方法 | 显著 |
+|---|---|---:|---:|---:|---:|---:|---|---|
+{% for se in result.simple_effects %}
+| {{ se.fixed_factor }}={{ se.fixed_level }} | {{ se.effect }} | {{ se.f_value|format_f }} | {{ se.df_num }} | {{ se.df_den }} | {{ se.p_value|format_p }} | {{ se.p_adjusted|format_p }} | {{ se.correction }} | {% if se.is_significant %}**是**{% else %}否{% endif %} |
+{% endfor %}
+{% endif %}
+
+{% if result.significance_letters %}
+### 显著性字母分组（CLD）
+
+| 因变量 | 因素 | 条件 | 事后方法 | 水平 | 均值/EMM | 字母 |
+|---|---|---|---|---|---:|---|
+{% for item in result.significance_letters %}
+| {{ item.outcome or "—" }} | {{ item.factor or "—" }} | {{ item.context or "总体" }} | {{ item.method }} | {{ item.group }} | {{ item.mean|round(5) }} | **{{ item.letters }}** |
+{% endfor %}
+
+同一事后检验与同一条件内，共享至少一个字母表示差异不显著；没有共同字母表示差异显著。不同事后方法的字母结果必须分别解释。
+{% endif %}
+
+{% if not result.contrasts and not result.simple_effects and not result.significance_letters %}
+本次结果未生成事后比较、简单效应或显著性字母分组。
+{% endif %}
+
+---
+
+## 七、效应量与估计边际均值
+
+{% if result.effect_sizes %}
+| 指标 | 值 | 置信区间 | 解释 |
+|---|---:|---|---|
+{% for es in result.effect_sizes %}
+| {{ es.measure }} | {{ es.value|round(5) }} | {% if es.ci_lower is not none and es.ci_upper is not none %}[{{ es.ci_lower|round(5) }}, {{ es.ci_upper|round(5) }}]{% endif %} | {{ es.interpretation }} |
+{% endfor %}
+{% endif %}
+
+{% if result.estimated_marginal_means %}
+### 估计边际均值
+
+| 分组 | 均值 | SE | df | 95% CI | 来源 |
+|---|---:|---:|---:|---|---|
+{% for em in result.estimated_marginal_means %}
+| {{ em.group }} | {{ em.mean|round(5) }} | {{ em.se|round(5) }} | {{ em.df|round(3) if em.df is not none else "—" }} | [{{ em.ci_lower|round(5) }}, {{ em.ci_upper|round(5) }}] | {{ em.source }} |
+{% endfor %}
+{% endif %}
+
+{% if not result.effect_sizes and not result.estimated_marginal_means %}
+本次结果未单独提供效应量或估计边际均值。
+{% endif %}
+
+---
+
+## 八、解释边界
+
+{% for constraint in result.report_constraints %}
+- {{ constraint }}
+{% endfor %}
+{% for constraint in result.method.report_constraints %}
+- {{ constraint }}
+{% endfor %}
+
+- 统计显著性不等于实际重要性，应结合效应大小、区间估计和研究设计解释。
+- 观察性数据中的关联通常不能直接解释为因果关系。
+
+---
+
+## 九、可复现信息
+
+- 分析 ID：`{{ result.analysis_id }}`
+- 软件：{{ result.method.software }}
+- 完整结果：`canonical_result.json`
+- Excel 结果：`results.xlsx`
+- 环境与计划记录：`reproducibility/`
