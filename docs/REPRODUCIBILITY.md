@@ -2,14 +2,14 @@
 
 ## 开发期 R 对照
 
-`scripts/compare_r_reference.py` 使用 `tests/reference/r/` 中的固定数据与 R 脚本，对照派生列、专业拆分摘要及统计核心结果。该脚本仅用于开发审计，不是应用运行、服务器部署或正式发布依赖。默认优先检测 `C:\Program Files\R\R-4.6.1\bin\Rscript.exe`，也可通过 `--rscript` 显式指定。
+[`scripts/compare_r_reference.py`](../scripts/compare_r_reference.py) 使用 [`tests/reference/r/`](../tests/reference/r/) 中的固定数据与 R 脚本，对照派生列、专业拆分摘要及 Python 统计核心结果。R 与 Python 各自独立计算，再由对照入口比较统计量、自由度、p 值和派生结果。该链路仅用于开发期双重校对，不是应用运行、服务器部署或正式发布依赖。默认优先检测 `C:\Program Files\R\R-4.6.1\bin\Rscript.exe`，也可通过 `--rscript` 显式指定。
 
 当前包含两套参考：
 
-- `derived_split_factor.csv`：验证自定义列、专业拆分摘要和单因素 ANOVA。
-- `agronomy_example_2.csv`：源自“测试数据2”，保留原始额外空列和一个噪声单元格，验证前 7 列读取、108 组 CK/T 配对、NDR/Delta 派生值、按年份拆分的 36 个 Type III 双因素 ANOVA 效应及 18 个 Wilks MANOVA 效应。
+- [`derived_split_factor.csv`](../tests/reference/r/derived_split_factor.csv)：验证自定义列、专业拆分摘要和单因素 ANOVA，R 参考见 [`validate_derived_split_factor.R`](../tests/reference/r/validate_derived_split_factor.R)。
+- [`agronomy_example_2.csv`](../tests/reference/r/agronomy_example_2.csv)：源自“测试数据2”，有效前 7 列与用户提供的农业数据一致；保留原始额外空列和一个噪声单元格，验证前 7 列读取、108 组 CK/T 配对、NDR/Delta 派生值、按年份拆分的 36 个 Type III 双因素 ANOVA 效应及 18 个 Wilks MANOVA 效应。R 参考见 [`validate_agronomy_example_2.R`](../tests/reference/r/validate_agronomy_example_2.R)，Python 应用服务回归见 [`test_agronomy_reference_dataset.py`](../tests/integration/test_agronomy_reference_dataset.py)。
 
-此外，`scripts/compare_all_methods_r.py` 会读取固定 golden manifest，逐一覆盖注册表中的全部 47 种可运行方法，使用独立 R 实现对照 Python 核心的统计量、p 值和自由度，并先检查方法集合完全一致。R 依赖安装在项目内忽略目录 `.r-validation-lib`，不进入运行依赖或发布包：
+此外，[`scripts/compare_all_methods_r.py`](../scripts/compare_all_methods_r.py) 会读取固定 golden manifest，调用 [`validate_all_methods.R`](../tests/reference/r/validate_all_methods.R)，逐一覆盖注册表中的全部 47 种可运行方法，使用独立 R 实现对照 Python 核心的统计量、p 值和自由度，并先检查方法集合完全一致。R 依赖安装在项目内忽略目录 `.r-validation-lib`，不进入运行依赖或发布包：
 
 ```powershell
 & "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" scripts\install_r_validation_deps.R .
@@ -24,6 +24,8 @@ python -m pytest tests\integration\test_r_all_methods_reference.py -q
 ```powershell
 python scripts\compare_r_reference.py --rscript "C:\Program Files\R\R-4.6.1\bin\Rscript.exe"
 ```
+
+V1.5 配对映射、联合因变量组和完整事后分支目前仍处于计划阶段。其后续 R/Python 验收范围、任务数量和发布门禁见 [`V1.5_UPDATE_PLAN.md`](V1.5_UPDATE_PLAN.md)；在计划完成实施和双重校对前，不得把这些能力描述为已发布。
 
 每次运行自动生成：
 

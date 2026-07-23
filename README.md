@@ -2,6 +2,8 @@
 
 DataWork 是面向实验数据的跨平台统计分析与可复现项目工作区。统计核心使用 Python、SciPy 和 statsmodels，应用层使用 FastAPI，网页界面使用 Vue 3 + TypeScript。
 
+> 当前可运行版本仍为 `1.0.0`。V1.5 的配对映射计算、联合因变量分组和分层预检目前仅完成更新计划，尚未进入正式代码或服务器部署。完整范围与验收门禁见 [`docs/V1.5_UPDATE_PLAN.md`](docs/V1.5_UPDATE_PLAN.md)。
+
 ## v1.0 正式版
 
 - 正式版本统一为 `1.0.0`；Python、前端、桌面外壳、服务器健康接口和发布清单使用同一版本来源。
@@ -9,6 +11,12 @@ DataWork 是面向实验数据的跨平台统计分析与可复现项目工作�
 - 自定义列只能作为因变量，并继承来源原始列及全局拆分的排列组合；不作为分类因素、协变量或自定义拆分列。
 - 服务器部署版与通用源码分支继续隔离；从 0.4.9 升级时保留经哈希验证、可自动备份和回滚的服务器热补丁。
 - 项目组统计方法手册新增全部 47 种方法与 SciPy、statsmodels、Patsy 等计算依赖的逐项映射及升级复核规则。
+
+## V1.5 更新计划（尚未实施）
+
+V1.5 计划仅在专业模式加入 CK/T 配对映射计算、最多 10 个配对计算列、联合因变量分组、按交互显著性分支完整比较，以及从数据范围到最终任务的分层执行审核。计划会保留 v1.0 的拆分、因素组合和普通自定义列语义，不允许配对计算列进入分类因素、协变量、拆分或随机效应角色。
+
+当前提交只发布计划和开发验证资料，不改变 `VERSION`、计算核心、API、前端或服务器部署。详细计划见 [`DataWork V1.5 更新计划书`](docs/V1.5_UPDATE_PLAN.md)。
 
 ## 0.4.9 黄金数据集、计算核心复核与普通用户参数优化
 
@@ -314,6 +322,20 @@ pytest -q
 
 0.4.1 最终回归包含 115 项自动化测试。43 种方法均通过服务与 HTTP 路径，另完成 350 个数据变体、100 个非默认高级参数和浏览器端即时分析/工作区交互审查。全项目覆盖率约 70%；排除保留兼容入口后约 80.3%；核心分析主链路约 84.0%。
 
+### R 语言与 Python 双重校对
+
+DataWork 的正式计算核心使用 Python、SciPy、statsmodels 和 Patsy。项目在开发阶段同时使用独立 R 脚本与 Python 计算核心进行双重校对：R 单独计算参考统计量，Python 对照程序逐项比较统计量、自由度、p 值及派生数据。R 不参与应用正式运行，也不属于桌面包或服务器部署依赖。
+
+- [全部 47 种方法的 R 独立参考脚本](tests/reference/r/validate_all_methods.R)
+- [全部方法的 R/Python 对照入口](scripts/compare_all_methods_r.py)
+- [农业 CK/T 配对、NDR/Delta、Type III ANOVA 与 Wilks MANOVA 的 R 参考脚本](tests/reference/r/validate_agronomy_example_2.R)
+- [农业参考数据（与用户测试数据有效前 7 列一致）](tests/reference/r/agronomy_example_2.csv)
+- [农业与自定义拆分的 R/Python 对照入口](scripts/compare_r_reference.py)
+- [Python 农业数据应用服务回归测试](tests/integration/test_agronomy_reference_dataset.py)
+- [开发期双重校对与可复现说明](docs/REPRODUCIBILITY.md)
+
+默认测试不会要求安装 R。需要执行开发期双重校对时，按可复现说明将 R 依赖安装到项目本地忽略目录，再显式运行对应对照入口。
+
 ## 完整源码包文档入口
 
 - [项目规范总册](docs/PROJECT_STANDARD.md)
@@ -324,4 +346,6 @@ pytest -q
 - [完整源码包内容说明](SOURCE_PACKAGE_CONTENTS.md)
 - [系统架构](docs/ARCHITECTURE.md)
 - [统计方法与计算核心依赖手册（含项目组方法—依赖矩阵）](docs/STATISTICAL_METHODS.md)
+- [V1.5 更新计划书（计划，尚未实施）](docs/V1.5_UPDATE_PLAN.md)
+- [R 语言与 Python 双重校对说明](docs/REPRODUCIBILITY.md)
 - [AI 助手说明](docs/AI_ASSISTANT.md)

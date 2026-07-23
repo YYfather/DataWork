@@ -1,4 +1,16 @@
-# 开发期参考：仅使用 R 自带 stats，复核 CK/T 配对、Type III ANOVA 和 Wilks MANOVA。
+# DataWork 开发期独立 R 参考。
+#
+# 输入数据 tests/reference/r/agronomy_example_2.csv 的有效前 7 列与用户提供的
+# 农业测试数据一致。脚本只使用 R 自带 stats，独立复核：
+# - CK/T 按年份、品种、种植模式和组内原始顺序一一配对；
+# - NDR 与 Delta 派生值；
+# - 按年份执行的 Type III 双因素 ANOVA；
+# - Wilks' Lambda 双因素 MANOVA。
+#
+# Python 对照入口：scripts/compare_r_reference.py
+# Python 应用服务回归：tests/integration/test_agronomy_reference_dataset.py
+# R 只用于开发期双重校对，不进入正式应用或服务器运行依赖。
+
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 2) stop("用法: Rscript validate_agronomy_example_2.R <csv> <output_dir>")
 
