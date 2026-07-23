@@ -137,6 +137,7 @@ type PairMappingDraft = { treatment: string; control: string }
 type PairDerivedColumnDraft = { id: string; name: string; source_column: string; formula: string; unit: string; decimal_places: number }
 type PairingDraft = { group_column: string; mappings: PairMappingDraft[]; match_columns: string[]; pair_id_column: string | null; derived_columns: PairDerivedColumnDraft[] }
 type OutcomeGroupDraft = { name: string; dependent_variables: string[] }
+type DependentTaskMode = 'joint_all' | 'manual_groups' | 'combinations'
 
 const DEFAULT_INSTANT_METHOD = 'welch_ttest'
 const HIGH_ORDER_FACTORIAL_METHODS = new Set(['multifactor_anova', 'multifactor_manova'])
@@ -150,6 +151,10 @@ const derivedColumns = ref<DerivedColumnDraft[]>([])
 const derivedWarnings = ref<string[]>([])
 const pairingPlan = ref<PairingDraft | null>(null)
 const dependentVariableGroups = ref<OutcomeGroupDraft[]>([])
+const dependentTaskMode = ref<DependentTaskMode>('joint_all')
+const dependentCombinationMinSize = ref(2)
+const dependentCombinationMaxSize = ref(2)
+const dependentCombinationLabels = ref<Record<string, string>>({})
 const derivedPreviewLoading = ref(false)
 const selectedMethod = ref(DEFAULT_INSTANT_METHOD)
 const dependentVariables = ref<string[]>([])
@@ -214,8 +219,8 @@ const workspaceResultInvalidatedReason = ref('')
 const health = ref<any>(null)
 const pairingTestNoticeOpen = ref(true)
 const releaseVersionLabel = computed(() => {
-  const version = String(health.value?.version ?? '1.5.0').trim().replace(/^v/i, '')
-  if (version === '1.5.0' || version === '1.5') return 'V1.5'
+  const version = String(health.value?.version ?? '1.7.0').trim().replace(/^v/i, '')
+  if (version === '1.7.0' || version === '1.7') return 'V1.7'
   return `V${version}`
 })
 const sessionState = ref<SessionState | null>(null)
@@ -257,6 +262,10 @@ const workspaceSplitRules = ref<SplitRuleDraft[]>([])
 const workspaceDerivedColumns = ref<DerivedColumnDraft[]>([])
 const workspacePairingPlan = ref<PairingDraft | null>(null)
 const workspaceDependentVariableGroups = ref<OutcomeGroupDraft[]>([])
+const workspaceDependentTaskMode = ref<DependentTaskMode>('joint_all')
+const workspaceDependentCombinationMinSize = ref(2)
+const workspaceDependentCombinationMaxSize = ref(2)
+const workspaceDependentCombinationLabels = ref<Record<string, string>>({})
 const workspaceDerivedProfile = ref<ProfileResponse['profile'] | null>(null)
 const workspaceDerivedWarnings = ref<string[]>([])
 const workspaceDerivedPreviewLoading = ref(false)
@@ -304,6 +313,11 @@ const factorOverflowPrompt = ref<FactorOverflowPrompt>({
 
 const currentMethod = computed(() => methods.value.find((item) => item.name === selectedMethod.value))
 const supportsV15Workflow = computed(() => health.value?.features?.pairing_workflow === true && health.value?.features?.dependent_variable_groups === true)
+const supportsV16PairAbs = computed(() => health.value?.features?.pairing_abs === true)
+const supportsV17DependentCombinations = computed(() => health.value?.features?.dependent_variable_combinations === true)
+function pairingUsesAbsoluteValue(plan: PairingDraft | null | undefined) {
+  return plan?.derived_columns.some(column => /\babs\s*\(/.test(column.formula) || column.formula.includes('|')) === true
+}
 const isInstantHighOrderFactorial = computed(() => HIGH_ORDER_FACTORIAL_METHODS.has(selectedMethod.value))
 const instantFactorCombinationsAllowed = computed(() => instantExpertMode.value)
 const showInstantSplitRole = computed(() => Boolean(currentMethod.value?.supports_batch))
@@ -509,6 +523,69 @@ function outcomeGroupDraftIssues(groups: OutcomeGroupDraft[], selected: string[]
   return issues
 }
 
+function activeDependentCombinationNames(target: 'instant' | 'workspace') {
+  const selected = target === 'instant' ? dependentVariables.value : workspaceDvs.value
+  const mode = target === 'instant' ? dependentTaskMode.value : workspaceDependentTaskMode.value
+  const minimum = target === 'instant' ? dependentCombinationMinSize.value : workspaceDependentCombinationMinSize.value
+  const maximum = target === 'instant' ? dependentCombinationMaxSize.value : workspaceDependentCombinationMaxSize.value
+  if (mode !== 'combinations') return []
+  return Array.from({ length: Math.max(0, maximum - minimum + 1) }, (_, index) =>
+    enumerateCombinations(selected, minimum + index, 1000).map(name => name.replaceAll(' × ', ' + ')),
+  ).flat()
+}
+
+function serializeDependentCombinationLabels(target: 'instant' | 'workspace') {
+  const aliases = target === 'instant' ? dependentCombinationLabels.value : workspaceDependentCombinationLabels.value
+  return Object.fromEntries(activeDependentCombinationNames(target).flatMap(name => {
+    const label = String(aliases[name] ?? '').trim()
+    return label && label !== name ? [[name, label]] : []
+  }))
+}
+
+function dependentTaskIssues(target: 'instant' | 'workspace', method?: MethodSpec) {
+  const mode = target === 'instant' ? dependentTaskMode.value : workspaceDependentTaskMode.value
+  const selected = target === 'instant' ? dependentVariables.value : workspaceDvs.value
+  const groups = target === 'instant' ? dependentVariableGroups.value : workspaceDependentVariableGroups.value
+  const minimum = target === 'instant' ? dependentCombinationMinSize.value : workspaceDependentCombinationMinSize.value
+  const maximum = target === 'instant' ? dependentCombinationMaxSize.value : workspaceDependentCombinationMaxSize.value
+  const labels = target === 'instant' ? dependentCombinationLabels.value : workspaceDependentCombinationLabels.value
+  if (mode === 'manual_groups') return outcomeGroupDraftIssues(groups, selected, method)
+  if (mode !== 'combinations') return groups.length ? ['全部联合模式不能同时保留手工联合因变量组'] : []
+  if (method?.dependent_mode !== 'joint') return ['当前方法不是联合响应方法，不能生成因变量组合']
+  const issues: string[] = []
+  const minimumRequired = method?.min_dependent_vars ?? 2
+  if (minimum < minimumRequired) issues.push(`因变量组合大小至少为 ${minimumRequired}`)
+  if (maximum < minimum) issues.push('因变量组合最小大小不能大于最大大小')
+  if (maximum > selected.length) issues.push('因变量组合大小不能超过已选因变量数量')
+  const names = activeDependentCombinationNames(target)
+  const finalNames = names.map(name => String(labels[name] ?? '').trim() || name)
+  if (finalNames.length !== new Set(finalNames).size) issues.push('因变量组合名称不能重复，也不能与其他组合的默认名称相同')
+  const count = combinationCount(selected.length, minimum, maximum)
+  if (count > 1000) issues.push(`当前会生成 ${count} 个因变量组合，超过安全上限 1000`)
+  return issues
+}
+
+function resetDependentTaskSettings(target: 'instant' | 'workspace') {
+  const method = target === 'instant' ? currentMethod.value : workspaceCurrentMethod.value
+  const selected = target === 'instant' ? dependentVariables.value : workspaceDvs.value
+  const mode = target === 'instant' ? dependentTaskMode : workspaceDependentTaskMode
+  const groups = target === 'instant' ? dependentVariableGroups : workspaceDependentVariableGroups
+  const minimum = target === 'instant' ? dependentCombinationMinSize : workspaceDependentCombinationMinSize
+  const maximum = target === 'instant' ? dependentCombinationMaxSize : workspaceDependentCombinationMaxSize
+  const labels = target === 'instant' ? dependentCombinationLabels : workspaceDependentCombinationLabels
+  if (method?.dependent_mode !== 'joint') {
+    mode.value = 'joint_all'
+    groups.value = []
+  }
+  const minimumRequired = Math.max(2, method?.min_dependent_vars ?? 2)
+  const upper = Math.max(minimumRequired, selected.length)
+  minimum.value = Math.min(Math.max(minimum.value, minimumRequired), upper)
+  maximum.value = Math.min(Math.max(maximum.value, minimum.value), upper)
+  if (mode.value !== 'manual_groups') groups.value = []
+  const allowed = new Set(activeDependentCombinationNames(target))
+  labels.value = Object.fromEntries(Object.entries(labels.value).filter(([name]) => allowed.has(name)))
+}
+
 function pairSplitInheritanceText(column: string, target: 'instant' | 'workspace') {
   const plan = target === 'instant' ? pairingPlan.value : workspacePairingPlan.value
   if (!plan?.derived_columns.some(item => item.name === column)) return ''
@@ -533,7 +610,7 @@ const workspaceMissingSelections = computed(() => {
   missing.push(...workspaceSplitRuleIssues.value)
   missing.push(...factorCombinationNameIssues('workspace'))
   missing.push(...pairingDraftIssues(workspacePairingPlan.value, workspaceSplits.value, workspaceDerivedNames.value))
-  missing.push(...outcomeGroupDraftIssues(workspaceDependentVariableGroups.value, workspaceDvs.value, method))
+  missing.push(...dependentTaskIssues('workspace', method))
   return missing
 })
 const canCreateWorkspacePlan = computed(() => Boolean(workspaceDataset.value && workspaceCurrentMethod.value?.runnable && workspaceMissingSelections.value.length === 0 && !interactionBusy.value))
@@ -574,6 +651,10 @@ const aiContext = computed(() => ({
   derived_columns: mode.value === 'instant' ? derivedColumns.value : workspaceDerivedColumns.value,
   pairing: mode.value === 'instant' ? pairingPlan.value : workspacePairingPlan.value,
   dependent_variable_groups: mode.value === 'instant' ? dependentVariableGroups.value : workspaceDependentVariableGroups.value,
+  dependent_task_mode: mode.value === 'instant' ? dependentTaskMode.value : workspaceDependentTaskMode.value,
+  dependent_combination_min_size: mode.value === 'instant' ? dependentCombinationMinSize.value : workspaceDependentCombinationMinSize.value,
+  dependent_combination_max_size: mode.value === 'instant' ? dependentCombinationMaxSize.value : workspaceDependentCombinationMaxSize.value,
+  dependent_combination_labels: mode.value === 'instant' ? serializeDependentCombinationLabels('instant') : serializeDependentCombinationLabels('workspace'),
   method_parameters: mode.value === 'instant' ? methodParameters.value : workspaceMethodParameters.value,
   factor_combinations_enabled: mode.value === 'instant' ? (instantFactorCombinationsAllowed.value && factorCombinationsEnabled.value) : workspaceFactorCombinationsEnabled.value,
   factor_combination_order: mode.value === 'instant' ? factorCombinationMaxOrder.value : workspaceFactorCombinationMaxOrder.value,
@@ -708,7 +789,7 @@ const instantMissingSelections = computed(() => {
   missing.push(...instantSplitRuleIssues.value)
   missing.push(...factorCombinationNameIssues('instant'))
   missing.push(...pairingDraftIssues(pairingPlan.value, splitBy.value, instantDerivedNames.value))
-  missing.push(...outcomeGroupDraftIssues(dependentVariableGroups.value, dependentVariables.value, method))
+  missing.push(...dependentTaskIssues('instant', method))
   return missing
 })
 const instantWorkflowStep = computed(() => result.value ? 4 : preflightOpen.value ? 3 : profile.value ? 2 : file.value ? 1 : 0)
@@ -763,7 +844,7 @@ function invalidateWorkspaceResult(reason: string) {
 function setInstantExpertMode(expert: boolean) {
   if (instantExpertMode.value === expert) return
   if (!expert) {
-    const hasProfessionalData = derivedColumns.value.length > 0 || Boolean(pairingPlan.value) || dependentVariableGroups.value.length > 0 || instantSplitRules.value.length > 0 || splitBy.value.some(column => fixedFactors.value.includes(column))
+    const hasProfessionalData = derivedColumns.value.length > 0 || Boolean(pairingPlan.value) || dependentTaskMode.value !== 'joint_all' || dependentVariableGroups.value.length > 0 || instantSplitRules.value.length > 0 || splitBy.value.some(column => fixedFactors.value.includes(column))
     if (hasProfessionalData && !window.confirm('当前计划包含简洁模式不支持的配对计算、自定义列、联合因变量组或专业拆分配置。继续切换将自动整理这些设置，原始数据和历史结果不会被删除。是否继续？')) return
     const generatedNames = new Set([...instantGeneratedNames.value])
     dependentVariables.value = dependentVariables.value.filter(column => !generatedNames.has(column))
@@ -774,6 +855,8 @@ function setInstantExpertMode(expert: boolean) {
     splitBy.value = splitBy.value.filter(column => !generatedNames.has(column) && !fixedFactors.value.includes(column))
     pairingPlan.value = null
     dependentVariableGroups.value = []
+    dependentTaskMode.value = 'joint_all'
+    dependentCombinationLabels.value = {}
     derivedColumns.value = []
     derivedWarnings.value = []
     if (sourceProfile.value) profile.value = structuredClone(toRaw(sourceProfile.value))
@@ -805,7 +888,7 @@ function setInstantExpertMode(expert: boolean) {
 function setWorkspaceExpertMode(expert: boolean) {
   if (workspaceExpertMode.value === expert) return
   if (!expert) {
-    const hasProfessionalData = workspaceDerivedColumns.value.length > 0 || Boolean(workspacePairingPlan.value) || workspaceDependentVariableGroups.value.length > 0 || workspaceSplitRules.value.length > 0 || workspaceSplits.value.some(column => workspaceFactors.value.includes(column))
+    const hasProfessionalData = workspaceDerivedColumns.value.length > 0 || Boolean(workspacePairingPlan.value) || workspaceDependentTaskMode.value !== 'joint_all' || workspaceDependentVariableGroups.value.length > 0 || workspaceSplitRules.value.length > 0 || workspaceSplits.value.some(column => workspaceFactors.value.includes(column))
     if (hasProfessionalData && !window.confirm('当前计划包含简洁模式不支持的配对计算、自定义列、联合因变量组或专业拆分配置。继续切换将自动整理这些设置，原始数据和历史结果不会被删除。是否继续？')) return
     const generatedNames = new Set([...workspaceGeneratedNames.value])
     workspaceDvs.value = workspaceDvs.value.filter(column => !generatedNames.has(column))
@@ -816,6 +899,8 @@ function setWorkspaceExpertMode(expert: boolean) {
     workspaceSplits.value = workspaceSplits.value.filter(column => !generatedNames.has(column) && !workspaceFactors.value.includes(column))
     workspacePairingPlan.value = null
     workspaceDependentVariableGroups.value = []
+    workspaceDependentTaskMode.value = 'joint_all'
+    workspaceDependentCombinationLabels.value = {}
     workspaceDerivedColumns.value = []
     workspaceDerivedProfile.value = null
     workspaceDerivedWarnings.value = []
@@ -860,6 +945,8 @@ function startNewInstantAnalysis() {
   derivedWarnings.value = []
   pairingPlan.value = null
   dependentVariableGroups.value = []
+  dependentTaskMode.value = 'joint_all'
+  dependentCombinationLabels.value = {}
   selectedMethod.value = DEFAULT_INSTANT_METHOD
   instantExpertMode.value = false
   dependentVariables.value = []
@@ -1100,9 +1187,38 @@ const emmCandidates = computed(() => Array.from(new Set([...fixedFactors.value, 
 const workspaceEmmCandidates = computed(() => Array.from(new Set([...workspaceFactors.value, ...(workspaceRepeatedFactor.value ? [workspaceRepeatedFactor.value] : [])])))
 const factorCombinationCount = computed(() => factorCombinationsEnabled.value ? combinationCount(fixedFactors.value.length, factorCombinationMinOrder.value, factorCombinationMaxOrder.value) : 1)
 const factorCombinationNames = computed(() => activeFactorCombinationNames('instant'))
+const dependentCombinationCount = computed(() => dependentTaskMode.value === 'combinations'
+  ? combinationCount(dependentVariables.value.length, dependentCombinationMinSize.value, dependentCombinationMaxSize.value)
+  : dependentTaskMode.value === 'manual_groups' ? dependentVariableGroups.value.length : 1)
 const workspaceFactorOrderLimit = computed(() => Math.max(1, Math.min(workspaceFactors.value.length, workspaceCurrentMethod.value?.max_fixed_factors ?? workspaceFactors.value.length)))
 const workspaceFactorCombinationCount = computed(() => workspaceFactorCombinationsEnabled.value ? combinationCount(workspaceFactors.value.length, workspaceFactorCombinationMinOrder.value, workspaceFactorCombinationMaxOrder.value) : 1)
 const workspaceFactorCombinationNames = computed(() => activeFactorCombinationNames('workspace'))
+const workspaceDependentCombinationCount = computed(() => workspaceDependentTaskMode.value === 'combinations'
+  ? combinationCount(workspaceDvs.value.length, workspaceDependentCombinationMinSize.value, workspaceDependentCombinationMaxSize.value)
+  : workspaceDependentTaskMode.value === 'manual_groups' ? workspaceDependentVariableGroups.value.length : 1)
+function projectedOutcomeTaskCount(target: 'instant' | 'workspace') {
+  const method = target === 'instant' ? currentMethod.value : workspaceCurrentMethod.value
+  const selected = target === 'instant' ? dependentVariables.value : workspaceDvs.value
+  if (!method || method.dependent_mode === 'none') return 1
+  if (method.dependent_mode !== 'joint') return Math.max(1, selected.length)
+  return target === 'instant' ? Math.max(1, dependentCombinationCount.value) : Math.max(1, workspaceDependentCombinationCount.value)
+}
+function projectedSplitTaskCount(target: 'instant' | 'workspace') {
+  const splits = target === 'instant' ? splitBy.value : workspaceSplits.value
+  const rules = target === 'instant' ? instantSplitRules.value : workspaceSplitRules.value
+  const columns = target === 'instant' ? (profile.value?.profile.columns ?? []) : workspaceColumns.value
+  return splits.reduce((total, column) => {
+    const rule = rules.find(item => item.column === column)
+    const count = rule ? rule.groups.length : (columns.find(item => item.name === column)?.n_unique ?? 1)
+    return total * Math.max(1, count)
+  }, 1)
+}
+const instantProjectedSplitTaskCount = computed(() => projectedSplitTaskCount('instant'))
+const workspaceProjectedSplitTaskCount = computed(() => projectedSplitTaskCount('workspace'))
+const instantProjectedTaskCount = computed(() =>
+  projectedOutcomeTaskCount('instant') * factorCombinationCount.value * instantProjectedSplitTaskCount.value)
+const workspaceProjectedTaskCount = computed(() =>
+  projectedOutcomeTaskCount('workspace') * workspaceFactorCombinationCount.value * workspaceProjectedSplitTaskCount.value)
 
 function defaultMethodParameters(method?: MethodSpec) {
   return Object.fromEntries((method?.parameters ?? []).map(parameter => [parameter.key, parameter.default]))
@@ -1128,7 +1244,9 @@ function resetFactorCombinationSettings(target: 'instant' | 'workspace') {
 watch(selectedMethod, () => {
   const method = currentMethod.value
   if (!method) return
-  if (method.dependent_mode !== 'joint') dependentVariableGroups.value = []
+  dependentVariableGroups.value = []
+  dependentTaskMode.value = 'joint_all'
+  dependentCombinationLabels.value = {}
   invalidateInstantResult('分析方法已经改变，旧结果与旧报告已清除；请检查新方法的变量角色后重新执行分析。')
   methodParameters.value = defaultMethodParameters(method)
   factorCombinationsEnabled.value = false
@@ -1140,7 +1258,9 @@ watch(selectedMethod, () => {
 watch(workspaceMethod, () => {
   const method = workspaceCurrentMethod.value
   if (!method) return
-  if (method.dependent_mode !== 'joint') workspaceDependentVariableGroups.value = []
+  workspaceDependentVariableGroups.value = []
+  workspaceDependentTaskMode.value = 'joint_all'
+  workspaceDependentCombinationLabels.value = {}
   invalidateWorkspaceResult('分析方法已经改变，旧运行结果与旧报告已清除；请按新方法保存并重新运行计划。')
   workspaceMethodParameters.value = defaultMethodParameters(method)
   workspaceFactorCombinationsEnabled.value = false
@@ -1198,20 +1318,26 @@ function reconcilePairingChange(target: 'instant' | 'workspace', current: Pairin
 watch(pairingPlan, (current, previous) => reconcilePairingChange('instant', current, previous), { deep: true })
 watch(workspacePairingPlan, (current, previous) => reconcilePairingChange('workspace', current, previous), { deep: true })
 watch(dependentVariables, selected => {
-  if (!dependentVariableGroups.value.length) return
-  const allowed = new Set(selected)
-  dependentVariableGroups.value = dependentVariableGroups.value.map(group => ({ ...group, dependent_variables: group.dependent_variables.filter(column => allowed.has(column)) }))
+  if (dependentVariableGroups.value.length) {
+    const allowed = new Set(selected)
+    dependentVariableGroups.value = dependentVariableGroups.value.map(group => ({ ...group, dependent_variables: group.dependent_variables.filter(column => allowed.has(column)) }))
+  }
+  resetDependentTaskSettings('instant')
 }, { deep: true })
 watch(workspaceDvs, selected => {
-  if (!workspaceDependentVariableGroups.value.length) return
-  const allowed = new Set(selected)
-  workspaceDependentVariableGroups.value = workspaceDependentVariableGroups.value.map(group => ({ ...group, dependent_variables: group.dependent_variables.filter(column => allowed.has(column)) }))
+  if (workspaceDependentVariableGroups.value.length) {
+    const allowed = new Set(selected)
+    workspaceDependentVariableGroups.value = workspaceDependentVariableGroups.value.map(group => ({ ...group, dependent_variables: group.dependent_variables.filter(column => allowed.has(column)) }))
+  }
+  resetDependentTaskSettings('workspace')
 }, { deep: true })
 
 watch([
   workspaceDatasetId, workspaceDvs, workspaceFactors, workspaceCovariates, workspaceRandomFactors,
   workspaceRandomSlopes, workspaceSubjectId, workspaceRepeatedFactor, workspaceSplits,
-  workspaceSplitRules, workspacePairingPlan, workspaceDependentVariableGroups, workspaceDerivedColumns, workspaceCalibrationEnabled, workspaceCalibrationMethod,
+  workspaceSplitRules, workspacePairingPlan, workspaceDependentVariableGroups, workspaceDependentTaskMode,
+  workspaceDependentCombinationMinSize, workspaceDependentCombinationMaxSize, workspaceDependentCombinationLabels,
+  workspaceDerivedColumns, workspaceCalibrationEnabled, workspaceCalibrationMethod,
   workspaceCalibrationColumns, workspaceCalibrationBaselineColumn, workspaceCalibrationBaselineValue,
   workspaceMethodParameters, workspaceFactorCombinationsEnabled, workspaceFactorCombinationMinOrder,
   workspaceFactorCombinationMaxOrder, workspaceFactorCombinationLabels, workspaceCombinationPAdjust, workspaceEstimateMarginalMeans,
@@ -1230,7 +1356,9 @@ watch(percentageScale, () => {
 watch([
   selectedMethod, dependentVariables, fixedFactors, covariates, randomFactors, randomSlopes,
   subjectId, repeatedFactor, splitBy, instantSplitRules, alpha, ssType, methodParameters, factorCombinationsEnabled,
-  pairingPlan, dependentVariableGroups, derivedColumns, calibrationEnabled, calibrationMethod, calibrationColumns, calibrationBaselineColumn, calibrationBaselineValue,
+  pairingPlan, dependentVariableGroups, dependentTaskMode, dependentCombinationMinSize,
+  dependentCombinationMaxSize, dependentCombinationLabels, derivedColumns, calibrationEnabled,
+  calibrationMethod, calibrationColumns, calibrationBaselineColumn, calibrationBaselineValue,
   factorCombinationMinOrder, factorCombinationMaxOrder, factorCombinationLabels, combinationPAdjust, estimateMarginalMeans,
   emmFactors, contrastCorrection, diagnosticPlots, testValue, expectedProportionsText,
 ], () => {
@@ -1549,7 +1677,11 @@ function buildInstantPlan() {
     split_by: splitBy.value,
     split_rules: serializeInstantSplitRules(),
     pairing: professional ? pairingPlan.value : null,
-    dependent_variable_groups: professional ? dependentVariableGroups.value : [],
+    dependent_variable_groups: professional && dependentTaskMode.value === 'manual_groups' ? dependentVariableGroups.value : [],
+    dependent_task_mode: professional ? dependentTaskMode.value : 'joint_all',
+    dependent_combination_min_size: professional && dependentTaskMode.value === 'combinations' ? dependentCombinationMinSize.value : null,
+    dependent_combination_max_size: professional && dependentTaskMode.value === 'combinations' ? dependentCombinationMaxSize.value : null,
+    dependent_combination_labels: professional && dependentTaskMode.value === 'combinations' ? serializeDependentCombinationLabels('instant') : {},
     derived_columns: professional ? derivedColumns.value : [],
     test_value: testValue.value,
     expected_proportions: parseExpectedProportions(),
@@ -1665,6 +1797,8 @@ function handleFile(event: Event) {
   derivedWarnings.value = []
   pairingPlan.value = null
   dependentVariableGroups.value = []
+  dependentTaskMode.value = 'joint_all'
+  dependentCombinationLabels.value = {}
   result.value = null
   instantDetailedResults.value = false
   instantReportLinks.value = null
@@ -1929,6 +2063,15 @@ function toggleEmmFactor(column: string) {
 
 async function requestAnalysis() {
   if (!file.value || !profile.value || interactionBusy.value) return
+  if (pairingUsesAbsoluteValue(pairingPlan.value) && !supportsV16PairAbs.value) {
+    applyInstantError(friendlyError({
+      error: {
+        code: 'v16_backend_required',
+        message: '当前后端不支持 V1.6 配对公式 abs(...)。请完整更新并重启服务器后再执行；系统不会静默改写或降级该公式。',
+      },
+    }, '需要更新后端'))
+    return
+  }
   if ((pairingPlan.value || dependentVariableGroups.value.length) && !supportsV15Workflow.value) {
     applyInstantError(friendlyError({
       error: {
@@ -2335,6 +2478,8 @@ function selectWorkspaceDataset(datasetId: string) {
   workspaceDerivedColumns.value = []
   workspacePairingPlan.value = null
   workspaceDependentVariableGroups.value = []
+  workspaceDependentTaskMode.value = 'joint_all'
+  workspaceDependentCombinationLabels.value = {}
   workspaceDerivedProfile.value = null
   workspaceDerivedWarnings.value = []
   workspaceFactorCombinationLabels.value = {}
@@ -2448,6 +2593,24 @@ function toggleWorkspaceEmmFactor(column: string) {
 
 async function createWorkspacePlan() {
   if (!workspaceProject.value || !workspaceDataset.value || workspaceLoading.value) return
+  if (pairingUsesAbsoluteValue(workspacePairingPlan.value) && !supportsV16PairAbs.value) {
+    applyWorkspaceError(friendlyError({
+      error: {
+        code: 'v16_backend_required',
+        message: '当前后端不支持 V1.6 配对公式 abs(...)。请完整更新并重启服务器后再保存计划。',
+      },
+    }, '需要更新后端'))
+    return
+  }
+  if (dependentTaskMode.value === 'combinations' && !supportsV17DependentCombinations.value) {
+    applyInstantError(friendlyError({
+      error: {
+        code: 'v17_backend_required',
+        message: '当前后端不支持 V1.7 MANOVA 因变量组合。请完整更新并重启服务器后再执行，系统不会静默降级为一次联合分析。',
+      },
+    }, '需要更新后端'))
+    return
+  }
   if ((workspacePairingPlan.value || workspaceDependentVariableGroups.value.length) && !supportsV15Workflow.value) {
     applyWorkspaceError(friendlyError({
       error: {
@@ -2479,7 +2642,11 @@ async function createWorkspacePlan() {
           split_by: workspaceSplits.value, method: workspaceMethod.value,
           split_rules: workspaceExpertMode.value ? serializeWorkspaceSplitRules() : [],
           pairing: workspaceExpertMode.value ? workspacePairingPlan.value : null,
-          dependent_variable_groups: workspaceExpertMode.value ? workspaceDependentVariableGroups.value : [],
+          dependent_variable_groups: workspaceExpertMode.value && workspaceDependentTaskMode.value === 'manual_groups' ? workspaceDependentVariableGroups.value : [],
+          dependent_task_mode: workspaceExpertMode.value ? workspaceDependentTaskMode.value : 'joint_all',
+          dependent_combination_min_size: workspaceExpertMode.value && workspaceDependentTaskMode.value === 'combinations' ? workspaceDependentCombinationMinSize.value : null,
+          dependent_combination_max_size: workspaceExpertMode.value && workspaceDependentTaskMode.value === 'combinations' ? workspaceDependentCombinationMaxSize.value : null,
+          dependent_combination_labels: workspaceExpertMode.value && workspaceDependentTaskMode.value === 'combinations' ? serializeDependentCombinationLabels('workspace') : {},
           derived_columns: workspaceExpertMode.value ? workspaceDerivedColumns.value : [],
           alpha: workspaceExpertMode.value ? alpha.value : 0.05,
           ss_type: workspaceExpertMode.value ? ssType.value : 3,
@@ -2511,11 +2678,38 @@ async function runWorkspacePlan(planId?: string) {
   const selected = planId ?? workspaceSelectedPlanId.value
   if (!selected || interactionBusy.value) return
   const selectedPlan = workspacePlanJson(selected)
+  if (pairingUsesAbsoluteValue(selectedPlan?.pairing) && !supportsV16PairAbs.value) {
+    applyWorkspaceError(friendlyError({
+      error: {
+        code: 'v16_backend_required',
+        message: '该计划使用 V1.6 配对公式 abs(...)，但当前后端未声明支持；为防止静默降级，本次运行已阻止。',
+      },
+    }, '需要更新后端'))
+    return
+  }
+  if (workspaceDependentTaskMode.value === 'combinations' && !supportsV17DependentCombinations.value) {
+    applyWorkspaceError(friendlyError({
+      error: {
+        code: 'v17_backend_required',
+        message: '当前后端不支持 V1.7 MANOVA 因变量组合。请完整更新并重启服务器后再保存计划。',
+      },
+    }, '需要更新后端'))
+    return
+  }
   if ((selectedPlan?.pairing || selectedPlan?.dependent_variable_groups?.length) && !supportsV15Workflow.value) {
     applyWorkspaceError(friendlyError({
       error: {
         code: 'v15_backend_required',
         message: '该计划使用 V1.5 配对或联合因变量组，但当前后端未声明支持；为防止静默降级，本次运行已阻止。',
+      },
+    }, '需要更新后端'))
+    return
+  }
+  if (selectedPlan?.dependent_task_mode === 'combinations' && !supportsV17DependentCombinations.value) {
+    applyWorkspaceError(friendlyError({
+      error: {
+        code: 'v17_backend_required',
+        message: '该计划使用 V1.7 MANOVA 因变量组合，但当前后端未声明支持；为防止静默降级，本次运行已阻止。',
       },
     }, '需要更新后端'))
     return
@@ -2934,11 +3128,20 @@ function formatBytes(value: unknown) {
         </div>
 
         <div class="professional-subsection" v-if="instantExpertMode && currentMethod?.dependent_mode === 'joint'">
-          <OutcomeGroupEditor v-model="dependentVariableGroups" :dependent-variables="dependentVariables" :minimum-size="currentMethod.min_dependent_vars" :busy="interactionBusy" />
+          <OutcomeGroupEditor
+            v-model="dependentVariableGroups"
+            v-model:task-mode="dependentTaskMode"
+            v-model:combination-min-size="dependentCombinationMinSize"
+            v-model:combination-max-size="dependentCombinationMaxSize"
+            v-model:combination-labels="dependentCombinationLabels"
+            :dependent-variables="dependentVariables"
+            :minimum-size="currentMethod.min_dependent_vars"
+            :busy="interactionBusy"
+          />
         </div>
 
-        <div class="generic-batch-note" v-if="splitBy.length || dependentVariableGroups.length || dependentVariables.length > (currentMethod?.max_dependent_vars ?? 999) || factorCombinationsEnabled">
-          <div><strong>通用批量模式已启用</strong><p>程序会展开 {{ dependentVariableGroups.length ? `${dependentVariableGroups.length} 个联合因变量组` : dependentVariables.length > 1 ? `${dependentVariables.length} 个因变量` : '当前因变量' }}{{ factorCombinationsEnabled ? ` × ${factorCombinationCount} 个因素组合` : '' }}{{ splitBy.length ? ` × ${splitBy.join(' × ')}` : '' }}，逐任务执行同一分析计划；网页可按批次切换，Excel 会生成总览和逐批子表。</p></div>
+        <div class="generic-batch-note" v-if="splitBy.length || dependentTaskMode !== 'joint_all' || dependentVariables.length > (currentMethod?.max_dependent_vars ?? 999) || factorCombinationsEnabled">
+          <div><strong>通用批量模式已启用</strong><p>程序会展开 {{ dependentTaskMode === 'combinations' ? `${dependentCombinationCount} 个因变量组合` : dependentTaskMode === 'manual_groups' ? `${dependentVariableGroups.length} 个联合因变量组` : currentMethod?.dependent_mode === 'joint' ? '当前联合因变量模型' : dependentVariables.length > 1 ? `${dependentVariables.length} 个因变量` : '当前因变量' }}{{ factorCombinationsEnabled ? ` × ${factorCombinationCount} 个因素组合` : '' }}{{ splitBy.length ? ` × 最多 ${instantProjectedSplitTaskCount} 个拆分组` : '' }}，预计最多 {{ instantProjectedTaskCount }} 个任务；预检会按数据中的实际组合给出精确总数。</p><small v-if="instantProjectedTaskCount > 200" class="selection-warning">{{ instantProjectedTaskCount > 1000 ? '当前上限估算超过 1000，需减少组合或拆分后再通过预检。' : '当前上限估算超过 200，请留意运行时间与多重检验规模。' }}</small></div>
           <button class="help-button" @click="openHelp('batch_workflow')">了解批量流程</button>
         </div>
 
@@ -2948,6 +3151,8 @@ function formatBytes(value: unknown) {
           <div><span>{{ dependentRoleLabel }}</span><strong>{{ dependentVariables.join('、') || (currentMethod?.min_dependent_vars === 0 ? '该方法不需要' : '未选择') }}</strong></div>
           <div v-if="pairingPlan"><span>处理—对照配对</span><strong>{{ pairingPlan.mappings.length }} 组映射 · {{ pairingPlan.derived_columns.length }} 个新列</strong><small>{{ pairingPlan.pair_id_column ? `显式 ID：${pairingPlan.pair_id_column}` : '匹配组内按原始行顺序' }}</small></div>
           <div v-if="dependentVariableGroups.length"><span>联合因变量组</span><strong>{{ dependentVariableGroups.map(item => `${item.name}（${item.dependent_variables.join('、')}）`).join('；') }}</strong></div>
+          <div v-if="dependentTaskMode === 'combinations'"><span>因变量组合</span><strong>{{ dependentCombinationMinSize }}–{{ dependentCombinationMaxSize }} 个/组 · 共 {{ dependentCombinationCount }} 个</strong></div>
+          <div v-if="currentMethod?.supports_batch"><span>任务量投影</span><strong>最多 {{ instantProjectedTaskCount }} 个</strong><small>预检后显示实际拆分组合与精确总数</small></div>
           <div><span>{{ factorCombinationsEnabled ? '候选分类因素' : '分类因素' }}</span><strong>{{ fixedFactors.join(' × ') || '未选择' }}</strong><small v-if="factorCombinationsEnabled">{{ factorCombinationCount }} 个组合 · {{ combinationPAdjust }}</small></div>
           <div v-if="showCovariateRole"><span>连续自变量</span><strong>{{ covariates.join('、') || '未选择' }}</strong></div>
           <div v-if="showRandomRole"><span>随机分组</span><strong>{{ randomFactors.join('、') || '未选择' }}</strong></div><div v-if="showRandomSlopeRole"><span>随机斜率</span><strong>{{ randomSlopes.join('、') || '随机截距' }}</strong></div><div v-if="estimateMarginalMeans"><span>EMM</span><strong>{{ emmFactors.join('、') || '等待选择因素' }}</strong></div>
@@ -3054,7 +3259,7 @@ function formatBytes(value: unknown) {
                   <div class="field method-parameter" v-for="parameter in workspaceCommonParameters" :key="parameter.key"><span class="field-label">{{ parameter.label_zh }}</span><template v-if="parameter.kind === 'multi_select'"><div class="parameter-toolbar"><small>已选择 {{ (workspaceMethodParameters[parameter.key] ?? []).length }} 项</small><button type="button" class="text-button" @click="resetMethodParameter('workspace', parameter.key)">恢复默认</button></div><div class="multi-choice-grid"><button v-for="option in commonParameterOptions(parameter, workspaceMethodParameters[parameter.key])" :key="option.value" type="button" class="multi-choice" :aria-pressed="(workspaceMethodParameters[parameter.key] ?? []).includes(option.value)" :class="{ active: (workspaceMethodParameters[parameter.key] ?? []).includes(option.value) }" @click="toggleMultiSelectParameter('workspace', parameter.key, option.value)"><span class="choice-check">{{ (workspaceMethodParameters[parameter.key] ?? []).includes(option.value) ? '✓' : '+' }}</span><span class="choice-copy"><strong>{{ option.label }}</strong><small class="choice-help" v-if="optionHelp(parameter, option.value)">{{ optionHelp(parameter, option.value) }}</small></span><small v-if="Array.isArray(parameter.default) && parameter.default.includes(option.value)">默认</small></button></div></template><select v-else-if="parameter.kind === 'select'" v-model="workspaceMethodParameters[parameter.key]"><option v-for="option in parameter.options" :key="option.value" :value="option.value">{{ option.label }}</option></select><input v-else-if="parameter.kind === 'boolean'" v-model="workspaceMethodParameters[parameter.key]" type="checkbox" class="parameter-checkbox" /><input v-else-if="parameter.kind === 'integer'" v-model.number="workspaceMethodParameters[parameter.key]" type="number" :min="parameter.minimum ?? undefined" :max="parameter.maximum ?? undefined" :step="parameter.step ?? 1" /><input v-else-if="parameter.kind === 'number'" v-model.number="workspaceMethodParameters[parameter.key]" type="number" :min="parameter.minimum ?? undefined" :max="parameter.maximum ?? undefined" :step="parameter.step ?? 'any'" /><input v-else v-model="workspaceMethodParameters[parameter.key]" type="text" /><small>{{ parameterHelp(parameter) }}</small><small class="recommendation-note" v-if="parameter.recommendation_note">{{ parameter.recommendation_note }}</small><small v-if="parameter.recommended_options?.length && parameter.options.length > commonParameterOptions(parameter, workspaceMethodParameters[parameter.key]).length">更多低频选项可在专业模式中选择。</small></div>
                 </div></details>
               </section>
-              <details class="advanced-method-panel professional-control-group" open v-if="workspaceCurrentMethod?.supports_batch"><summary>批量任务 <small>{{ workspaceSplits.length }} 个拆分字段 · {{ workspaceFactorCombinationsEnabled ? `${workspaceFactorCombinationCount} 个因素模型` : '单一因素模型' }}</small></summary><div class="professional-control-body">
+              <details class="advanced-method-panel professional-control-group" open v-if="workspaceCurrentMethod?.supports_batch"><summary>批量任务 <small>预计最多 {{ workspaceProjectedTaskCount }} 个任务 · {{ workspaceSplits.length }} 个拆分字段 · {{ workspaceFactorCombinationsEnabled ? `${workspaceFactorCombinationCount} 个因素模型` : '单一因素模型' }}</small></summary><div class="professional-control-body">
               <section class="factor-combination-panel" v-if="workspaceShowFixedRole && (workspaceFactorCombinationsEnabled || workspaceExpertMode)">
                 <label class="combination-toggle"><input :checked="workspaceFactorCombinationsEnabled" type="checkbox" :disabled="workspaceFactors.length === 0" @change="onFactorCombinationToggle('workspace', $event)" /><span><strong>分类因素组合实验</strong><small>将选中因素作为候选池，按指定阶数组合后分别运行；超额因素必须先确认。</small></span></label>
                 <div class="combination-settings" v-if="workspaceFactorCombinationsEnabled">
@@ -3126,10 +3331,19 @@ function formatBytes(value: unknown) {
                 </div>
               </div>
               <div class="professional-subsection" v-if="workspaceExpertMode && workspaceCurrentMethod?.dependent_mode === 'joint'">
-                <OutcomeGroupEditor v-model="workspaceDependentVariableGroups" :dependent-variables="workspaceDvs" :minimum-size="workspaceCurrentMethod.min_dependent_vars" :busy="interactionBusy" />
+                <OutcomeGroupEditor
+                  v-model="workspaceDependentVariableGroups"
+                  v-model:task-mode="workspaceDependentTaskMode"
+                  v-model:combination-min-size="workspaceDependentCombinationMinSize"
+                  v-model:combination-max-size="workspaceDependentCombinationMaxSize"
+                  v-model:combination-labels="workspaceDependentCombinationLabels"
+                  :dependent-variables="workspaceDvs"
+                  :minimum-size="workspaceCurrentMethod.min_dependent_vars"
+                  :busy="interactionBusy"
+                />
               </div>
               <AnalysisGuidanceCard :context="aiContext" />
-              <div class="plan-summary plan-summary-expanded"><div><span>{{ workspaceDependentRoleLabel }}</span><strong>{{ workspaceDvs.join('、') || (workspaceCurrentMethod?.min_dependent_vars === 0 ? '该方法不需要' : '未选择') }}</strong></div><div v-if="workspacePairingPlan"><span>处理—对照配对</span><strong>{{ workspacePairingPlan.mappings.length }} 组映射 · {{ workspacePairingPlan.derived_columns.length }} 个新列</strong></div><div v-if="workspaceDependentVariableGroups.length"><span>联合因变量组</span><strong>{{ workspaceDependentVariableGroups.map(item => `${item.name}（${item.dependent_variables.join('、')}）`).join('；') }}</strong></div><div><span>{{ workspaceFactorCombinationsEnabled ? '候选分类因素' : '分类因素' }}</span><strong>{{ workspaceFactors.join(' × ') || '未选择' }}</strong><small v-if="workspaceFactorCombinationsEnabled">{{ workspaceFactorCombinationCount }} 个组合</small></div><div v-if="workspaceShowCovariateRole"><span>连续自变量</span><strong>{{ workspaceCovariates.join('、') || '未选择' }}</strong></div><div v-if="workspaceShowRandomRole"><span>随机分组</span><strong>{{ workspaceRandomFactors.join('、') || '未选择' }}</strong></div><div v-if="workspaceShowRandomSlopeRole"><span>随机斜率</span><strong>{{ workspaceRandomSlopes.join('、') || '随机截距' }}</strong></div><div v-if="workspaceEstimateMarginalMeans"><span>EMM</span><strong>{{ workspaceEmmFactors.join('、') || '等待选择因素' }}</strong></div><div v-if="workspaceShowSubjectRole"><span>对象 ID</span><strong>{{ workspaceSubjectId || '未选择' }}</strong></div><div v-if="workspaceShowRepeatedRole"><span>重复/时间</span><strong>{{ workspaceRepeatedFactor || '未选择' }}</strong></div><div><span>拆分</span><strong>{{ workspaceSplits.join('、') || '不拆分' }}</strong></div><div class="plan-save-action"><small v-if="workspaceMissingSelections.length" class="selection-warning">还需选择：{{ workspaceMissingSelections.join('；') }}</small><button class="primary" :disabled="!canCreateWorkspacePlan || workspaceLoading" @click="createWorkspacePlan">保存计划</button></div></div>
+              <div class="plan-summary plan-summary-expanded"><div><span>{{ workspaceDependentRoleLabel }}</span><strong>{{ workspaceDvs.join('、') || (workspaceCurrentMethod?.min_dependent_vars === 0 ? '该方法不需要' : '未选择') }}</strong></div><div v-if="workspacePairingPlan"><span>处理—对照配对</span><strong>{{ workspacePairingPlan.mappings.length }} 组映射 · {{ workspacePairingPlan.derived_columns.length }} 个新列</strong></div><div v-if="workspaceDependentVariableGroups.length"><span>联合因变量组</span><strong>{{ workspaceDependentVariableGroups.map(item => `${item.name}（${item.dependent_variables.join('、')}）`).join('；') }}</strong></div><div v-if="workspaceDependentTaskMode === 'combinations'"><span>因变量组合</span><strong>{{ workspaceDependentCombinationMinSize }}–{{ workspaceDependentCombinationMaxSize }} 个/组 · 共 {{ workspaceDependentCombinationCount }} 个</strong></div><div><span>{{ workspaceFactorCombinationsEnabled ? '候选分类因素' : '分类因素' }}</span><strong>{{ workspaceFactors.join(' × ') || '未选择' }}</strong><small v-if="workspaceFactorCombinationsEnabled">{{ workspaceFactorCombinationCount }} 个组合</small></div><div v-if="workspaceShowCovariateRole"><span>连续自变量</span><strong>{{ workspaceCovariates.join('、') || '未选择' }}</strong></div><div v-if="workspaceShowRandomRole"><span>随机分组</span><strong>{{ workspaceRandomFactors.join('、') || '未选择' }}</strong></div><div v-if="workspaceShowRandomSlopeRole"><span>随机斜率</span><strong>{{ workspaceRandomSlopes.join('、') || '随机截距' }}</strong></div><div v-if="workspaceEstimateMarginalMeans"><span>EMM</span><strong>{{ workspaceEmmFactors.join('、') || '等待选择因素' }}</strong></div><div v-if="workspaceShowSubjectRole"><span>对象 ID</span><strong>{{ workspaceSubjectId || '未选择' }}</strong></div><div v-if="workspaceShowRepeatedRole"><span>重复/时间</span><strong>{{ workspaceRepeatedFactor || '未选择' }}</strong></div><div><span>拆分</span><strong>{{ workspaceSplits.join('、') || '不拆分' }}</strong></div><div class="plan-save-action"><small v-if="workspaceMissingSelections.length" class="selection-warning">还需选择：{{ workspaceMissingSelections.join('；') }}</small><button class="primary" :disabled="!canCreateWorkspacePlan || workspaceLoading" @click="createWorkspacePlan">保存计划</button></div></div>
             </section>
 
             <section id="workspace-run-plans" class="panel workflow-jump-target" :class="{ 'workflow-jump-highlight': workflowJumpTarget === 'workspace-run-plans' }" v-if="workspaceProject.plans.length">

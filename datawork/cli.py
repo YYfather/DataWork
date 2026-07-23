@@ -416,6 +416,9 @@ def _parse_cli_parameters(items: list[str] | None) -> dict[str, object]:
 def batch(
     file: str = typer.Argument(..., help="数据文件路径"),
     dependent: Optional[list[str]] = typer.Option(None, "--dependent", "--dv", help="因变量/分析变量列名，可重复"),
+    dependent_combinations: bool = typer.Option(False, "--dependent-combinations", help="MANOVA 按无序因变量组合批量建立联合响应模型"),
+    min_dependent_size: Optional[int] = typer.Option(None, "--min-dependent-size", help="因变量组合最小大小，默认 2"),
+    max_dependent_size: Optional[int] = typer.Option(None, "--max-dependent-size", help="因变量组合最大大小，默认与最小大小相同"),
     factor: Optional[list[str]] = typer.Option(None, "--factor", "-f", help="分类固定因素或组合候选因素，可重复"),
     factor_combinations: bool = typer.Option(False, "--factor-combinations", help="将所选分类因素作为候选池，按组合阶数建立多个模型"),
     min_factor_order: Optional[int] = typer.Option(None, "--min-factor-order", help="因素组合最小阶数"),
@@ -448,7 +451,11 @@ def batch(
         raise typer.Exit(1)
 
     plan_data = {
+        "interface_mode": "professional" if dependent_combinations else None,
         "dependent_variables": dependent or [],
+        "dependent_task_mode": "combinations" if dependent_combinations else "joint_all",
+        "dependent_combination_min_size": min_dependent_size,
+        "dependent_combination_max_size": max_dependent_size,
         "fixed_factors": factor or [],
         "covariates": covariate or [],
         "random_factors": random_factor or [],

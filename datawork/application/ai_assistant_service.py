@@ -1137,6 +1137,10 @@ def _assistant_analysis_plan_context(context: dict[str, Any]) -> dict[str, Any]:
         "factor_combination_min_order",
         "factor_combination_max_order",
         "factor_combination_labels",
+        "dependent_task_mode",
+        "dependent_combination_min_size",
+        "dependent_combination_max_size",
+        "dependent_combination_labels",
         "combination_p_adjust",
         "calibration_enabled",
         "calibration_method",
@@ -1534,6 +1538,9 @@ def _deterministic_analysis_guidance(context: dict[str, Any]) -> AnalysisGuidanc
     covariates = [str(item) for item in context.get("covariates") or []]
     random_factors = [str(item) for item in context.get("random_factors") or []]
     split_by = [str(item) for item in context.get("split_by") or []]
+    dependent_task_mode = str(context.get("dependent_task_mode") or "joint_all")
+    dependent_combination_min_size = context.get("dependent_combination_min_size")
+    dependent_combination_max_size = context.get("dependent_combination_max_size")
     factor_combinations_enabled = bool(context.get("factor_combinations_enabled", False))
     factor_combination_order = context.get("factor_combination_order")
     factor_combination_min_order = context.get("factor_combination_min_order")
@@ -1568,6 +1575,14 @@ def _deterministic_analysis_guidance(context: dict[str, Any]) -> AnalysisGuidanc
     role_lines = []
     if dependent_variables:
         role_lines.append(f"因变量/分析变量：{'、'.join(dependent_variables)}")
+        if dependent_task_mode == "combinations":
+            role_lines.append(
+                "因变量组合："
+                f"{dependent_combination_min_size}–{dependent_combination_max_size} 个/组，"
+                "按无序组合生成并允许变量跨组合重用"
+            )
+        elif dependent_task_mode == "manual_groups":
+            role_lines.append("联合响应任务：使用手工互斥因变量组")
     if fixed_factors:
         factor_label = "分类因素候选池" if factor_combinations_enabled else "分类因素"
         role_lines.append(f"{factor_label}：{'、'.join(fixed_factors)}")
@@ -1612,8 +1627,18 @@ def _deterministic_analysis_guidance(context: dict[str, Any]) -> AnalysisGuidanc
         analysis_purpose = purpose
 
     batch_phrase = ""
+    if dependent_task_mode == "combinations":
+        batch_phrase = (
+            f"程序会分别拟合 {dependent_combination_min_size}–"
+            f"{dependent_combination_max_size} 个因变量的无序组合，"
+            f"并用 {combination_p_adjust} 校正跨模型检验。"
+        )
     if factor_combinations_enabled:
-        batch_phrase = f"程序会分别拟合 {factor_combination_min_order}–{factor_combination_max_order} 阶因素组合，并用 {combination_p_adjust} 校正跨组合检验。"
+        batch_phrase += (
+            f"程序还会分别拟合 {factor_combination_min_order}–"
+            f"{factor_combination_max_order} 阶因素组合，并用 "
+            f"{combination_p_adjust} 校正跨组合检验。"
+        )
     expected_outcome = (
         f"程序将使用 {method_label}，基于当前选择生成：{'、'.join(outputs)}。{batch_phrase}"
         "这里描述的是结果的结构和可回答的问题，不会在计算前预测显著性或差异方向。"
@@ -1786,7 +1811,7 @@ def _method_guidance_parts(
             f"分析三个固定因素对 {dv_text} 的主效应、两两交互和三因素交互。",
             "三因素模型适合同时研究三个处理维度及其组合关系。",
             ["三个主效应", "三个两因素交互", "一个三因素交互", "各效应的 F、p 值和效应量", "必要的简单效应与诊断"],
-            "高阶交互解释复杂，且当前实现为实验性，需要重点人工复核。",
+            "高阶交互解释复杂，即使计算核心已完成，也需要结合预先设定的研究假设重点人工复核。",
         ),
         "multifactor_anova": (
             f"分析 {factor_text} 对 {dv_text} 的全部主效应及最高至所选阶数的交互作用。",

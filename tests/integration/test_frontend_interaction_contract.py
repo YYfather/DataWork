@@ -492,7 +492,7 @@ def test_v15_pairing_groups_and_hierarchical_preflight_are_visible_and_guarded()
     assert "<PairingEditor" in APP
     assert "<OutcomeGroupEditor" in APP
     assert "pairing: professional ? pairingPlan.value : null" in APP
-    assert "dependent_variable_groups: professional ? dependentVariableGroups.value : []" in APP
+    assert "dependent_variable_groups: professional && dependentTaskMode.value === 'manual_groups' ? dependentVariableGroups.value : []" in APP
     assert "pairingPlan.value = null" in APP
     assert "dependentVariableGroups.value = []" in APP
     assert "处理—对照配对计算" in PAIRING
@@ -514,15 +514,64 @@ def test_v15_pairing_groups_and_hierarchical_preflight_are_visible_and_guarded()
     assert "任务键" in PREFLIGHT
 
 
-def test_v15_pairing_test_notice_is_mandatory_on_each_page_load():
+def test_v17_manova_dependent_combinations_are_visible_and_guarded():
+    assert "supportsV17DependentCombinations" in APP
+    assert "health.value?.features?.dependent_variable_combinations === true" in APP
+    assert "dependent_task_mode" in APP
+    assert "dependent_combination_min_size" in APP
+    assert "dependent_combination_max_size" in APP
+    assert "dependent_combination_labels" in APP
+    assert "自动因变量组合" in OUTCOME_GROUPS
+    assert "只生成无序组合" in OUTCOME_GROUPS
+    assert "v17_backend_required" in APP
+
+
+def test_v16_pairing_editor_and_abs_capability_are_explicitly_guarded():
+    assert "supportsV16PairAbs" in APP
+    assert "health.value?.features?.pairing_abs === true" in APP
+    assert "pairingUsesAbsoluteValue" in APP
+    assert "当前后端不支持 V1.6 配对公式 abs(...)" in APP
+    assert "该计划使用 V1.6 配对公式 abs(...)" in APP
+    assert "FORMULA_PRESETS" in PAIRING
+    assert "处理—对照绝对差" in PAIRING
+    assert "UNIT_SUGGESTIONS" in PAIRING
+    assert "绝对量（保留原始尺度）" in PAIRING
+    assert "DECIMAL_OPTIONS" in PAIRING
+    assert "prepareContinuation(value)" in PAIRING
+    assert "derivedNameInput.value?.select()" in PAIRING
+    assert "duplicateDerived(index)" in PAIRING
+    assert "以此新增" in PAIRING
+    assert "清空重新填写" in PAIRING
+    assert "normalizeAbsoluteBars" in PAIRING
+    assert "validateFormulaStructure" in PAIRING
+    assert "syntaxOnly.includes('**')" in PAIRING
+    assert "syntaxOnly.includes('//')" in PAIRING
+    assert "公式括号必须成对出现" in PAIRING
+    assert "模板只填充公式，不会覆盖单位/含义" in PAIRING
+    assert "item.unit || '未指定'" in PREFLIGHT
+
+
+def test_v16_pair_column_rename_reconciles_all_name_based_references():
+    assert "const previousById = new Map" in APP
+    assert "const currentById = new Map" in APP
+    assert "renamed.set(oldName, newName)" in APP
+    assert "source_columns: definition.source_columns.map(column => renamed.get(column) ?? column)" in APP
+    assert "replaceFormulaReference(formula, oldName, newName)" in APP
+    assert "dvs.value = dvs.value.filter(column => !removed.has(column)).map(column => renamed.get(column) ?? column)" in APP
+    assert "dependent_variables: group.dependent_variables.filter(column => !removed.has(column)).map(column => renamed.get(column) ?? column)" in APP
+    assert "watch(pairingPlan, (current, previous) => reconcilePairingChange('instant', current, previous), { deep: true })" in APP
+    assert "watch(workspacePairingPlan, (current, previous) => reconcilePairingChange('workspace', current, previous), { deep: true })" in APP
+
+
+def test_v16_pairing_semantics_notice_is_mandatory_on_each_page_load():
     assert "const pairingTestNoticeOpen = ref(true)" in APP
     assert "<ReleaseNoticeDialog" in APP
     assert '@acknowledge="pairingTestNoticeOpen = false"' in APP
-    assert "version === '1.5.0' || version === '1.5'" in APP
-    assert "return 'V1.5'" in APP
+    assert "version === '1.7.0' || version === '1.7'" in APP
+    assert "return 'V1.7'" in APP
     assert "DATAWORK {{ releaseVersionLabel }}" in APP
     assert 'role="alertdialog"' in RELEASE_NOTICE
-    assert "V1.5 配对列仍在测试修补阶段" in RELEASE_NOTICE
-    assert "请谨慎使用" in RELEASE_NOTICE
-    assert "仍在持续校验和修补" in RELEASE_NOTICE
+    assert "V1.7 因变量组合会生成多个独立 MANOVA 模型" in RELEASE_NOTICE
+    assert "超过 200 强警告，超过 1000 阻止执行" in RELEASE_NOTICE
+    assert "默认使用 Holm 跨模型校正" in RELEASE_NOTICE
     assert "我已了解，谨慎使用" in RELEASE_NOTICE

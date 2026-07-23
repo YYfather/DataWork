@@ -37,6 +37,11 @@ FIELD_LABELS = {
     "combination_order": "组合阶数",
     "dependent_variable": "因变量",
     "dependent_variables": "联合因变量",
+    "dependent_group": "联合因变量组",
+    "dependent_combination": "因变量组合",
+    "dependent_columns": "组合因变量",
+    "dependent_combination_columns": "组合因变量（规范）",
+    "dependent_combination_size": "因变量组合大小",
     "n": "样本量",
     "result_type": "结果类型",
     "effect": "效应/检验",
@@ -101,6 +106,11 @@ FIELD_LABELS = {
     "factor_combination_min_order": "最小组合阶数",
     "factor_combination_max_order": "最大组合阶数",
     "factor_combination_labels": "自定义组合名称",
+    "dependent_task_mode": "联合响应任务模式",
+    "dependent_variable_groups": "手工联合因变量组",
+    "dependent_combination_min_size": "最小因变量组合大小",
+    "dependent_combination_max_size": "最大因变量组合大小",
+    "dependent_combination_labels": "自定义因变量组合名称",
     "combination_p_adjust": "跨任务判断方法",
     "cross_model_p_adjust": "跨模型判断方法",
     "estimate_marginal_means": "估计边际均值",
@@ -130,6 +140,27 @@ SECTION_FIELDS = (
 )
 
 
+DEPENDENT_COMBINATION_AGGREGATES = (
+    ("多元总体检验", "omnibus_tests"),
+    ("单变量跟进", "follow_up_tests"),
+    ("事后比较", "contrasts"),
+)
+
+
+def dependent_combination_aggregate_names(result: BatchAnalysisResult) -> list[str]:
+    """Return aggregate sheets that have at least one row."""
+    if result.settings.get("dependent_task_mode") != "combinations":
+        return []
+    names: list[str] = []
+    for title, field_name in DEPENDENT_COMBINATION_AGGREGATES:
+        if any(
+            item.result is not None and bool(getattr(item.result, field_name))
+            for item in result.results
+        ):
+            names.append(title)
+    return names
+
+
 def _display_width(value: str) -> int:
     """Estimate Excel display width while accounting for CJK full-width text."""
     return sum(2 if unicodedata.east_asian_width(character) in {"W", "F", "A"} else 1 for character in value)
@@ -149,6 +180,7 @@ class GenericBatchExportService:
         workbook = Workbook()
         workbook.remove(workbook.active)
         self._write_overview(workbook, result)
+        self._write_dependent_combination_aggregates(workbook, result)
         for index, item in enumerate(result.results, start=1):
             self._write_batch_sheet(workbook, index, item)
         self._write_issues(workbook, result.results)
@@ -156,6 +188,33 @@ class GenericBatchExportService:
         workbook.save(temporary)
         temporary.replace(path)
         return path
+
+    def _write_dependent_combination_aggregates(
+        self,
+        workbook: Workbook,
+        result: BatchAnalysisResult,
+    ) -> None:
+        active = set(dependent_combination_aggregate_names(result))
+        for title, field_name in DEPENDENT_COMBINATION_AGGREGATES:
+            if title not in active:
+                continue
+            rows: list[dict[str, Any]] = []
+            for index, item in enumerate(result.results, start=1):
+                if item.result is None:
+                    continue
+                metadata = {"task_id": index, **item.subset_info, "n": item.n_rows}
+                for record in getattr(item.result, field_name):
+                    rows.append({**metadata, **record.model_dump(mode="json")})
+            worksheet = workbook.create_sheet(title)
+            keys = list(dict.fromkeys(key for row in rows for key in row))
+            worksheet.append([FIELD_LABELS.get(key, key) for key in keys])
+            for row in rows:
+                worksheet.append([self._cell_value(row.get(key)) for key in keys])
+            self._style_table(worksheet, header_row=1)
+            worksheet.freeze_panes = "A2"
+            worksheet.auto_filter.ref = (
+                f"A1:{get_column_letter(worksheet.max_column)}{worksheet.max_row}"
+            )
 
     def export_serialized(self, payload: dict[str, Any], path: str | Path) -> Path:
         """从工作区持久化的批次 JSON 重建分层工作簿。"""

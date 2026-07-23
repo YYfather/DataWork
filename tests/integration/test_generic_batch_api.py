@@ -140,6 +140,76 @@ def test_factor_combination_api_generates_unique_models_and_batch_sheets(tmp_pat
     assert all(row["p_adjust_method"] == "holm" for row in payload["result"]["summary"])
 
 
+def test_manova_dependent_combinations_flow_through_api_and_export(tmp_path):
+    rows = ["group,y1,y2,y3,y4"]
+    for group in ["A", "B"]:
+        for repeat in range(12):
+            shift = 1.1 if group == "B" else 0.0
+            rows.append(
+                f"{group},{repeat * .31 + shift},{repeat * .22 - shift * .4 + repeat % 2 * .13},"
+                f"{repeat * .17 + shift * .7 + repeat % 3 * .09},"
+                f"{repeat * .27 - shift * .2 + repeat % 4 * .07}"
+            )
+    csv_bytes = ("\n".join(rows) + "\n").encode()
+    plan = {
+        "interface_mode": "professional",
+        "dependent_variables": ["y1", "y2", "y3", "y4"],
+        "dependent_task_mode": "combinations",
+        "dependent_combination_min_size": 2,
+        "dependent_combination_max_size": 2,
+        "dependent_combination_labels": {"y1 + y2": "核心性状"},
+        "fixed_factors": ["group"],
+        "method": "oneway_manova",
+        "method_parameters": {"follow_up_mode": "none"},
+        "diagnostic_plots": False,
+        "combination_p_adjust": "holm",
+    }
+    client = TestClient(create_app(workspace_root=tmp_path / "workspace"))
+    preflight = client.post(
+        "/api/preflight",
+        files={"file": ("dependent-combinations.csv", csv_bytes, "text/csv")},
+        data={"plan_json": json.dumps(plan, ensure_ascii=False)},
+    )
+    assert preflight.status_code == 200, preflight.text
+    check = preflight.json()
+    assert check["ready"] is True
+    assert check["batch_summary"]["dependent_combination_count"] == 6
+    assert check["batch_summary"]["expanded_task_count"] == 6
+
+    response = client.post(
+        "/api/analyze",
+        files={"file": ("dependent-combinations.csv", csv_bytes, "text/csv")},
+        data={"plan_json": json.dumps(plan, ensure_ascii=False)},
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["kind"] == "batch"
+    assert payload["result"]["split_cols"][:3] == [
+        "dependent_combination",
+        "dependent_columns",
+        "dependent_combination_size",
+    ]
+    names = {
+        item["subset_info"]["dependent_combination"]
+        for item in payload["result"]["results"]
+    }
+    assert names == {
+        "核心性状", "y1 + y3", "y1 + y4",
+        "y2 + y3", "y2 + y4", "y3 + y4",
+    }
+
+    export_status = client.get(payload["batch_export"]["status_url"])
+    assert export_status.status_code == 200
+    assert export_status.json()["status"] == "ready"
+    download = client.get(payload["batch_export"]["download_url"])
+    assert download.status_code == 200
+    workbook = openpyxl.load_workbook(io.BytesIO(download.content), read_only=True)
+    overview = workbook["结果总览"]
+    headers = [cell.value for cell in next(overview.iter_rows(min_row=3, max_row=3))]
+    assert "因变量组合" in headers
+    assert "组合因变量" in headers
+
+
 def test_none_adjustment_and_custom_combination_names_flow_through_api_and_export(tmp_path):
     rows = ["A,B,y"]
     for a in ["0", "1"]:

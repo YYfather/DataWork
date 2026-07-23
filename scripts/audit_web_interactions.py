@@ -75,6 +75,7 @@ def main() -> int:
     ).raise_for_status()
 
     state = {"preflight_count": 0, "profile_error": False}
+    api_errors: list[str] = []
     html = production_html()
     csv_path = workspace / "sample.csv"
     csv_path.write_bytes(csv_bytes)
@@ -118,6 +119,8 @@ def main() -> int:
             response = client.put(path, json=payload)
         else:
             response = client.request(request.method, path)
+        if response.status_code >= 400:
+            api_errors.append(f"{request.method} {path}: {response.status_code} {response.text}")
         route.fulfill(
             status=response.status_code,
             headers={key: value for key, value in response.headers.items() if key.lower() not in {"content-length", "content-encoding", "transfer-encoding"}},
@@ -133,6 +136,9 @@ def main() -> int:
         page.set_content(html, wait_until="domcontentloaded")
         page.get_by_text("服务已就绪").wait_for(state="visible", timeout=15000)
         page.locator(".workflow-strip").wait_for(state="visible")
+        notice = page.get_by_role("alertdialog")
+        if notice.count() and notice.is_visible():
+            notice.get_by_role("button", name="我已了解，谨慎使用").click()
 
         # Instant analysis: loading stages, blank-column notice, preflight, result.
         page.locator("input[type=file]").set_input_files(str(csv_path))
@@ -147,6 +153,7 @@ def main() -> int:
         page.get_by_role("button", name="自定义分组").click()
         page.get_by_text("使用自定义分组").wait_for(state="visible")
         page.locator(".split-values-input").fill("B1,B2")
+        page.once("dialog", lambda dialog: dialog.accept())
         page.get_by_role("button", name="简洁模式").click()
         page.locator(".split-group-panel").wait_for(state="hidden")
         assert split_row.get_by_role("button", name="已选").is_visible()
@@ -218,14 +225,52 @@ def main() -> int:
         page.get_by_role("heading", name="E2E 项目").wait_for()
         page.get_by_role("button", name="E2E 数据").click()
         page.get_by_role("heading", name="保存分析计划").wait_for()
-        save_button = page.get_by_role("button", name="保存计划")
+        page.locator("#workspace-analysis-method select").first.select_option("one_sample_ttest")
+        page.locator("#workspace-analysis-method .analysis-mode-switch button").nth(1).click()
+        workspace_preparation = page.locator("#workspace-data-preparation")
+        workspace_preparation.locator("summary").click()
+        pairing_editor = workspace_preparation.locator(".pairing-editor")
+        pairing_editor.locator('.pairing-toggle input[type="checkbox"]').check()
+        pairing_editor.locator(".pairing-grid select").first.select_option("group")
+        pairing_editor.get_by_role("button", name="添加映射").click()
+        workspace_mapping = pairing_editor.locator(".mapping-row").first
+        workspace_mapping.locator("select").nth(0).select_option("A")
+        workspace_mapping.locator("select").nth(1).select_option("B")
+        workspace_builder = pairing_editor.locator(".pair-derived-builder")
+        workspace_builder.get_by_placeholder("例如：ΔDR7").fill("WorkspaceAbs")
+        workspace_builder.locator("select").nth(0).select_option("value")
+        workspace_builder.get_by_placeholder("选择常用项或自行输入").fill("绝对量（保留原始尺度）")
+        workspace_builder.locator("select").nth(2).select_option("abs_treatment")
+        pairing_editor.get_by_role("button", name="添加计算列").click()
+        workspace_role_section = page.locator("#workspace-analysis-roles")
+        original_workspace_role = workspace_role_section.locator(
+            ".role-row", has=page.get_by_text("value", exact=True)
+        )
+        original_workspace_dv = original_workspace_role.locator(
+            'button.choice[aria-pressed]'
+        ).first
+        if original_workspace_dv.get_attribute("aria-pressed") == "true":
+            original_workspace_dv.click()
+        generated_workspace_role = workspace_role_section.locator(
+            ".role-row", has=page.get_by_text("WorkspaceAbs", exact=True)
+        )
+        generated_workspace_role.wait_for()
+        generated_workspace_role.locator('button.choice[aria-pressed]').first.click()
+        save_button = page.get_by_role("button", name="保存计划", exact=True)
         assert save_button.is_enabled()
         save_button.click()
+        page.wait_for_timeout(500)
+        assert not api_errors, api_errors
         workspace_run = page.locator(".history-list").get_by_role("button", name="运行").first
         workspace_run.wait_for(state="visible")
         page.wait_for_function("(element) => !element.disabled", arg=workspace_run.element_handle())
         workspace_run.click()
         page.get_by_text("检查通过，可以开始分析").wait_for(timeout=15000)
+        workspace_dialog = page.get_by_role("dialog", name="分析前检查")
+        workspace_dialog.get_by_text("查看配对计算列").click()
+        assert "WorkspaceAbs" in workspace_dialog.inner_text()
+        assert "abs([处理值])" in workspace_dialog.inner_text()
+        assert "绝对量（保留原始尺度）" in workspace_dialog.inner_text()
         page.get_by_role("button", name="确认并运行计划").click()
         page.get_by_role("heading", name="最新运行").wait_for(timeout=15000)
         page.get_by_role("button", name="生成报告").first.click()

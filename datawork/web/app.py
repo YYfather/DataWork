@@ -26,6 +26,7 @@ from pydantic import ValidationError
 
 from datawork import __version__
 from datawork.application.analysis_service import AnalysisService, ExecutionContext
+from datawork.application.batch_export_service import dependent_combination_aggregate_names
 from datawork.application.preflight_service import PreflightService
 from datawork.application.report_service import ReportService
 from datawork.application.ai_assistant_service import AIAssistantService, STEP_GUIDES
@@ -247,6 +248,7 @@ def create_app(
             "sheet_name": "结果总览",
             "sheet_names": [
                 "结果总览",
+                *dependent_combination_aggregate_names(result),
                 *[f"批次_{index:03d}" for index in range(1, len(result.results) + 1)],
                 "失败与警告",
                 "分析设置",
@@ -443,9 +445,11 @@ def create_app(
             "python": platform.python_version(),
             "platform": platform.system(),
             "features": {
-                "api_contract": "v1.5",
+                "api_contract": "v1.7",
                 "pairing_workflow": True,
+                "pairing_abs": True,
                 "dependent_variable_groups": True,
+                "dependent_variable_combinations": True,
                 "branch_complete_posthoc": True,
             },
             "workspace": {
@@ -575,7 +579,9 @@ def create_app(
                 "random_slopes": True,
                 "diagnostic_plots": True,
                 "pairing_workflow": True,
+                "pairing_abs": True,
                 "dependent_variable_groups": True,
+                "dependent_variable_combinations": True,
                 "branch_complete_posthoc": True,
             },
             "desktop": {

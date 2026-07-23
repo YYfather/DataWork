@@ -127,7 +127,7 @@ function labelForField(field?: string) {
           </div>
           <details v-if="report.pairing_summary.generated_columns?.length">
             <summary>查看配对计算列</summary>
-            <div class="table-wrap"><table><thead><tr><th>新列</th><th>来源</th><th>公式</th><th>精度</th><th>无效/缺失</th></tr></thead><tbody><tr v-for="item in report.pairing_summary.generated_columns" :key="item.name"><td>{{ item.name }}</td><td>{{ item.source_column }}</td><td><code>{{ item.formula }}</code></td><td>{{ item.decimal_places }} 位</td><td>{{ item.invalid_operation_count }} / {{ item.missing_result_count }}</td></tr></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>新列</th><th>来源</th><th>公式</th><th>单位/含义</th><th>精度</th><th>无效/缺失</th></tr></thead><tbody><tr v-for="item in report.pairing_summary.generated_columns" :key="item.name"><td>{{ item.name }}</td><td>{{ item.source_column }}</td><td><code>{{ item.formula }}</code></td><td>{{ item.unit || '未指定' }}</td><td>{{ item.decimal_places }} 位</td><td>{{ item.invalid_operation_count }} / {{ item.missing_result_count }}</td></tr></tbody></table></div>
           </details>
           <div v-if="report.pairing_summary.split_relationships?.length" class="design-review-columns">
             <article><h4>拆分与配对关系</h4><ul><li v-for="item in report.pairing_summary.split_relationships" :key="item.column"><strong>{{ item.column }}</strong>：{{ item.relationship }}<small v-if="item.detail">；{{ item.detail }}</small></li></ul></article>

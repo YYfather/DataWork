@@ -168,7 +168,9 @@ def generate_batch_report(
         "## 三、核心推断结果", "",
     ]
     columns = [
-        "task_id", "factor_combination", "factor_columns", "combination_order", "dependent_variable",
+        "task_id", "dependent_combination", "dependent_columns",
+        "dependent_combination_size", "dependent_group", "dependent_variables",
+        "factor_combination", "factor_columns", "combination_order", "dependent_variable",
         "effect", "statistic_name", "statistic_value", "p_value",
         "raw_conclusion",
         *([] if adjustment_method == "none" else ["p_adjusted_across_tasks", "conclusion"]),

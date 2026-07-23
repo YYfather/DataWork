@@ -164,6 +164,27 @@ def validate_plan_dataframe(plan: "AnalysisPlan", frame: pd.DataFrame) -> Valida
             issues.append(ValidationIssue(code="expected_proportion_length", field="expected_proportions", message=f"期望比例有 {len(plan.expected_proportions)} 个，但分类变量有 {levels} 个水平"))
 
     minimum_complete = _minimum_complete_cases(plan.method, len(plan.fixed_factors) + len(plan.covariates))
+    if plan.dependent_task_mode == "combinations":
+        dependent_task_count = len(outcome_tasks(plan))
+        issues.append(ValidationIssue(
+            code="dependent_combination_batch",
+            severity=IssueSeverity.WARNING,
+            field="dependent_variables",
+            message=(
+                f"已明确启用 MANOVA 因变量组合：将把 {len(plan.dependent_variables)} "
+                f"个候选因变量展开为 {dependent_task_count} 个无序联合响应模型"
+                f"（组合大小 {plan.dependent_combination_min_size}–"
+                f"{plan.dependent_combination_max_size}）。"
+            ),
+            details={
+                "candidate_outcome_count": len(plan.dependent_variables),
+                "combination_min_size": plan.dependent_combination_min_size,
+                "combination_max_size": plan.dependent_combination_max_size,
+                "dependent_model_count": dependent_task_count,
+                "cross_task_p_adjust": plan.cross_model_p_adjust,
+                "note": "完整案例、响应矩阵秩和模型可执行性将在每个组合任务内分别检查。",
+            },
+        ))
     if plan.factor_combinations_enabled:
         relevant = list(dict.fromkeys(plan.dependent_variables + plan.covariates + plan.random_factors + plan.random_slopes + plan.split_by + ([plan.subject_id] if plan.subject_id else []) + ([plan.repeated_factor] if plan.repeated_factor else [])))
         complete_count = int(frame[relevant].dropna().shape[0]) if relevant else int(len(frame))
@@ -225,14 +246,25 @@ def validate_plan_dataframe(plan: "AnalysisPlan", frame: pd.DataFrame) -> Valida
     )
     if expanded_task_count > SPLIT_TASK_HARD_LIMIT:
         issues.append(ValidationIssue(
-            code="expanded_task_limit_exceeded", field="split_by",
+            code="expanded_task_limit_exceeded",
+            field=(
+                "dependent_variables"
+                if plan.dependent_task_mode == "combinations"
+                else "split_by"
+            ),
             message=(f"当前计划会生成 {expanded_task_count} 个分析任务，超过安全上限 "
                      f"{SPLIT_TASK_HARD_LIMIT}；请减少因变量、因素组合或拆分组"),
             details={"task_count": expanded_task_count, "hard_limit": SPLIT_TASK_HARD_LIMIT},
         ))
     elif expanded_task_count > SPLIT_TASK_WARNING_THRESHOLD:
         issues.append(ValidationIssue(
-            code="large_expanded_task_plan", severity=IssueSeverity.WARNING, field="split_by",
+            code="large_expanded_task_plan",
+            severity=IssueSeverity.WARNING,
+            field=(
+                "dependent_variables"
+                if plan.dependent_task_mode == "combinations"
+                else "split_by"
+            ),
             message=f"当前计划将生成 {expanded_task_count} 个分析任务，执行和报告生成可能较慢",
             details={"task_count": expanded_task_count, "warning_threshold": SPLIT_TASK_WARNING_THRESHOLD},
         ))

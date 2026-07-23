@@ -292,7 +292,7 @@ _METHODS: dict[str, MethodSpec] = {
     ),
     "threeway_anova": MethodSpec(
         name="threeway_anova", label_zh="三因素方差分析", category="方差分析",
-        status=MethodStatus.EXPERIMENTAL, executor="threeway_anova", supports_emm=True, supports_diagnostic_plots=True,
+        status=MethodStatus.IMPLEMENTED, executor="threeway_anova", supports_emm=True, supports_diagnostic_plots=True,
         purpose="检验三个分类因素的主效应、两两交互和三阶交互。",
         variable_relationship="三个分类因素共同作用于一个连续因变量。",
         variable_requirements=(DV1, FACTOR3),
@@ -655,7 +655,7 @@ _METHODS: dict[str, MethodSpec] = {
     ),
     "repeated_measures_anova": MethodSpec(
         name="repeated_measures_anova", label_zh="单因素重复测量 ANOVA", category="重复测量与层级数据",
-        status=MethodStatus.EXPERIMENTAL, executor="repeated_measures_anova", supports_emm=True, supports_diagnostic_plots=True,
+        status=MethodStatus.IMPLEMENTED, executor="repeated_measures_anova", supports_emm=True, supports_diagnostic_plots=True,
         purpose="比较同一对象在三个或更多时间/条件下的均值，并建模对象内相关性。",
         variable_relationship="重复/时间因素作用于连续因变量，受试者 ID 连接同一对象的多次观测。",
         variable_requirements=(DV1, SUBJECT, REPEATED),
@@ -682,7 +682,7 @@ _METHODS: dict[str, MethodSpec] = {
     ),
     "linear_mixed_model": MethodSpec(
         name="linear_mixed_model", label_zh="线性混合效应模型", category="重复测量与层级数据",
-        status=MethodStatus.EXPERIMENTAL, executor="linear_mixed_model", supports_emm=True, supports_diagnostic_plots=True,
+        status=MethodStatus.IMPLEMENTED, executor="linear_mixed_model", supports_emm=True, supports_diagnostic_plots=True,
         purpose="在存在地块、对象、年份或地点内相关性时，同时估计固定效应和随机组间变异。",
         variable_relationship="连续/分类固定预测量作用于连续因变量，随机分组因素吸收群组内相关性。",
         variable_requirements=(DV1, VariableRequirement("covariates/fixed_factors", "固定预测量", "至少 1 个", "连续预测量作为协变量，分类预测量作为固定因素。"), RANDOM),
@@ -847,7 +847,7 @@ _MULTIFACTOR_ORDER = ParameterSpec(
 
 _METHODS["multifactor_anova"] = MethodSpec(
     name="multifactor_anova", label_zh="多因素方差分析（4–8 因素）", category="方差分析",
-    status=MethodStatus.EXPERIMENTAL, executor="multifactor_anova", supports_emm=True, supports_diagnostic_plots=True,
+    status=MethodStatus.IMPLEMENTED, executor="multifactor_anova", supports_emm=True, supports_diagnostic_plots=True,
     purpose="检验 4–8 个分类因素对一个连续因变量的主效应及全部阶次交互作用。",
     variable_relationship="所选阶数个分类因素同时进入一个完整析因模型，而不是拆成多个低阶模型。",
     variable_requirements=(
@@ -864,7 +864,7 @@ _METHODS["multifactor_anova"] = MethodSpec(
 
 _METHODS["multifactor_manova"] = MethodSpec(
     name="multifactor_manova", label_zh="多因素多元方差分析（4–8 因素 MANOVA）", category="多变量分析",
-    status=MethodStatus.EXPERIMENTAL, executor="multifactor_manova", supports_emm=True,
+    status=MethodStatus.IMPLEMENTED, executor="multifactor_manova", supports_emm=True,
     purpose="检验 4–8 个分类因素是否影响一组相关连续因变量的联合响应。",
     variable_relationship="多个连续因变量作为联合响应，所选阶数个分类因素以完整析因形式同时进入 MANOVA。",
     variable_requirements=(

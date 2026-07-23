@@ -266,6 +266,7 @@ def _calculate_pair_column(
         allowed_columns=["处理值", "对照值"],
         require_brackets=True,
         basic_arithmetic_only=True,
+        allow_abs=True,
     )
     computed = pd.to_numeric(computed, errors="coerce").replace([np.inf, -np.inf], np.nan)
     computed = computed.round(definition.decimal_places)

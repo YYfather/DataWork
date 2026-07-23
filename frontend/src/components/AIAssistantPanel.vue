@@ -285,7 +285,9 @@ function filteredContext() {
       'random_factors', 'random_slopes', 'estimate_marginal_means', 'emm_factors', 'subject_id',
       'repeated_factor', 'split_by', 'split_rules', 'method_parameters', 'factor_combinations_enabled',
       'factor_combination_order', 'factor_combination_min_order', 'factor_combination_max_order',
-      'factor_combination_labels', 'combination_p_adjust', 'calibration_enabled', 'calibration_method',
+      'factor_combination_labels', 'dependent_task_mode', 'dependent_combination_min_size',
+      'dependent_combination_max_size', 'dependent_combination_labels',
+      'combination_p_adjust', 'calibration_enabled', 'calibration_method',
       'calibration_columns', 'alpha', 'ss_type', 'run_id', 'project',
     ]
     for (const key of keys) output[key] = context[key]

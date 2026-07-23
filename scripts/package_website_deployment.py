@@ -184,11 +184,11 @@ def main() -> int:
                     shutil.copy2(source, destination)
 
         (extracted / "README.md").write_text(
-            f"""# DataWork {VERSION}（V1.5）· Web 部署分支
+            f"""# DataWork {VERSION}（V1.7）· Web 部署分支
 
 本分支用于服务器/网站部署，不是通用开发源码。
 
-- `DataWork服务/`：V1.5 Linux/宝塔运行服务，包含配对映射、配对派生列、联合因变量任务和公告提示。
+- `DataWork服务/`：V1.7 Linux/宝塔运行服务，包含配对映射、因变量组合、统一批量任务树和执行审核。
 - `主页完整副本/`：个人网站部署副本。
 - `主页增量覆盖/`：现有主页的 `/datework` 入口增量文件。
 - `宝塔配置/`：Nginx 反向代理和部署检查材料。

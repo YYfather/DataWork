@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from datawork.application.executors import get_executor
 from datawork.core.plan import AnalysisPlan
@@ -89,12 +90,12 @@ def test_numeric_coded_factor_is_forced_to_categorical() -> None:
 
 
 def test_manova_rejects_true_repeated_or_over_factorized_shape_at_engine_boundary() -> None:
-    result = manova(
-        _two_factor_frame(),
-        ["height", "biomass"],
-        ["treatment", "variety", "unsupported_third_factor"],
-    )
-    assert result is None
+    with pytest.raises(ValueError, match="缺少 MANOVA 分析列"):
+        manova(
+            _two_factor_frame(),
+            ["height", "biomass"],
+            ["treatment", "variety", "unsupported_third_factor"],
+        )
 
 
 def test_exact_zero_interaction_is_reported_instead_of_crashing() -> None:

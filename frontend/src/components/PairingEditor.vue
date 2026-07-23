@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 
 type ColumnProfile = { name: string; dtype: string; n_unique: number; n_missing: number; unique_values: string[] }
 type PairMappingDraft = { treatment: string; control: string }
@@ -11,6 +11,25 @@ type PairingDraft = {
   pair_id_column: string | null
   derived_columns: PairDerivedColumnDraft[]
 }
+
+const FORMULA_PRESETS = [
+  { value: '', label: '自定义公式', formula: '' },
+  { value: 'treatment', label: '处理值', formula: '[处理值]' },
+  { value: 'control', label: '对照值', formula: '[对照值]' },
+  { value: 'difference', label: '处理－对照', formula: '[处理值] - [对照值]' },
+  { value: 'reverse_difference', label: '对照－处理', formula: '[对照值] - [处理值]' },
+  { value: 'ratio', label: '处理/对照', formula: '[处理值] / [对照值]' },
+  { value: 'relative', label: '相对变化', formula: '([处理值] - [对照值]) / [对照值]' },
+  { value: 'relative_percent', label: '相对变化百分比', formula: '([处理值] - [对照值]) / [对照值] * 100' },
+  { value: 'abs_treatment', label: '处理值的数学绝对值', formula: 'abs([处理值])' },
+  { value: 'abs_control', label: '对照值的数学绝对值', formula: 'abs([对照值])' },
+  { value: 'abs_difference', label: '处理—对照绝对差', formula: 'abs([处理值] - [对照值])' },
+] as const
+const UNIT_SUGGESTIONS = [
+  '无单位', '%', '百分点', '比例（0–1）', '相对量',
+  '绝对量（保留原始尺度）', '差值', '比值', '倍数', '与来源列相同',
+]
+const DECIMAL_OPTIONS = Array.from({ length: 9 }, (_, index) => index)
 
 const props = defineProps<{
   columns: ColumnProfile[]
@@ -24,12 +43,15 @@ const emit = defineEmits<{
 }>()
 
 const derivedName = ref('')
+const derivedNameInput = ref<HTMLInputElement | null>(null)
 const derivedSource = ref('')
 const derivedFormula = ref('')
 const derivedUnit = ref('')
 const derivedDecimalPlaces = ref(8)
+const formulaPreset = ref('')
 const editingIndex = ref<number | null>(null)
 const localError = ref('')
+const continuingFromLast = ref(false)
 
 const numericColumns = computed(() => props.columns.filter(column => /(^|\b)(u?int|float|double|decimal|number)/i.test(column.dtype)))
 const groupLevels = computed(() => props.columns.find(column => column.name === props.modelValue?.group_column)?.unique_values ?? [])
@@ -100,24 +122,92 @@ function appendFormula(token: string) {
   localError.value = ''
 }
 
+function normalizeAbsoluteBars(formula: string) {
+  if (!formula.includes('|')) return formula
+  const parts = formula.split('|')
+  if (parts.length % 2 === 0) throw new Error('数学绝对值竖线必须成对出现')
+  let normalized = parts[0]
+  for (let index = 1; index < parts.length; index += 2) {
+    const inner = parts[index].trim()
+    if (!inner) throw new Error('数学绝对值表达式不能为空')
+    normalized += `abs(${inner})${parts[index + 1]}`
+  }
+  return normalized
+}
+
+function inferFormulaPreset(formula: string) {
+  const compact = formula.replace(/\s+/g, '')
+  return FORMULA_PRESETS.find(item => item.formula.replace(/\s+/g, '') === compact)?.value ?? ''
+}
+
+function applyFormulaPreset() {
+  const preset = FORMULA_PRESETS.find(item => item.value === formulaPreset.value)
+  if (preset?.formula) derivedFormula.value = preset.formula
+  localError.value = ''
+}
+
+function validateFormulaStructure(formula: string) {
+  const syntaxOnly = formula.replace(/\[[^\[\]]+\]/g, '').replace(/\babs\s*\(/g, '(')
+  if (!/^[\d\s+\-*/.()]*$/.test(syntaxOnly) || syntaxOnly.includes('**') || syntaxOnly.includes('//')) {
+    return '公式只允许四则运算、数值、括号和 abs(...)'
+  }
+  let depth = 0
+  for (const character of syntaxOnly) {
+    if (character === '(') depth += 1
+    if (character === ')') depth -= 1
+    if (depth < 0) return '公式括号必须成对出现'
+  }
+  return depth === 0 ? '' : '公式括号必须成对出现'
+}
+
 function clearDerivedDraft() {
   derivedName.value = ''
   derivedSource.value = ''
   derivedFormula.value = ''
   derivedUnit.value = ''
   derivedDecimalPlaces.value = 8
+  formulaPreset.value = ''
   editingIndex.value = null
   localError.value = ''
+  continuingFromLast.value = false
+}
+
+function prepareContinuation(item: PairDerivedColumnDraft) {
+  derivedName.value = item.name
+  derivedSource.value = item.source_column
+  derivedFormula.value = item.formula
+  derivedUnit.value = item.unit
+  derivedDecimalPlaces.value = item.decimal_places
+  formulaPreset.value = inferFormulaPreset(item.formula)
+  editingIndex.value = null
+  localError.value = ''
+  continuingFromLast.value = true
+  nextTick(() => {
+    derivedNameInput.value?.focus()
+    derivedNameInput.value?.select()
+  })
+}
+
+function duplicateDerived(index: number) {
+  const item = props.modelValue?.derived_columns[index]
+  if (item) prepareContinuation(item)
 }
 
 function saveDerived() {
   if (!props.modelValue) return
   const name = derivedName.value.trim()
-  const formula = derivedFormula.value.trim()
+  let formula = derivedFormula.value.trim()
+  try {
+    formula = normalizeAbsoluteBars(formula)
+  } catch (error) {
+    localError.value = error instanceof Error ? error.message : '数学绝对值公式无效'
+    return
+  }
   const references = Array.from(formula.matchAll(/\[([^\[\]]+)\]/g), match => match[1].trim())
   if (!name || !derivedSource.value || !formula) { localError.value = '请填写新列名、来源指标和公式'; return }
   if (!references.length || references.some(item => !['处理值', '对照值'].includes(item))) { localError.value = '公式只能引用 [处理值] 和 [对照值]，且至少引用一个'; return }
-  if (!/^[\d\s+\-*/.()]*$/.test(formula.replace(/\[[^\[\]]+\]/g, ''))) { localError.value = '公式只允许四则运算、数值和括号'; return }
+  const structureError = validateFormulaStructure(formula)
+  if (structureError) { localError.value = structureError; return }
   if (!Number.isInteger(derivedDecimalPlaces.value) || derivedDecimalPlaces.value < 0 || derivedDecimalPlaces.value > 8) { localError.value = '小数位数必须是 0 到 8 的整数'; return }
   if (editingIndex.value === null && props.modelValue.derived_columns.length >= 10) { localError.value = '一个配对方案最多生成 10 个计算列'; return }
   const forbidden = new Set([...props.columns.map(item => item.name), ...(props.ordinaryNames ?? [])])
@@ -129,7 +219,8 @@ function saveDerived() {
   if (editingIndex.value === null) next.push(value)
   else next[editingIndex.value] = value
   patch({ derived_columns: next })
-  clearDerivedDraft()
+  if (editingIndex.value === null) prepareContinuation(value)
+  else clearDerivedDraft()
 }
 
 function editDerived(index: number) {
@@ -140,7 +231,9 @@ function editDerived(index: number) {
   derivedFormula.value = item.formula
   derivedUnit.value = item.unit
   derivedDecimalPlaces.value = item.decimal_places
+  formulaPreset.value = inferFormulaPreset(item.formula)
   editingIndex.value = index
+  continuingFromLast.value = false
 }
 
 function removeDerived(index: number) {
@@ -171,11 +264,12 @@ function removeDerived(index: number) {
 
       <section class="pairing-block">
         <div class="pairing-block-head"><div><strong>配对计算列</strong><small>{{ modelValue.derived_columns.length }}/10；结果最多保留 8 位小数。</small></div></div>
-        <div class="pair-derived-list" v-if="modelValue.derived_columns.length"><article v-for="(item, index) in modelValue.derived_columns" :key="item.id"><div><strong>{{ item.name }}</strong><code>{{ item.formula }}</code><small>来源：{{ item.source_column }} · {{ item.decimal_places }} 位小数<template v-if="item.unit"> · 单位：{{ item.unit }}</template></small></div><div><button type="button" class="text-button" :disabled="busy" @click="editDerived(index)">编辑</button><button type="button" class="text-button danger-text" :disabled="busy" @click="removeDerived(index)">删除</button></div></article></div>
-        <div class="pair-derived-builder"><label class="field"><span>新列名称</span><input v-model="derivedName" :disabled="busy" maxlength="120" placeholder="例如：ΔDR7" /></label><label class="field"><span>来源数值指标</span><select v-model="derivedSource" :disabled="busy"><option value="">请选择</option><option v-for="column in numericColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select></label><label class="field"><span>单位/含义</span><input v-model="derivedUnit" :disabled="busy" maxlength="80" placeholder="例如：百分点" /></label><label class="field"><span>保留小数位</span><input v-model.number="derivedDecimalPlaces" :disabled="busy" type="number" min="0" max="8" step="1" /></label><label class="field formula-field"><span>公式</span><input v-model="derivedFormula" :disabled="busy" maxlength="10000" placeholder="[处理值] - [对照值]" /><small>可只使用一个操作数；禁止引用任何其他列。</small></label></div>
-        <div class="formula-palette"><button v-for="token in ['[处理值]', '[对照值]', '+', '-', '*', '/', '(', ')']" :key="token" type="button" class="formula-token" :disabled="busy" @click="appendFormula(token)">{{ token }}</button></div>
+        <div class="pair-derived-list" v-if="modelValue.derived_columns.length"><article v-for="(item, index) in modelValue.derived_columns" :key="item.id"><div><strong>{{ item.name }}</strong><code>{{ item.formula }}</code><small>来源：{{ item.source_column }} · {{ item.decimal_places }} 位小数<template v-if="item.unit"> · 单位/含义：{{ item.unit }}</template></small></div><div><button type="button" class="text-button" :disabled="busy || modelValue.derived_columns.length >= 10" @click="duplicateDerived(index)">以此新增</button><button type="button" class="text-button" :disabled="busy" @click="editDerived(index)">编辑</button><button type="button" class="text-button danger-text" :disabled="busy" @click="removeDerived(index)">删除</button></div></article></div>
+        <p v-if="continuingFromLast && editingIndex === null" class="continuation-note">已沿用上一列参数。名称已选中，请修改为唯一名称；也可以调整来源、公式、单位或精度。</p>
+        <div class="pair-derived-builder"><label class="field"><span>新列名称</span><input ref="derivedNameInput" v-model="derivedName" :disabled="busy" maxlength="120" placeholder="例如：ΔDR7" /><small>自由命名；不会提供常驻名称选项。</small></label><label class="field"><span>来源数值指标</span><select v-model="derivedSource" :disabled="busy"><option value="">请选择</option><option v-for="column in numericColumns" :key="column.name" :value="column.name">{{ column.name }}</option></select></label><label class="field"><span>单位/含义</span><input v-model="derivedUnit" :disabled="busy" list="pair-unit-suggestions" maxlength="80" placeholder="选择常用项或自行输入" /><datalist id="pair-unit-suggestions"><option v-for="option in UNIT_SUGGESTIONS" :key="option" :value="option" /></datalist><small>“绝对量”只描述原始尺度；数学取绝对值请使用 abs 公式。</small></label><label class="field"><span>保留小数位</span><select v-model.number="derivedDecimalPlaces" :disabled="busy"><option v-for="value in DECIMAL_OPTIONS" :key="value" :value="value">{{ value }} 位</option></select></label><label class="field formula-preset-field"><span>常用计算模板</span><select v-model="formulaPreset" :disabled="busy" @change="applyFormulaPreset"><option v-for="preset in FORMULA_PRESETS" :key="preset.value || 'custom'" :value="preset.value">{{ preset.label }}</option></select><small>模板只填充公式，不会覆盖单位/含义。</small></label><label class="field formula-field"><span>公式</span><input v-model="derivedFormula" :disabled="busy" maxlength="10000" placeholder="[处理值] - [对照值]" /><small>支持基础四则运算、括号、abs(x) 或 |x|；禁止引用任何其他列。</small></label></div>
+        <div class="formula-palette"><button v-for="token in ['[处理值]', '[对照值]', '+', '-', '*', '/', '(', ')', 'abs(']" :key="token" type="button" class="formula-token" :disabled="busy" @click="appendFormula(token)">{{ token }}</button></div>
         <p class="selection-warning" v-if="localError">{{ localError }}</p>
-        <div class="editor-actions"><button type="button" class="secondary" :disabled="busy" @click="clearDerivedDraft">清空</button><button type="button" class="primary" :disabled="busy || (editingIndex === null && modelValue.derived_columns.length >= 10)" @click="saveDerived">{{ editingIndex === null ? '添加计算列' : '保存计算列' }}</button></div>
+        <div class="editor-actions"><button type="button" class="secondary" :disabled="busy" @click="clearDerivedDraft">清空重新填写</button><button type="button" class="primary" :disabled="busy || (editingIndex === null && modelValue.derived_columns.length >= 10)" @click="saveDerived">{{ editingIndex === null ? '添加计算列' : '保存计算列' }}</button></div>
       </section>
       <p class="selection-warning" v-for="issue in structureIssues" :key="issue">{{ issue }}</p>
     </template>
@@ -183,5 +277,5 @@ function removeDerived(index: number) {
 </template>
 
 <style scoped>
-.pairing-editor{display:grid;gap:16px}.pairing-toggle{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}.pairing-toggle span{display:grid;gap:4px}.pairing-toggle small,.pairing-block small{color:var(--muted)}.pairing-grid,.pair-derived-builder{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.pairing-block{display:grid;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px}.pairing-block-head,.mapping-row,.pair-derived-list article,.editor-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}.pairing-block-head>div,.pair-derived-list article>div:first-child{display:grid;gap:3px}.mapping-row select{flex:1}.token-grid,.formula-palette{display:flex;flex-wrap:wrap;gap:8px}.pair-derived-list{display:grid;gap:8px}.pair-derived-list article{padding:10px;border-radius:10px;background:var(--surface)}.pair-derived-list code{display:block}.formula-field{grid-column:1/-1}@media(max-width:760px){.pairing-grid,.pair-derived-builder{grid-template-columns:1fr}.mapping-row{align-items:stretch;flex-direction:column}.mapping-row span{display:none}}
+.pairing-editor{display:grid;gap:16px}.pairing-toggle{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}.pairing-toggle span{display:grid;gap:4px}.pairing-toggle small,.pairing-block small{color:var(--muted)}.pairing-grid,.pair-derived-builder{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.pairing-block{display:grid;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px}.pairing-block-head,.mapping-row,.pair-derived-list article,.editor-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}.pairing-block-head>div,.pair-derived-list article>div:first-child{display:grid;gap:3px}.mapping-row select{flex:1}.token-grid,.formula-palette{display:flex;flex-wrap:wrap;gap:8px}.pair-derived-list{display:grid;gap:8px}.pair-derived-list article{padding:10px;border-radius:10px;background:var(--surface)}.pair-derived-list code{display:block}.formula-field{grid-column:1/-1}.continuation-note{margin:0;padding:10px 12px;border-radius:10px;background:var(--accent-soft);color:var(--text)}@media(max-width:760px){.pairing-grid,.pair-derived-builder{grid-template-columns:1fr}.mapping-row{align-items:stretch;flex-direction:column}.mapping-row span{display:none}}
 </style>

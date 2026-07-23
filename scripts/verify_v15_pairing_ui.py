@@ -1,4 +1,4 @@
-"""浏览器级核验：V1.5 配对编辑、角色限制、分层预检和即时执行。"""
+"""浏览器级核验：V1.5 配对语义在当前版本中的兼容回归。"""
 
 from __future__ import annotations
 
@@ -29,11 +29,14 @@ def main() -> None:
         if page.locator(".session-gate").is_visible():
             page.locator(".session-gate button").click()
             page.locator(".session-gate").wait_for(state="detached", timeout=10000)
+        notice = page.get_by_role("alertdialog")
+        if notice.count() and notice.is_visible():
+            notice.get_by_role("button", name="我已了解，谨慎使用").click()
 
         health = page.evaluate(
             """async () => await (await fetch('/api/health')).json()"""
         )
-        assert health["version"] == "1.5.0"
+        assert health["version"] == "1.7.0"
         features = health["features"]
         assert features["pairing_workflow"] is True
         assert features["dependent_variable_groups"] is True
@@ -64,7 +67,7 @@ def main() -> None:
             match_block.get_by_role("button", name=label, exact=True).click()
 
         editor.get_by_placeholder("例如：ΔDR7").fill("NDR7")
-        editor.locator(".pair-derived-builder select").select_option(
+        editor.locator(".pair-derived-builder select").nth(0).select_option(
             label="7d脱叶率"
         )
         editor.get_by_placeholder("[处理值] - [对照值]").fill("[对照值]")
@@ -108,7 +111,7 @@ def main() -> None:
 
     if console_errors:
         raise AssertionError("浏览器控制台错误: " + " | ".join(console_errors))
-    print("V1.5 配对编辑、角色限制、分层预检和即时执行均通过浏览器核验")
+    print("V1.5 配对语义在 V1.7 中的编辑、角色限制、预检和执行回归通过")
 
 
 if __name__ == "__main__":

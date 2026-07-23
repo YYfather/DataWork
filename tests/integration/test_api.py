@@ -13,6 +13,10 @@ CSV = "group,value\nA,1\nA,2\nA,3\nB,3\nB,4\nB,5\n".encode()
 def test_health_and_methods():
     health = client.get("/api/health")
     assert health.status_code == 200
+    features = health.json()["features"]
+    assert features["api_contract"] == "v1.7"
+    assert features["pairing_abs"] is True
+    assert features["dependent_variable_combinations"] is True
     methods = client.get("/api/methods").json()
     ancova = next(item for item in methods if item["name"] == "ancova")
     assert ancova["runnable"] is True
@@ -172,6 +176,7 @@ def test_phase3_capabilities_endpoint():
     assert payload["api_contract"] == "phase3-v1"
     assert payload["statistics"]["mixed_anova"] is True
     assert payload["statistics"]["random_slopes"] is True
+    assert payload["statistics"]["pairing_abs"] is True
     assert payload["statistics"]["method_count"] == payload["statistics"]["runnable_method_count"]
 
 

@@ -18,7 +18,7 @@ from datawork.core.method_registry import get_method
 from datawork.core.pairing import apply_pairing
 from datawork.core.plan import AnalysisPlan
 from datawork.core.splitting import build_split_groups
-from datawork.core.task_expansion import factor_tasks, outcome_tasks
+from datawork.core.task_expansion import factor_tasks, outcome_task_labels, outcome_tasks
 from datawork.core.provenance import (
     DatasetFingerprint,
     ReproducibilityMetadata,
@@ -258,16 +258,14 @@ class AnalysisService:
                 for group_info, raw_subset in group_items:
                     task_index += 1
                     info = dict(group_info)
-                    if outcome_task.name and plan.dependent_variable_groups:
-                        info = {
-                            "dependent_group": outcome_task.name,
-                            "dependent_variables": " | ".join(dependent_set),
-                            **info,
-                        }
-                    elif label_outcome:
-                        info = {"dependent_variable": dependent_set[0], **info}
-                    elif spec.dependent_mode == "joint" and dependent_set:
-                        info = {"dependent_variables": " | ".join(dependent_set), **info}
+                    info = {
+                        **outcome_task_labels(
+                            outcome_task,
+                            include_single=label_outcome,
+                            include_joint_all=spec.dependent_mode == "joint",
+                        ),
+                        **info,
+                    }
                     if plan.factor_combinations_enabled:
                         canonical_combination = " × ".join(factor_set)
                         info = {
@@ -319,8 +317,16 @@ class AnalysisService:
             summary_split_columns += ["task_id", "factor_combination", "combination_order"]
             if plan.factor_combination_labels:
                 summary_split_columns += ["factor_columns"]
-        if plan.dependent_variable_groups:
+        if plan.dependent_task_mode == "manual_groups":
             summary_split_columns += ["dependent_group", "dependent_variables"]
+        elif plan.dependent_task_mode == "combinations":
+            summary_split_columns += [
+                "dependent_combination",
+                "dependent_columns",
+                "dependent_combination_size",
+            ]
+            if plan.dependent_combination_labels:
+                summary_split_columns += ["dependent_combination_columns"]
         else:
             summary_split_columns += (["dependent_variable"] if label_outcome else [])
             summary_split_columns += (["dependent_variables"] if spec.dependent_mode == "joint" and plan.dependent_variables else [])
@@ -383,6 +389,10 @@ class AnalysisService:
             "calibration_enabled": False,
             "pairing": None,
             "dependent_variable_groups": [],
+            "dependent_task_mode": "joint_all",
+            "dependent_combination_min_size": None,
+            "dependent_combination_max_size": None,
+            "dependent_combination_labels": {},
             "derived_columns": [],
             "calibration_columns": [],
             "calibration_baseline_column": None,

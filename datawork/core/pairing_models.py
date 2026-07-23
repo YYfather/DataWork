@@ -1,8 +1,10 @@
-"""Pydantic contracts for V1.5 pairing and joint-outcome task groups."""
+"""Pydantic contracts for V1.6 pairing and joint-outcome task groups."""
 
 from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from .formula import normalize_absolute_value_syntax
 
 
 class PairMapping(BaseModel):
@@ -60,7 +62,10 @@ class PairDerivedColumn(BaseModel):
             raise ValueError("配对计算公式不能为空")
         if len(cleaned) > 10000:
             raise ValueError("配对计算公式不能超过 10000 个字符")
-        return cleaned
+        normalized = normalize_absolute_value_syntax(cleaned)
+        if len(normalized) > 10000:
+            raise ValueError("配对计算公式规范化后不能超过 10000 个字符")
+        return normalized
 
     @field_validator("unit")
     @classmethod

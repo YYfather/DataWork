@@ -12,7 +12,7 @@ from datawork.core.method_registry import get_method
 from datawork.core.plan import AnalysisPlan
 from datawork.core.splitting import SPLIT_TASK_HARD_LIMIT, SPLIT_TASK_WARNING_THRESHOLD, build_split_groups, projected_split_group_count
 from datawork.core.validation import validate_plan_dataframe
-from datawork.core.task_expansion import factor_tasks, outcome_tasks
+from datawork.core.task_expansion import factor_tasks, outcome_task_labels, outcome_tasks
 from datawork.application.analysis_service import AnalysisService
 
 
@@ -72,6 +72,17 @@ class PreflightService:
             "derived_columns": raw_plan.get("derived_columns") if isinstance(raw_plan.get("derived_columns"), list) else [],
             "pairing": raw_plan.get("pairing") if isinstance(raw_plan.get("pairing"), dict) else None,
             "dependent_variable_groups": raw_plan.get("dependent_variable_groups") if isinstance(raw_plan.get("dependent_variable_groups"), list) else [],
+            "dependent_task_mode": (
+                raw_plan.get("dependent_task_mode")
+                or (
+                    "manual_groups"
+                    if raw_plan.get("dependent_variable_groups")
+                    else "joint_all"
+                )
+            ),
+            "dependent_combination_min_size": raw_plan.get("dependent_combination_min_size"),
+            "dependent_combination_max_size": raw_plan.get("dependent_combination_max_size"),
+            "dependent_combination_labels": raw_plan.get("dependent_combination_labels", {}),
             "subject_id": _clean_scalar(raw_plan.get("subject_id")),
             "repeated_factor": _clean_scalar(raw_plan.get("repeated_factor")),
             "method_parameters": raw_plan.get("method_parameters") if isinstance(raw_plan.get("method_parameters"), dict) else {},
@@ -191,7 +202,7 @@ class PreflightService:
         return PreflightReport(
             ready=not any(issue.severity == IssueSeverity.ERROR for issue in issues),
             issues=issues, method=method_payload,
-            selections={key: normalized.get(key) for key in ["interface_mode", "dependent_variables", "dependent_variable_groups", "fixed_factors", "covariates", "random_factors", "random_slopes", "subject_id", "repeated_factor", "split_by", "split_rules", "derived_columns", "pairing", "alpha", "ss_type", "test_value", "method_parameters", "factor_combinations_enabled", "factor_combination_order", "factor_combination_min_order", "factor_combination_max_order", "factor_combination_labels", "cross_model_p_adjust", "combination_p_adjust", "estimate_marginal_means", "emm_factors", "contrast_correction", "diagnostic_plots", "calibration_enabled", "calibration_method", "calibration_columns", "calibration_baseline_column", "calibration_baseline_value"]},
+            selections={key: normalized.get(key) for key in ["interface_mode", "dependent_variables", "dependent_variable_groups", "dependent_task_mode", "dependent_combination_min_size", "dependent_combination_max_size", "dependent_combination_labels", "fixed_factors", "covariates", "random_factors", "random_slopes", "subject_id", "repeated_factor", "split_by", "split_rules", "derived_columns", "pairing", "alpha", "ss_type", "test_value", "method_parameters", "factor_combinations_enabled", "factor_combination_order", "factor_combination_min_order", "factor_combination_max_order", "factor_combination_labels", "cross_model_p_adjust", "combination_p_adjust", "estimate_marginal_means", "emm_factors", "contrast_correction", "diagnostic_plots", "calibration_enabled", "calibration_method", "calibration_columns", "calibration_baseline_column", "calibration_baseline_value"]},
             data_summary={
                 "rows": int(inspection_frame.shape[0]), "columns": int(inspection_frame.shape[1]),
                 "complete_rows_for_plan": int(inspection_frame[selected_columns].dropna().shape[0]) if selected_columns and all(column in inspection_frame.columns for column in selected_columns) else int(len(inspection_frame)),
@@ -228,14 +239,25 @@ class PreflightService:
         issue_codes = {issue.code for issue in issues}
         if expanded_task_count > SPLIT_TASK_HARD_LIMIT and "expanded_task_limit_exceeded" not in issue_codes:
             issues.append(ValidationIssue(
-                code="expanded_task_limit_exceeded", field="split_by",
+                code="expanded_task_limit_exceeded",
+                field=(
+                    "dependent_variables"
+                    if plan.dependent_task_mode == "combinations"
+                    else "split_by"
+                ),
                 message=(f"当前计划会生成 {expanded_task_count} 个分析任务，超过安全上限 "
                          f"{SPLIT_TASK_HARD_LIMIT}；请减少因变量、因素组合或拆分组"),
                 details={"task_count": expanded_task_count, "hard_limit": SPLIT_TASK_HARD_LIMIT},
             ))
         elif expanded_task_count > SPLIT_TASK_WARNING_THRESHOLD and "large_expanded_task_plan" not in issue_codes:
             issues.append(ValidationIssue(
-                code="large_expanded_task_plan", severity=IssueSeverity.WARNING, field="split_by",
+                code="large_expanded_task_plan",
+                severity=IssueSeverity.WARNING,
+                field=(
+                    "dependent_variables"
+                    if plan.dependent_task_mode == "combinations"
+                    else "split_by"
+                ),
                 message=f"当前计划将生成 {expanded_task_count} 个分析任务，执行和报告生成可能较慢",
                 details={"task_count": expanded_task_count, "warning_threshold": SPLIT_TASK_WARNING_THRESHOLD},
             ))
@@ -248,14 +270,16 @@ class PreflightService:
                 for labels, raw_subset in group_items:
                     task_id += 1
                     labels = dict(labels)
-                    if outcome_task.name and plan.dependent_variable_groups:
-                        labels = {
-                            "dependent_group": outcome_task.name,
-                            "dependent_variables": " | ".join(dependent_set),
-                            **labels,
-                        }
-                    elif spec.dependent_mode == "single" and len(dependent_tasks) > 1:
-                        labels = {"dependent_variable": dependent_set[0], **labels}
+                    labels = {
+                        **outcome_task_labels(
+                            outcome_task,
+                            include_single=(
+                                spec.dependent_mode == "single"
+                                and len(dependent_tasks) > 1
+                            ),
+                        ),
+                        **labels,
+                    }
                     if plan.factor_combinations_enabled:
                         canonical_combination = " × ".join(factor_set)
                         labels = {
@@ -300,8 +324,16 @@ class PreflightService:
             + (["factor_columns"] if plan.factor_combinations_enabled and plan.factor_combination_labels else [])
             if plan.factor_combinations_enabled else []
         )
-        if plan.dependent_variable_groups:
+        if plan.dependent_task_mode == "manual_groups":
             dimensions += ["dependent_group", "dependent_variables"]
+        elif plan.dependent_task_mode == "combinations":
+            dimensions += [
+                "dependent_combination",
+                "dependent_columns",
+                "dependent_combination_size",
+            ]
+            if plan.dependent_combination_labels:
+                dimensions += ["dependent_combination_columns"]
         elif spec.dependent_mode == "single" and len(dependent_tasks) > 1:
             dimensions += ["dependent_variable"]
         dimensions += plan.split_by
@@ -309,6 +341,12 @@ class PreflightService:
             "enabled": True,
             "split_by": plan.split_by,
             "factor_combinations_enabled": plan.factor_combinations_enabled,
+            "dependent_task_mode": plan.dependent_task_mode,
+            "dependent_combination_count": (
+                len(dependent_tasks)
+                if plan.dependent_task_mode == "combinations"
+                else 0
+            ),
             "factor_combination_count": len(factor_sets),
             "outcome_group_count": len(dependent_tasks),
             "factor_model_count": len(factor_sets),

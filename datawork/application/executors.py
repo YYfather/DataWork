@@ -382,8 +382,6 @@ def _execute_manova_core(frame: pd.DataFrame, plan: AnalysisPlan, expected_facto
         emm_factors=plan.emm_factors, contrast_correction=plan.contrast_correction,
         diagnostic_plots=plan.diagnostic_plots,
     )
-    if result is None:
-        raise RuntimeError("MANOVA 拟合失败；未执行静默降级。请检查共线性与设计矩阵。")
     return result
 
 

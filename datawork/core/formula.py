@@ -35,6 +35,23 @@ class UnsafeFormulaError(ValueError):
 _BRACKET_REFERENCE = re.compile(r"\[([^\[\]]+)\]")
 
 
+def normalize_absolute_value_syntax(formula: str) -> str:
+    """将非嵌套的 ``|表达式|`` 规范为安全白名单函数 ``abs(表达式)``。"""
+    expression = str(formula)
+    if "|" not in expression:
+        return expression
+    parts = expression.split("|")
+    if len(parts) % 2 == 0:
+        raise UnsafeFormulaError("数学绝对值竖线必须成对出现")
+    normalized: list[str] = [parts[0]]
+    for index in range(1, len(parts), 2):
+        inner = parts[index].strip()
+        if not inner:
+            raise UnsafeFormulaError("数学绝对值表达式不能为空")
+        normalized.extend((f"abs({inner})", parts[index + 1]))
+    return "".join(normalized)
+
+
 def formula_references(formula: str) -> list[str]:
     """返回可视化公式编辑器生成的 ``[列名]`` 引用，保持首次出现顺序。"""
     return list(dict.fromkeys(match.group(1).strip() for match in _BRACKET_REFERENCE.finditer(formula)))
@@ -47,12 +64,13 @@ def evaluate_formula(
     allowed_columns: list[str] | None = None,
     require_brackets: bool = False,
     basic_arithmetic_only: bool = False,
+    allow_abs: bool = False,
 ) -> pd.Series:
     """仅允许列名、数值常量、括号和基本算术运算。"""
     if not formula or not formula.strip():
         raise ValueError("公式不能为空")
 
-    expression = formula.strip()
+    expression = normalize_absolute_value_syntax(formula.strip()) if allow_abs else formula.strip()
     env: dict[str, pd.Series] = {}
 
     allowed = set(allowed_columns) if allowed_columns is not None else set(map(str, df.columns))
@@ -83,7 +101,12 @@ def evaluate_formula(
         raise ValueError(f"公式语法错误: {exc.msg}") from exc
 
     with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-        result = _evaluate_node(tree.body, env, basic_arithmetic_only=basic_arithmetic_only)
+        result = _evaluate_node(
+            tree.body,
+            env,
+            basic_arithmetic_only=basic_arithmetic_only,
+            allow_abs=allow_abs,
+        )
     if isinstance(result, pd.Series):
         return result.reindex(df.index)
     if isinstance(result, (int, float)):
@@ -171,6 +194,7 @@ def _evaluate_node(
     env: dict[str, pd.Series],
     *,
     basic_arithmetic_only: bool = False,
+    allow_abs: bool = False,
 ):
     if isinstance(node, ast.Constant):
         if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
@@ -188,8 +212,12 @@ def _evaluate_node(
         op = _BINARY_OPERATORS.get(type(node.op))
         if op is None:
             raise UnsafeFormulaError(f"不允许的运算符: {type(node.op).__name__}")
-        left = _evaluate_node(node.left, env, basic_arithmetic_only=basic_arithmetic_only)
-        right = _evaluate_node(node.right, env, basic_arithmetic_only=basic_arithmetic_only)
+        left = _evaluate_node(
+            node.left, env, basic_arithmetic_only=basic_arithmetic_only, allow_abs=allow_abs
+        )
+        right = _evaluate_node(
+            node.right, env, basic_arithmetic_only=basic_arithmetic_only, allow_abs=allow_abs
+        )
         return op(left, right)
 
     if isinstance(node, ast.UnaryOp):
@@ -197,8 +225,30 @@ def _evaluate_node(
         if op is None:
             raise UnsafeFormulaError(f"不允许的一元运算符: {type(node.op).__name__}")
         return op(
-            _evaluate_node(node.operand, env, basic_arithmetic_only=basic_arithmetic_only)
+            _evaluate_node(
+                node.operand,
+                env,
+                basic_arithmetic_only=basic_arithmetic_only,
+                allow_abs=allow_abs,
+            )
         )
 
-    # 明确拒绝函数调用、属性访问、下标、推导式和导入等全部其他语法。
+    if isinstance(node, ast.Call):
+        if (
+            not allow_abs
+            or not isinstance(node.func, ast.Name)
+            or node.func.id != "abs"
+            or len(node.args) != 1
+            or node.keywords
+        ):
+            raise UnsafeFormulaError("公式只允许单参数白名单函数 abs(...)")
+        value = _evaluate_node(
+            node.args[0],
+            env,
+            basic_arithmetic_only=basic_arithmetic_only,
+            allow_abs=allow_abs,
+        )
+        return np.abs(value)
+
+    # 明确拒绝其他函数调用、属性访问、下标、推导式和导入等全部其他语法。
     raise UnsafeFormulaError(f"公式中不允许使用 {type(node).__name__}")

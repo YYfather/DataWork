@@ -59,7 +59,7 @@ def manova(
     emm_factors: list[str] | None = None,
     contrast_correction: str = "holm",
     diagnostic_plots: bool = True,
-) -> StatisticalResult | None:
+) -> StatisticalResult:
     """执行一至八因素对象间 MANOVA。
 
     因素采用 Sum 对比并拟合完整析因模型，因此各阶设计分别检验
@@ -69,8 +69,10 @@ def manova(
     parameters = dict(parameters or {})
     factors = list(dict.fromkeys(between_cols))
     outcomes = list(dict.fromkeys(dv_cols))
-    if len(outcomes) < 2 or not 1 <= len(factors) <= 8:
-        return None
+    if len(outcomes) < 2:
+        raise ValueError("MANOVA 至少需要两个互不重复的连续因变量")
+    if not 1 <= len(factors) <= 8:
+        raise ValueError("MANOVA 需要 1–8 个互不重复的对象间分类因素")
 
     selected_keys = _selected_statistics(parameters)
     default_primary = selected_keys[0] if len(selected_keys) == 1 else "pillai"
@@ -86,18 +88,37 @@ def manova(
         selected_keys = [primary_key, *(key for key in selected_keys if key != primary_key)]
 
     required = outcomes + factors
-    if any(column not in df.columns for column in required):
-        return None
+    missing = [column for column in required if column not in df.columns]
+    if missing:
+        raise ValueError(f"数据中缺少 MANOVA 分析列: {missing}")
     df_clean = df[required].copy()
     for column in outcomes:
         df_clean[column] = pd.to_numeric(df_clean[column], errors="coerce")
     df_clean = df_clean.dropna(subset=required)
     if df_clean.empty:
-        return None
-    if any(df_clean[column].nunique(dropna=True) < 2 for column in factors):
-        return None
-    if any(np.isclose(float(df_clean[column].var(ddof=1)), 0.0) for column in outcomes):
-        return None
+        raise ValueError("MANOVA 删除缺失或非数值结果后没有完整案例")
+    invalid_factors = [
+        column for column in factors
+        if df_clean[column].nunique(dropna=True) < 2
+    ]
+    if invalid_factors:
+        raise ValueError(f"MANOVA 分类因素至少需要两个有效水平: {invalid_factors}")
+    constant_outcomes = [
+        column for column in outcomes
+        if np.isclose(float(df_clean[column].var(ddof=1)), 0.0)
+    ]
+    if constant_outcomes:
+        raise ValueError(f"MANOVA 因变量不能为常数或零方差: {constant_outcomes}")
+    centered_outcomes = (
+        df_clean[outcomes].to_numpy(dtype=float)
+        - df_clean[outcomes].to_numpy(dtype=float).mean(axis=0)
+    )
+    outcome_rank = int(np.linalg.matrix_rank(centered_outcomes))
+    if outcome_rank < len(outcomes):
+        raise RuntimeError(
+            f"MANOVA 联合响应矩阵秩不足：秩为 {outcome_rank}，因变量数为 {len(outcomes)}；"
+            "请移除完全线性相关或重复的因变量"
+        )
 
     rename_map: dict[str, str] = {}
     reverse_map: dict[str, str] = {}
@@ -118,13 +139,26 @@ def manova(
 
     try:
         model = SM_MANOVA.from_formula(formula, data=df_safe)
-        model_rank = int(np.linalg.matrix_rank(model.exog))
-        model_columns = int(model.exog.shape[1])
-        if model_rank < model_columns or model.exog.shape[0] <= model_rank:
-            return None
+    except Exception as exc:
+        raise RuntimeError(f"MANOVA 完整析因模型构造失败: {exc}") from exc
+    model_rank = int(np.linalg.matrix_rank(model.exog))
+    model_columns = int(model.exog.shape[1])
+    if model_rank < model_columns:
+        raise RuntimeError(
+            f"MANOVA 设计矩阵秩不足：秩为 {model_rank}，参数列为 {model_columns}；"
+            "请检查空单元、完全混杂或减少因素阶数"
+        )
+    if model.exog.shape[0] <= model_rank:
+        raise RuntimeError(
+            f"MANOVA 完整模型没有剩余自由度：完整案例 {model.exog.shape[0]}，"
+            f"模型秩 {model_rank}；请增加因素单元内重复观测"
+        )
+    try:
         multivariate_results = _safe_multivariate_results(model)
-    except Exception:
-        return None
+    except Exception as exc:
+        raise RuntimeError(
+            f"MANOVA 多元统计量计算失败，请检查响应协方差矩阵和样本量: {exc}"
+        ) from exc
 
     omnibus_tests: list[OmnibusTest] = []
     warnings: list[str] = []
@@ -167,7 +201,7 @@ def manova(
                 is_significant=p_value < alpha, significance_level=alpha,
             ))
     if not omnibus_tests:
-        return None
+        raise RuntimeError("MANOVA 未获得任何有限的多元总体检验结果")
 
     diagnostics: list[DiagnosticResult] = []
     residuals: np.ndarray | None = None
@@ -457,6 +491,7 @@ def manova(
             "outcome_correlation_matrix": correlation.round(6).to_dict(),
             "max_abs_outcome_correlation": max_abs_correlation,
             "outcome_matrix_condition_number": condition_number,
+            "outcome_matrix_rank": outcome_rank,
         },
         descriptive_stats=_manova_descriptive_stats(df_clean, outcomes, factors),
     )

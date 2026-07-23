@@ -4,10 +4,11 @@
 
 [`scripts/compare_r_reference.py`](../scripts/compare_r_reference.py) 使用 [`tests/reference/r/`](../tests/reference/r/) 中的固定数据与 R 脚本，对照派生列、专业拆分摘要及 Python 统计核心结果。R 与 Python 各自独立计算，再由对照入口比较统计量、自由度、p 值和派生结果。该链路仅用于开发期双重校对，不是应用运行、服务器部署或正式发布依赖。默认优先检测 `C:\Program Files\R\R-4.6.1\bin\Rscript.exe`，也可通过 `--rscript` 显式指定。
 
-当前包含两套参考：
+当前包含三套参考：
 
 - [`derived_split_factor.csv`](../tests/reference/r/derived_split_factor.csv)：验证自定义列、专业拆分摘要和单因素 ANOVA，R 参考见 [`validate_derived_split_factor.R`](../tests/reference/r/validate_derived_split_factor.R)。
 - [`agronomy_example_2.csv`](../tests/reference/r/agronomy_example_2.csv)：源自“测试数据2”，有效前 7 列与用户提供的农业数据一致；保留原始额外空列和一个噪声单元格，验证前 7 列读取、108 组 CK/T 配对、NDR/Delta 派生值、按年份拆分的 36 个 Type III 双因素 ANOVA 效应及 18 个 Wilks MANOVA 效应。R 参考见 [`validate_agronomy_example_2.R`](../tests/reference/r/validate_agronomy_example_2.R)，Python 应用服务回归见 [`test_agronomy_reference_dataset.py`](../tests/integration/test_agronomy_reference_dataset.py)。
+- [`validate_pairing_abs_v16.R`](../tests/reference/r/validate_pairing_abs_v16.R)：使用 6 组正数、负数、零与缺失值，对照 `abs(T)`、`abs(CK)`、`abs(T-CK)` 和 `abs((T-CK)/CK)`。Python 比较入口为 [`compare_pairing_abs_r.py`](../scripts/compare_pairing_abs_r.py)。
 
 此外，[`scripts/compare_all_methods_r.py`](../scripts/compare_all_methods_r.py) 会读取固定 golden manifest，调用 [`validate_all_methods.R`](../tests/reference/r/validate_all_methods.R)，逐一覆盖注册表中的全部 47 种可运行方法，使用独立 R 实现对照 Python 核心的统计量、p 值和自由度，并先检查方法集合完全一致。R 依赖安装在项目内忽略目录 `.r-validation-lib`，不进入运行依赖或发布包：
 
@@ -23,9 +24,12 @@ python -m pytest tests\integration\test_r_all_methods_reference.py -q
 
 ```powershell
 python scripts\compare_r_reference.py --rscript "C:\Program Files\R\R-4.6.1\bin\Rscript.exe"
+python scripts\compare_pairing_abs_r.py --rscript "C:\Program Files\R\R-4.6.1\bin\Rscript.exe"
 ```
 
-V1.5 配对映射、联合因变量组和完整事后分支已经纳入正式 Python 核心。2026-07-23 使用 R 4.6.1 完成验收：全部 47 种注册方法共比较 133 个字段，失败 0；农业参考数据得到 108 对，Python 与 R 对 36 个 Type III ANOVA 效应和 18 个 Wilks MANOVA 效应一致。联合因变量组、拆分与因素模型的任务展开由 Python 应用层验证，R 只提供独立统计值对照。
+V1.6 保留 V1.5 配对映射、联合因变量组和完整事后分支语义，并新增配对公式数学绝对值。2026-07-23 使用 R 4.6.1 完成验收：全部 47 种注册方法共比较 133 个字段，失败 0；农业参考数据得到 108 对，Python 与 R 对 36 个 Type III ANOVA 效应和 18 个 Wilks MANOVA 效应一致；V1.6 的 6 组绝对值数据、4 类公式逐项一致。联合因变量组、拆分与因素模型的任务展开由 Python 应用层验证，R 只提供独立统计值对照。
+
+V1.7 在同日重新运行全部 47 个注册方法的独立 R 对照，方法集合检查与全部统计字段比较均通过。因变量自动组合本身是确定性的应用层任务展开，不改变单个 MANOVA 的数值定义；组合计数、稳定顺序、V1.5/V1.6 迁移、因素/拆分笛卡尔积、200/1000 阈值、API、报告和 Excel 标识由 Python 单元与集成测试验证。MANOVA 新增的秩与残差自由度检查只把原先含义不明的失败转换为明确错误，不修改可识别模型的统计量。
 
 每次运行自动生成：
 

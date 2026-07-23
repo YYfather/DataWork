@@ -213,6 +213,10 @@ class AnalysisPlan(BaseModel):
     derived_columns: list[DerivedColumn] = Field(default_factory=list)
     pairing: PairingPlan | None = None
     dependent_variable_groups: list[DependentVariableGroup] = Field(default_factory=list)
+    dependent_task_mode: Literal["joint_all", "manual_groups", "combinations"] = "joint_all"
+    dependent_combination_min_size: int | None = None
+    dependent_combination_max_size: int | None = None
+    dependent_combination_labels: dict[str, str] = Field(default_factory=dict)
     method: str
     alpha: float = 0.05
     ss_type: Literal[1, 2, 3] = 3
@@ -257,9 +261,9 @@ class AnalysisPlan(BaseModel):
         cleaned = str(value).strip()
         return cleaned or None
 
-    @field_validator("factor_combination_labels")
+    @field_validator("factor_combination_labels", "dependent_combination_labels")
     @classmethod
-    def _clean_factor_combination_labels(cls, value: dict[str, str]) -> dict[str, str]:
+    def _clean_combination_labels(cls, value: dict[str, str]) -> dict[str, str]:
         cleaned: dict[str, str] = {}
         for raw_key, raw_label in value.items():
             key = str(raw_key).strip()
@@ -267,9 +271,30 @@ class AnalysisPlan(BaseModel):
             if not key or not label:
                 continue
             if len(label) > 120:
-                raise ValueError("因素组合名称不能超过 120 个字符")
+                raise ValueError("组合名称不能超过 120 个字符")
             cleaned[key] = label
         return cleaned
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_dependent_task_mode(cls, value: Any) -> Any:
+        """Infer the V1.7 outcome mode for V1.6 and older saved plans."""
+        if not isinstance(value, dict):
+            return value
+        migrated = dict(value)
+        if "dependent_task_mode" not in migrated:
+            migrated["dependent_task_mode"] = (
+                "manual_groups" if migrated.get("dependent_variable_groups") else "joint_all"
+            )
+        elif (
+            migrated.get("dependent_task_mode") == "manual_groups"
+            and not migrated.get("dependent_variable_groups")
+        ):
+            # A copied/edited V1.7 payload can legitimately remove the last
+            # manual group before changing method. An empty manual mode has no
+            # statistical meaning, so normalize it to the legacy joint default.
+            migrated["dependent_task_mode"] = "joint_all"
+        return migrated
 
     @field_validator("alpha")
     @classmethod
@@ -303,6 +328,10 @@ class AnalysisPlan(BaseModel):
             self.derived_columns = []
             self.pairing = None
             self.dependent_variable_groups = []
+            self.dependent_task_mode = "joint_all"
+            self.dependent_combination_min_size = None
+            self.dependent_combination_max_size = None
+            self.dependent_combination_labels = {}
             self.estimate_marginal_means = False
             self.emm_factors = []
             self.contrast_correction = "holm"
@@ -404,7 +433,13 @@ class AnalysisPlan(BaseModel):
         if spec.max_dependent_vars is not None and len(self.dependent_variables) > spec.max_dependent_vars:
             if spec.dependent_mode != "single" or not spec.supports_batch:
                 raise ValueError(f"{spec.label_zh} 最多支持 {spec.max_dependent_vars} 个因变量")
-        if self.dependent_variable_groups:
+        if self.dependent_task_mode != "joint_all" and self.interface_mode != "professional":
+            raise ValueError("联合因变量分组或组合仅在专业模式开放")
+        if self.dependent_task_mode != "joint_all" and spec.dependent_mode != "joint":
+            raise ValueError(f"{spec.label_zh} 不是联合响应方法，不能设置联合因变量任务")
+        if self.dependent_task_mode == "manual_groups":
+            if not self.dependent_variable_groups:
+                raise ValueError("手工联合因变量分组模式至少需要一个组")
             if self.interface_mode != "professional":
                 raise ValueError("联合因变量分组仅在专业模式开放")
             if spec.dependent_mode != "joint":
@@ -431,6 +466,61 @@ class AnalysisPlan(BaseModel):
                     "启用联合因变量分组后，所有已选因变量必须且只能归入一个组"
                     f"；未分组={sorted(selected - grouped)}，未选择={sorted(grouped - selected)}"
                 )
+            self.dependent_combination_min_size = None
+            self.dependent_combination_max_size = None
+            self.dependent_combination_labels = {}
+        elif self.dependent_task_mode == "combinations":
+            if self.dependent_variable_groups:
+                raise ValueError("自动因变量组合与手工联合因变量分组不能同时启用")
+            outcome_count = len(self.dependent_variables)
+            minimum_size = int(self.dependent_combination_min_size or spec.min_dependent_vars)
+            maximum_size = int(self.dependent_combination_max_size or minimum_size)
+            if minimum_size < spec.min_dependent_vars:
+                raise ValueError(
+                    f"因变量组合大小不能小于 {spec.label_zh} 要求的 {spec.min_dependent_vars}"
+                )
+            if maximum_size < minimum_size:
+                raise ValueError("因变量组合最小大小不能大于最大大小")
+            if maximum_size > outcome_count:
+                raise ValueError("因变量组合大小不能超过已选因变量数量")
+            combination_count = sum(
+                comb(outcome_count, size)
+                for size in range(minimum_size, maximum_size + 1)
+            )
+            if combination_count > 1000:
+                raise ValueError(
+                    f"当前因变量设置会生成 {combination_count} 个组合，超过安全上限 1000；"
+                    "请减少候选因变量或缩小组合大小范围"
+                )
+            self.dependent_combination_min_size = minimum_size
+            self.dependent_combination_max_size = maximum_size
+            valid_combinations = [
+                " + ".join(items)
+                for size in range(minimum_size, maximum_size + 1)
+                for items in combinations(self.dependent_variables, size)
+            ]
+            unknown_labels = sorted(
+                set(self.dependent_combination_labels) - set(valid_combinations)
+            )
+            if unknown_labels:
+                raise ValueError(f"组合名称包含当前计划不存在的因变量组合: {unknown_labels}")
+            self.dependent_combination_labels = {
+                key: label
+                for key, label in self.dependent_combination_labels.items()
+                if label != key
+            }
+            final_labels = [
+                self.dependent_combination_labels.get(key, key)
+                for key in valid_combinations
+            ]
+            if len(final_labels) != len(set(final_labels)):
+                raise ValueError("因变量组合名称不能重复，也不能与其他组合的默认名称相同")
+        else:
+            if self.dependent_variable_groups:
+                raise ValueError("联合因变量组存在时，任务模式必须为 manual_groups")
+            self.dependent_combination_min_size = None
+            self.dependent_combination_max_size = None
+            self.dependent_combination_labels = {}
         if self.factor_combinations_enabled:
             if spec.max_fixed_factors == 0:
                 raise ValueError(f"{spec.label_zh} 不使用分类因素，不能启用因素组合实验")
@@ -655,7 +745,7 @@ class AnalysisPlan(BaseModel):
             self.split_by
             or multiple_outcomes
             or self.factor_combinations_enabled
-            or self.dependent_variable_groups
+            or self.dependent_task_mode in {"manual_groups", "combinations"}
         )
 
     @property

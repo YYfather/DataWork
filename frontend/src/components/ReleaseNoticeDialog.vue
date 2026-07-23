@@ -15,23 +15,24 @@ const emit = defineEmits<{ acknowledge: [] }>()
     >
       <div class="release-notice-topline">
         <span class="release-notice-kicker">功能公告</span>
-        <span class="release-notice-version">V1.5 · 测试修补阶段</span>
+        <span class="release-notice-version">V1.7 · 多元批量计算提示</span>
       </div>
 
       <div class="release-notice-heading">
         <span class="release-notice-mark" aria-hidden="true">!</span>
         <div>
-          <h2 id="release-notice-title">V1.5 配对列仍在测试修补阶段</h2>
+          <h2 id="release-notice-title">V1.7 因变量组合会生成多个独立 MANOVA 模型</h2>
           <p id="release-notice-description">
-            请谨慎使用。处理—对照配对、配对派生列与联合因变量工作流仍在持续校验和修补。
+            专业模式可按无序组合批量计算联合因变量；执行前请核对组合范围、任务总数与跨模型校正。
           </p>
         </div>
       </div>
 
       <ul>
-        <li>执行前请在审核窗口确认有效配对数、未匹配或未映射记录，以及最终拆分任务。</li>
-        <li>用于正式研究结论前，请保留原始数据，并与人工检查或 R/Python 参考结果交叉复核。</li>
-        <li>如果审核数量或分组关系异常，请停止分析并反馈，不要直接采用计算结果。</li>
+        <li><code>Y1 + Y2</code> 与 <code>Y2 + Y1</code> 只生成一次；同一因变量可以进入不同组合。</li>
+        <li>任务总数等于因变量任务、因素模型和实际拆分组的乘积；超过 200 强警告，超过 1000 阻止执行。</li>
+        <li>默认使用 Holm 跨模型校正；每个组合仍保留独立的总体检验、单变量跟进、事后比较和诊断。</li>
+        <li>用于正式研究结论前，请在预检中确认组合成员、完整案例、设计矩阵与失败任务。</li>
       </ul>
 
       <div class="release-notice-actions">
