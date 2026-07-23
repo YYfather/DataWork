@@ -190,7 +190,7 @@ def _infer_column_role(
 def _detect_wide_format(columns: list[ColumnProfile]) -> Optional[str]:
     """
     检测是否需要在宽格式中转换。
-    
+
     查找模式: "XdYYY" 或 "YYY_Xd" 或 "YYY d X" 风格的列名组。
     例如: "7d脱叶率", "14d脱叶率", "21d脱叶率" → 时间变量
     """
