@@ -46,10 +46,10 @@ function save() {
   const sources = references(cleanFormula)
   const expressionWithoutColumns = cleanFormula.replace(/\[[^\[\]]+\]/g, '')
   if (!cleanName) { localError.value = '请输入自定义列名称'; return }
-  if (!cleanFormula || !sources.length) { localError.value = '请至少选择一个原始数值列'; return }
-  if (sources.length > MAX_SOURCE_COLUMNS) { localError.value = `单个自定义列最多引用 ${MAX_SOURCE_COLUMNS} 个原始数值列`; return }
+  if (!cleanFormula || !sources.length) { localError.value = '请至少选择一个可用数值列'; return }
+  if (sources.length > MAX_SOURCE_COLUMNS) { localError.value = `单个自定义列最多引用 ${MAX_SOURCE_COLUMNS} 个可用数值列`; return }
   if (editingIndex.value === null && props.modelValue.length >= MAX_DERIVED_COLUMNS) { localError.value = `一个分析计划最多创建 ${MAX_DERIVED_COLUMNS} 个自定义列`; return }
-  if (!/^[\d\s+\-*/%.()]+$/.test(expressionWithoutColumns)) {
+  if (!/^[\d\s+\-*/.()]+$/.test(expressionWithoutColumns)) {
     localError.value = '公式只允许列、数字、基础运算符和括号'
     return
   }
@@ -59,7 +59,7 @@ function save() {
   if (duplicate >= 0) { localError.value = '自定义列名称不能重复'; return }
   const numericNames = new Set(numericColumns.value.map(column => column.name))
   const invalid = sources.filter(column => !numericNames.has(column))
-  if (invalid.length) { localError.value = `只能引用原始数值列：${invalid.join('、')}`; return }
+  if (invalid.length) { localError.value = `只能引用当前可用的数值列：${invalid.join('、')}`; return }
 
   const next = [...props.modelValue]
   const value = { name: cleanName, formula: cleanFormula, source_columns: sources }
@@ -96,10 +96,10 @@ function remove(index: number) {
     </div>
     <div class="derived-builder">
       <label class="field"><span>新列名称</span><input v-model="name" :disabled="busy" maxlength="120" placeholder="例如：增长率" /></label>
-      <label class="field derived-formula-field"><span>计算公式</span><input v-model="formula" :disabled="busy" maxlength="10000" placeholder="从下方选择列和运算符，可键入数值常量" /><small>最多引用 10 个原始数值列；结果实际保留 8 位小数；不能引用其他自定义列。</small></label>
+      <label class="field derived-formula-field"><span>计算公式</span><input v-model="formula" :disabled="busy" maxlength="10000" placeholder="从下方选择列和运算符，可键入数值常量" /><small>最多引用 10 个可用数值列；结果实际保留 8 位小数；不能引用其他普通自定义列。</small></label>
       <div class="formula-palette">
-        <div><strong>原始数值列</strong><button v-for="column in numericColumns" :key="column.name" type="button" class="formula-token" :disabled="busy" @click="appendToken(`[${column.name}]`)">{{ column.name }}</button></div>
-        <div><strong>运算符与括号</strong><button v-for="token in ['+', '-', '*', '/', '**', '%', '(', ')']" :key="token" type="button" class="formula-token operator" :disabled="busy" @click="appendToken(token)">{{ token }}</button></div>
+        <div><strong>可用数值列</strong><button v-for="column in numericColumns" :key="column.name" type="button" class="formula-token" :disabled="busy" @click="appendToken(`[${column.name}]`)">{{ column.name }}</button></div>
+        <div><strong>运算符与括号</strong><button v-for="token in ['+', '-', '*', '/', '(', ')']" :key="token" type="button" class="formula-token operator" :disabled="busy" @click="appendToken(token)">{{ token }}</button></div>
       </div>
       <p class="selection-warning" v-if="localError">{{ localError }}</p>
       <p class="selection-warning" v-for="warning in warnings ?? []" :key="warning">{{ warning }}</p>

@@ -442,6 +442,12 @@ def create_app(
             "version": _package_version(),
             "python": platform.python_version(),
             "platform": platform.system(),
+            "features": {
+                "api_contract": "v1.5",
+                "pairing_workflow": True,
+                "dependent_variable_groups": True,
+                "branch_complete_posthoc": True,
+            },
             "workspace": {
                 "enabled": True,
                 "storage": "sqlite",
@@ -568,6 +574,9 @@ def create_app(
                 "mixed_anova": True,
                 "random_slopes": True,
                 "diagnostic_plots": True,
+                "pairing_workflow": True,
+                "dependent_variable_groups": True,
+                "branch_complete_posthoc": True,
             },
             "desktop": {
                 "sidecar_ready": True,

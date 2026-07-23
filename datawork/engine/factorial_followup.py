@@ -56,12 +56,14 @@ def conditional_simple_effects(
     posthoc_methods: str | list[str] | tuple[str, ...] = "tukey",
     control_group: str | None = None,
     outcome_label: str = "",
+    compare_all: bool = False,
 ) -> tuple[list[SimpleEffectResult], list[EMMeans], list[ContrastResult], list[SignificanceLetterGroup], list[str]]:
     """按显著交互的最高阶结构计算简单效应。
 
     二阶交互 A×B：分别检验 A|B 和 B|A；若模型还有第三因素 C，C 仍保留在
     条件子模型中。三阶交互 A×B×C：分别在另外两个因素的每个水平组合下检验
-    剩余因素。所有简单效应 p 值按同一假设族进行校正，显著后再做条件内 EMM
+    剩余因素。所有简单效应 p 值按同一假设族进行校正；默认仅显著后做条件内 EMM，
+    ``compare_all`` 用于预先指定的完整分支比较。
     成对比较。
     """
     if ss_type not in {1, 2, 3}:
@@ -177,7 +179,7 @@ def conditional_simple_effects(
     letters_all: list[SignificanceLetterGroup] = []
 
     for row, fitted, subset, tested_factor, remaining in model_cache:
-        if str(row["effect"]) not in significant_keys:
+        if not compare_all and str(row["effect"]) not in significant_keys:
             continue
         try:
             emmeans, raw_contrasts = estimated_marginal_means(

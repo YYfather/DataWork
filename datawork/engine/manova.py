@@ -221,10 +221,13 @@ def manova(
     follow_up_correction = str(parameters.get("follow_up_correction", "holm")).strip().lower()
     posthoc_methods = normalize_posthoc_methods(parameters.get("posthoc_methods", ["tukey"]), default="tukey")
     control_group = str(parameters.get("control_group", "")).strip() or None
+    posthoc_scope = str(parameters.get("posthoc_scope", "significance_gated")).strip().lower()
     if follow_up_mode not in {"none", "significant", "all"}:
         raise ValueError("follow_up_mode 必须为 none、significant 或 all")
     if follow_up_ss_type not in {1, 2, 3}:
         raise ValueError("MANOVA 单变量跟进平方和类型必须为 1、2 或 3")
+    if posthoc_scope not in {"significance_gated", "branch_all"}:
+        raise ValueError("posthoc_scope 必须为 significance_gated 或 branch_all")
 
     follow_rows: list[dict[str, object]] = []
     fitted_models: dict[str, object] = {}
@@ -288,6 +291,7 @@ def manova(
                 df_clean, outcome, factors, interactions, alpha=alpha,
                 ss_type=follow_up_ss_type, p_adjust=simple_effect_correction,
                 posthoc_methods=posthoc_methods, control_group=control_group, outcome_label=outcome,
+                compare_all=posthoc_scope == "branch_all",
             )
             simple_effects.extend(outcome_simple)
             emmeans_all.extend(outcome_emm)
@@ -302,31 +306,43 @@ def manova(
 
     # 无显著交互时，或主效应未卷入任何显著交互时，才执行边际主效应比较。
     if posthoc_methods != ["none"] and follow_up_tests:
-        for item in follow_up_tests:
-            if not item.significant or "×" in item.effect or item.effect not in factors:
+        if posthoc_scope == "branch_all":
+            marginal_candidates = [
+                (outcome, factor)
+                for outcome in outcomes
+                for factor in factors
+                if factor not in blocked_main_factors.get(outcome, set())
+            ]
+        else:
+            marginal_candidates = [
+                (item.outcome, item.effect)
+                for item in follow_up_tests
+                if item.significant
+                and "×" not in item.effect
+                and item.effect in factors
+                and item.effect not in blocked_main_factors.get(item.outcome, set())
+            ]
+        for outcome, factor in marginal_candidates:
+            if int(df_clean[factor].nunique()) < 2:
                 continue
-            if item.effect in blocked_main_factors.get(item.outcome, set()):
-                continue
-            if int(df_clean[item.effect].nunique()) < 2:
-                continue
-            safe_factor = rename_map[item.effect]
-            uni_model = fitted_models[item.outcome]
+            safe_factor = rename_map[factor]
+            uni_model = fitted_models[outcome]
             emmeans, raw_contrasts = estimated_marginal_means(
                 uni_model, df_safe, target_factors=[safe_factor], categorical_factors=safe_factors,
                 covariates=[], alpha=alpha, correction="none", df_resid=float(uni_model.df_resid),
             )
             for emm in emmeans:
-                emm.group = emm.group.replace(safe_factor, item.effect)
-                emm.levels = {item.effect if key == safe_factor else reverse_map.get(key, key): value for key, value in emm.levels.items()}
-                emm.source = f"MANOVA 跟进模型 EMM：{item.outcome}"
+                emm.group = emm.group.replace(safe_factor, factor)
+                emm.levels = {factor if key == safe_factor else reverse_map.get(key, key): value for key, value in emm.levels.items()}
+                emm.source = f"MANOVA 跟进模型 EMM：{outcome}"
             adjusted_contrasts, letter_rows, method_warnings = apply_posthoc_methods_to_emm(
                 emmeans, raw_contrasts, methods=posthoc_methods, alpha=alpha,
-                factor=item.effect, outcome=item.outcome,
-                control_group=resolve_control_group(control_group, item.effect),
-                contrast_prefix=f"[{item.outcome} | {item.effect}] ",
+                factor=factor, outcome=outcome,
+                control_group=resolve_control_group(control_group, factor),
+                contrast_prefix=f"[{outcome} | {factor}] ",
             )
             for contrast in adjusted_contrasts:
-                contrast.contrast = contrast.contrast.replace(safe_factor, item.effect)
+                contrast.contrast = contrast.contrast.replace(safe_factor, factor)
             emmeans_all.extend(emmeans)
             contrasts.extend(adjusted_contrasts)
             significance_letters.extend(letter_rows)
@@ -432,7 +448,7 @@ def manova(
             "selected_multivariate_test_labels": selected_labels,
             "follow_up_mode": follow_up_mode, "follow_up_ss_type": follow_up_ss_type,
             "follow_up_correction": follow_up_correction, "posthoc_methods": posthoc_methods,
-            "simple_effect_correction": simple_effect_correction,
+            "simple_effect_correction": simple_effect_correction, "posthoc_scope": posthoc_scope,
             "estimate_marginal_means": estimate_marginal_means, "emm_factors": requested_emm_factors,
             "contrast_correction": contrast_correction, "diagnostic_plots_requested": diagnostic_plots,
             "box_m_alpha": box_m_alpha,

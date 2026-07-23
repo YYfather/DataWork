@@ -7,6 +7,9 @@ STYLE = (ROOT / "frontend/src/style.css").read_text(encoding="utf-8")
 PREFLIGHT = (ROOT / "frontend/src/components/PreflightDialog.vue").read_text(encoding="utf-8")
 ASSISTANT = (ROOT / "frontend/src/components/AIAssistantPanel.vue").read_text(encoding="utf-8")
 AI_RESULT_REPORT = (ROOT / "frontend/src/components/AIResultReportPanel.vue").read_text(encoding="utf-8")
+PAIRING = (ROOT / "frontend/src/components/PairingEditor.vue").read_text(encoding="utf-8")
+OUTCOME_GROUPS = (ROOT / "frontend/src/components/OutcomeGroupEditor.vue").read_text(encoding="utf-8")
+RELEASE_NOTICE = (ROOT / "frontend/src/components/ReleaseNoticeDialog.vue").read_text(encoding="utf-8")
 
 
 def test_unbounded_method_roles_are_not_hidden():
@@ -44,7 +47,7 @@ def test_cross_model_correction_and_repeat_runs_require_visible_confirmation():
     assert "多模型运行确认" in PREFLIGHT
     assert "重复运行提醒" in PREFLIGHT
     assert "历史运行不会被自动拼接成同一个校正家族" in PREFLIGHT
-    assert "确认并运行 ${count} 个模型" in PREFLIGHT
+    assert "确认并运行 ${taskCount.value} 个任务" in PREFLIGHT
     assert ".cross-model-correction-panel" in STYLE
     assert ".preflight-section.repeat-run-alert" in STYLE
     assert "判断 p 与原始 p 完全相同" in APP
@@ -262,7 +265,7 @@ def test_release_interaction_polish_keeps_state_transparent_and_keyboard_accessi
     assert "combination-list" in APP
     assert "handleGlobalKeydown" in APP
     assert "event.key !== 'Escape'" in APP
-    assert "DATAWORK {{ health?.version" in APP
+    assert "DATAWORK {{ releaseVersionLabel }}" in APP
     assert ".workflow-strip" in STYLE
     assert ".state-notice.stale" in STYLE
 
@@ -479,3 +482,47 @@ def test_batch_and_combination_reports_expose_all_merged_exports():
     assert "workspaceReportLinks?.markdown" in APP
     assert "workspaceReportLinks?.json" in APP
     assert 'v-if="result.kind === \'single\'" type="button" class="secondary compact"' not in APP
+
+
+def test_v15_pairing_groups_and_hierarchical_preflight_are_visible_and_guarded():
+    assert "supportsV15Workflow" in APP
+    assert "health.value?.features?.pairing_workflow === true" in APP
+    assert "health.value?.features?.dependent_variable_groups === true" in APP
+    assert "当前后端不支持 V1.5 配对与联合因变量组" in APP
+    assert "<PairingEditor" in APP
+    assert "<OutcomeGroupEditor" in APP
+    assert "pairing: professional ? pairingPlan.value : null" in APP
+    assert "dependent_variable_groups: professional ? dependentVariableGroups.value : []" in APP
+    assert "pairingPlan.value = null" in APP
+    assert "dependentVariableGroups.value = []" in APP
+    assert "处理—对照配对计算" in PAIRING
+    assert "一一映射；对照不可复用" in PAIRING
+    assert "整个计划改为一行一对的处理侧数据域" in PAIRING
+    assert "/10；结果最多保留 8 位小数" in PAIRING
+    assert "[\\d\\s+\\-*/.()]*$" in PAIRING
+    assert "联合因变量组" in OUTCOME_GROUPS
+    assert "同一因变量不能重复进入多个组" in OUTCOME_GROUPS
+    assert "尚未分组" in OUTCOME_GROUPS
+    assert "report.pairing_summary?.enabled" in PREFLIGHT
+    assert "原始行" in PREFLIGHT
+    assert "匹配分组" in PREFLIGHT
+    assert "有效配对" in PREFLIGHT
+    assert "拆分与配对关系" in PREFLIGHT
+    assert "report.task_hierarchy?.enabled" in PREFLIGHT
+    assert "因变量任务" in PREFLIGHT
+    assert "最终任务" in PREFLIGHT
+    assert "任务键" in PREFLIGHT
+
+
+def test_v15_pairing_test_notice_is_mandatory_on_each_page_load():
+    assert "const pairingTestNoticeOpen = ref(true)" in APP
+    assert "<ReleaseNoticeDialog" in APP
+    assert '@acknowledge="pairingTestNoticeOpen = false"' in APP
+    assert "version === '1.5.0' || version === '1.5'" in APP
+    assert "return 'V1.5'" in APP
+    assert "DATAWORK {{ releaseVersionLabel }}" in APP
+    assert 'role="alertdialog"' in RELEASE_NOTICE
+    assert "V1.5 配对列仍在测试修补阶段" in RELEASE_NOTICE
+    assert "请谨慎使用" in RELEASE_NOTICE
+    assert "仍在持续校验和修补" in RELEASE_NOTICE
+    assert "我已了解，谨慎使用" in RELEASE_NOTICE

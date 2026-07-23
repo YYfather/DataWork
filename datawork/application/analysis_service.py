@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from itertools import combinations
 from typing import Any
 from uuid import uuid4
 
@@ -16,8 +15,10 @@ from datawork.application.executors import get_executor
 from datawork.core.errors import DataWorkError, ErrorCode
 from datawork.core.formula import apply_derived_columns
 from datawork.core.method_registry import get_method
+from datawork.core.pairing import apply_pairing
 from datawork.core.plan import AnalysisPlan
 from datawork.core.splitting import build_split_groups
+from datawork.core.task_expansion import factor_tasks, outcome_tasks
 from datawork.core.provenance import (
     DatasetFingerprint,
     ReproducibilityMetadata,
@@ -152,17 +153,18 @@ class AnalysisService:
         df: pd.DataFrame,
         plan: AnalysisPlan,
     ) -> tuple[pd.DataFrame, list[dict[str, Any]], list[str]]:
-        """应用计划级派生列与校正，供预检、工作区和正式执行共用。"""
-        derived, derived_log, derived_warnings = apply_derived_columns(df, plan.derived_columns)
+        """按唯一顺序应用配对、普通派生列与校正。"""
+        paired, pairing_log, pairing_warnings = apply_pairing(df, plan)
+        derived, derived_log, derived_warnings = apply_derived_columns(paired, plan.derived_columns)
         # 自定义列预览覆盖完整数据，但正式计划中的质量计数只针对至少进入
         # 一个拆分子任务的行。自定义列本身不能作为拆分列，因此可以安全地
-        # 在原始列上先确定分析范围，而不会形成依赖环。
+        # 在配对后的处理侧列上确定分析范围，而不会形成依赖环。
         if plan.derived_columns and plan.split_by:
             assigned_indices: set[Any] = set()
-            for _labels, subset in build_split_groups(df, plan):
+            for _labels, subset in build_split_groups(paired, plan):
                 assigned_indices.update(subset.index.tolist())
             if assigned_indices:
-                scoped = df.loc[df.index.isin(assigned_indices)]
+                scoped = paired.loc[paired.index.isin(assigned_indices)]
                 _scoped_frame, derived_log, derived_warnings = apply_derived_columns(
                     scoped, plan.derived_columns
                 )
@@ -173,7 +175,13 @@ class AnalysisService:
                     for item in derived_log
                 ]
         calibrated, calibration_log = cls._apply_calibration(derived, plan)
-        return calibrated, [*derived_log, *calibration_log], derived_warnings
+        transformation_log = [
+            *([pairing_log] if pairing_log is not None else []),
+            *derived_log,
+            *calibration_log,
+        ]
+        warnings = list(dict.fromkeys([*pairing_warnings, *derived_warnings]))
+        return calibrated, transformation_log, warnings
 
     @staticmethod
     def _apply_calibration(df: pd.DataFrame, plan: AnalysisPlan) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
@@ -237,34 +245,26 @@ class AnalysisService:
         spec = get_method(plan.method)
         results: list[BatchResult] = []
 
-        if spec.dependent_mode == "none":
-            dependent_sets: list[list[str]] = [[]]
-        elif spec.dependent_mode == "joint":
-            dependent_sets = [list(plan.dependent_variables)]
-        else:
-            dependent_sets = [[dependent] for dependent in plan.dependent_variables]
-
-        if plan.factor_combinations_enabled:
-            if plan.factor_combination_min_order is None or plan.factor_combination_max_order is None:
-                raise ValueError("因素组合阶数未完成规范化")
-            factor_sets = [
-                list(items)
-                for order in range(plan.factor_combination_min_order, plan.factor_combination_max_order + 1)
-                for items in combinations(plan.fixed_factors, order)
-            ]
-        else:
-            factor_sets = [list(plan.fixed_factors)]
+        dependent_tasks = outcome_tasks(plan)
+        factor_sets = factor_tasks(plan)
 
         group_items = build_split_groups(df, plan)
 
-        label_outcome = len(dependent_sets) > 1
+        label_outcome = len(dependent_tasks) > 1
         task_index = 0
-        for dependent_set in dependent_sets:
+        for outcome_task in dependent_tasks:
+            dependent_set = list(outcome_task.variables)
             for factor_set in factor_sets:
                 for group_info, raw_subset in group_items:
                     task_index += 1
                     info = dict(group_info)
-                    if label_outcome:
+                    if outcome_task.name and plan.dependent_variable_groups:
+                        info = {
+                            "dependent_group": outcome_task.name,
+                            "dependent_variables": " | ".join(dependent_set),
+                            **info,
+                        }
+                    elif label_outcome:
                         info = {"dependent_variable": dependent_set[0], **info}
                     elif spec.dependent_mode == "joint" and dependent_set:
                         info = {"dependent_variables": " | ".join(dependent_set), **info}
@@ -319,8 +319,11 @@ class AnalysisService:
             summary_split_columns += ["task_id", "factor_combination", "combination_order"]
             if plan.factor_combination_labels:
                 summary_split_columns += ["factor_columns"]
-        summary_split_columns += (["dependent_variable"] if label_outcome else [])
-        summary_split_columns += (["dependent_variables"] if spec.dependent_mode == "joint" and plan.dependent_variables else [])
+        if plan.dependent_variable_groups:
+            summary_split_columns += ["dependent_group", "dependent_variables"]
+        else:
+            summary_split_columns += (["dependent_variable"] if label_outcome else [])
+            summary_split_columns += (["dependent_variables"] if spec.dependent_mode == "joint" and plan.dependent_variables else [])
         summary_split_columns += plan.split_by
         summary = _build_batch_summary(results, summary_split_columns)
         summary = AnalysisService._adjust_batch_pvalues(
@@ -378,6 +381,9 @@ class AnalysisService:
             "factor_combination_max_order": None,
             "emm_factors": [name for name in plan.emm_factors if name in factor_set or name == plan.repeated_factor],
             "calibration_enabled": False,
+            "pairing": None,
+            "dependent_variable_groups": [],
+            "derived_columns": [],
             "calibration_columns": [],
             "calibration_baseline_column": None,
             "calibration_baseline_value": None,

@@ -14,7 +14,9 @@ from typing import Any, Literal
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .formula import formula_references
 from .method_registry import canonical_method_name, get_method
+from .pairing_models import DependentVariableGroup, PairingPlan
 
 
 class MissingPolicy(str, Enum):
@@ -209,6 +211,8 @@ class AnalysisPlan(BaseModel):
     split_by: list[str] = Field(default_factory=list)
     split_rules: list[SplitRule] = Field(default_factory=list)
     derived_columns: list[DerivedColumn] = Field(default_factory=list)
+    pairing: PairingPlan | None = None
+    dependent_variable_groups: list[DependentVariableGroup] = Field(default_factory=list)
     method: str
     alpha: float = 0.05
     ss_type: Literal[1, 2, 3] = 3
@@ -297,6 +301,8 @@ class AnalysisPlan(BaseModel):
             self.factor_combination_labels = {}
             self.split_rules = []
             self.derived_columns = []
+            self.pairing = None
+            self.dependent_variable_groups = []
             self.estimate_marginal_means = False
             self.emm_factors = []
             self.contrast_correction = "holm"
@@ -336,6 +342,7 @@ class AnalysisPlan(BaseModel):
             raise ValueError("同一拆分列只能配置一条自定义分组规则")
         self.split_by = list(dict.fromkeys([*self.split_by, *rule_columns]))
         derived_names = [column.name for column in self.derived_columns]
+        pair_names = [column.name for column in self.pairing.derived_columns] if self.pairing else []
         if len(self.derived_columns) > 10:
             raise ValueError("一个分析计划最多允许 10 个自定义列")
         if len(derived_names) != len(set(derived_names)):
@@ -343,10 +350,32 @@ class AnalysisPlan(BaseModel):
         if self.derived_columns and self.interface_mode != "professional":
             raise ValueError("自定义列仅在专业模式开放")
         derived_name_set = set(derived_names)
+        pair_name_set = set(pair_names)
+        if self.pairing and self.interface_mode != "professional":
+            raise ValueError("配对映射计算仅在专业模式开放")
+        if pair_name_set & derived_name_set:
+            raise ValueError(
+                f"配对计算列与普通自定义列不能重名: {sorted(pair_name_set & derived_name_set)}"
+            )
+        if self.pairing:
+            pair_sources = {item.source_column for item in self.pairing.derived_columns}
+            invalid_pair_sources = sorted(pair_sources & (derived_name_set | pair_name_set))
+            if invalid_pair_sources:
+                raise ValueError(f"配对计算列只能引用原始数值列: {invalid_pair_sources}")
+            split_sources = sorted(pair_sources & set(self.split_by))
+            if split_sources:
+                raise ValueError(f"配对来源数值指标不能同时作为拆分列: {split_sources}")
+            for column in self.pairing.derived_columns:
+                references = set(formula_references(column.formula))
+                if not references or not references.issubset({"处理值", "对照值"}):
+                    raise ValueError(
+                        f"配对计算列 {column.name!r} 只能引用 [处理值] 和 [对照值]，且至少引用一个"
+                    )
         for column in self.derived_columns:
             chained = sorted(set(column.source_columns) & derived_name_set)
             if chained:
                 raise ValueError(f"自定义列不能引用其他自定义列: {chained}")
+        generated_name_set = derived_name_set | pair_name_set
         illegal_derived_roles = {
             "分类因素": set(self.fixed_factors),
             "协变量": set(self.covariates),
@@ -358,9 +387,9 @@ class AnalysisPlan(BaseModel):
             "重复/时间因素": {self.repeated_factor} if self.repeated_factor else set(),
         }
         for role, columns in illegal_derived_roles.items():
-            overlap = sorted(derived_name_set & columns)
+            overlap = sorted(generated_name_set & columns)
             if overlap:
-                raise ValueError(f"自定义列只能作为因变量，不能作为{role}: {overlap}")
+                raise ValueError(f"计算生成列只能作为因变量，不能作为{role}: {overlap}")
         spec = get_method(self.method)
         if not spec.is_runnable:
             raise ValueError(f"{spec.label_zh} 尚未实现，分析未执行。{spec.notes}")
@@ -375,6 +404,33 @@ class AnalysisPlan(BaseModel):
         if spec.max_dependent_vars is not None and len(self.dependent_variables) > spec.max_dependent_vars:
             if spec.dependent_mode != "single" or not spec.supports_batch:
                 raise ValueError(f"{spec.label_zh} 最多支持 {spec.max_dependent_vars} 个因变量")
+        if self.dependent_variable_groups:
+            if self.interface_mode != "professional":
+                raise ValueError("联合因变量分组仅在专业模式开放")
+            if spec.dependent_mode != "joint":
+                raise ValueError(f"{spec.label_zh} 不是联合响应方法，不能设置联合因变量组")
+            group_names = [group.name for group in self.dependent_variable_groups]
+            if len(group_names) != len(set(group_names)):
+                raise ValueError("联合因变量组名称不能重复")
+            grouped_variables = [
+                variable
+                for group in self.dependent_variable_groups
+                for variable in group.dependent_variables
+            ]
+            if len(grouped_variables) != len(set(grouped_variables)):
+                raise ValueError("同一因变量不能重复进入多个联合因变量组")
+            for group in self.dependent_variable_groups:
+                if len(group.dependent_variables) < spec.min_dependent_vars:
+                    raise ValueError(
+                        f"联合因变量组“{group.name}”至少需要 {spec.min_dependent_vars} 个因变量"
+                    )
+            selected = set(self.dependent_variables)
+            grouped = set(grouped_variables)
+            if selected != grouped:
+                raise ValueError(
+                    "启用联合因变量分组后，所有已选因变量必须且只能归入一个组"
+                    f"；未分组={sorted(selected - grouped)}，未选择={sorted(grouped - selected)}"
+                )
         if self.factor_combinations_enabled:
             if spec.max_fixed_factors == 0:
                 raise ValueError(f"{spec.label_zh} 不使用分类因素，不能启用因素组合实验")
@@ -450,6 +506,9 @@ class AnalysisPlan(BaseModel):
                 raise ValueError(
                     f"自定义列仅在作为因变量时允许校准: {invalid_derived_calibration}"
                 )
+            invalid_pair_calibration = sorted(pair_name_set & set(self.calibration_columns))
+            if invalid_pair_calibration:
+                raise ValueError(f"配对计算列不能作为校正列: {invalid_pair_calibration}")
         else:
             self.calibration_columns = []
             self.calibration_baseline_column = None
@@ -592,11 +651,23 @@ class AnalysisPlan(BaseModel):
     def is_batch(self) -> bool:
         spec = get_method(self.method)
         multiple_outcomes = spec.dependent_mode == "single" and len(self.dependent_variables) > 1
-        return bool(self.split_by or multiple_outcomes or self.factor_combinations_enabled)
+        return bool(
+            self.split_by
+            or multiple_outcomes
+            or self.factor_combinations_enabled
+            or self.dependent_variable_groups
+        )
 
     @property
     def all_columns(self) -> list[str]:
         columns = self.dependent_variables + self.fixed_factors + self.random_factors + self.random_slopes + self.covariates + self.split_by + self.emm_factors + self.calibration_columns
+        if self.pairing:
+            columns.extend([self.pairing.group_column, *self.pairing.match_columns])
+            if self.pairing.pair_id_column:
+                columns.append(self.pairing.pair_id_column)
+            columns.extend(
+                item.source_column for item in self.pairing.derived_columns
+            )
         for derived in self.derived_columns:
             columns.extend(derived.source_columns)
         if self.subject_id:

@@ -1,7 +1,7 @@
 """分析计划与数据的统一校验。"""
 from __future__ import annotations
 
-from itertools import combinations, product
+from itertools import product
 import math
 
 import numpy as np
@@ -16,6 +16,7 @@ from .splitting import (
     build_split_groups,
     projected_split_group_count,
 )
+from .task_expansion import factor_tasks, outcome_tasks
 
 
 class ValidationReport(BaseModel):
@@ -208,10 +209,7 @@ def validate_plan_dataframe(plan: "AnalysisPlan", frame: pd.DataFrame) -> Valida
         groups: list[tuple[dict[str, str], pd.DataFrame]] = []
     else:
         groups = build_split_groups(frame, plan) if plan.split_by else [({}, frame)]
-    if spec.dependent_mode in {"none", "joint"}:
-        dependent_task_count = 1
-    else:
-        dependent_task_count = max(1, len(plan.dependent_variables))
+    dependent_task_count = max(1, len(outcome_tasks(plan)))
     if plan.factor_combinations_enabled:
         factor_task_count = sum(
             math.comb(len(plan.fixed_factors), order)
@@ -255,23 +253,8 @@ def validate_plan_dataframe(plan: "AnalysisPlan", frame: pd.DataFrame) -> Valida
 
         dual_role_columns = sorted(set(plan.split_by) & set(plan.fixed_factors))
         if dual_role_columns:
-            if plan.factor_combinations_enabled:
-                factor_sets = [
-                    list(items)
-                    for order in range(
-                        int(plan.factor_combination_min_order or 1),
-                        int(plan.factor_combination_max_order or 1) + 1,
-                    )
-                    for items in combinations(plan.fixed_factors, order)
-                ]
-            else:
-                factor_sets = [list(plan.fixed_factors)]
-            if spec.dependent_mode == "none":
-                dependent_sets = [[]]
-            elif spec.dependent_mode == "joint":
-                dependent_sets = [list(plan.dependent_variables)]
-            else:
-                dependent_sets = [[item] for item in plan.dependent_variables]
+            factor_sets = factor_tasks(plan)
+            dependent_sets = [list(item.variables) for item in outcome_tasks(plan)]
             invalid_groups: list[dict] = []
             for labels, raw_subset in groups:
                 for dependent_set in dependent_sets:
@@ -595,44 +578,50 @@ def _validate_method_specific_data(plan: "AnalysisPlan", frame: pd.DataFrame) ->
                     message=f"分类预测量 {factor!r} 的部分水平只出现一种结局，可能导致完全或准完全分离",
                 ))
 
-    if method in {"oneway_manova", "twoway_manova", "threeway_manova"} and len(plan.dependent_variables) >= 2:
-        required = [*plan.dependent_variables, *plan.fixed_factors]
-        complete = frame[required].copy()
-        for outcome in plan.dependent_variables:
-            complete[outcome] = pd.to_numeric(complete[outcome], errors="coerce")
-        complete = complete.dropna()
-        matrix = complete[plan.dependent_variables]
-        p_outcomes = len(plan.dependent_variables)
-        if not matrix.empty and np.linalg.matrix_rank(matrix.to_numpy() - matrix.mean().to_numpy()) < p_outcomes:
-            issues.append(ValidationIssue(
-                code="rank_deficient_manova_outcomes", field="dependent_variables",
-                message="多个因变量之间存在完全线性依赖，MANOVA 响应矩阵秩不足；请删除重复或线性组合变量",
-            ))
-        if not matrix.empty:
-            corr = matrix.corr().abs().to_numpy(copy=True)
-            np.fill_diagonal(corr, 0.0)
-            max_corr = float(np.nanmax(corr)) if corr.size else 0.0
-            if max_corr >= 0.98:
+    if method in {"oneway_manova", "twoway_manova", "threeway_manova", "multifactor_manova"}:
+        for outcome_task in outcome_tasks(plan):
+            outcomes = list(outcome_task.variables)
+            if len(outcomes) < 2:
+                continue
+            group_label = f"联合因变量组“{outcome_task.name}”" if outcome_task.name else "当前联合因变量"
+            required = [*outcomes, *plan.fixed_factors]
+            complete = frame[required].copy()
+            for outcome in outcomes:
+                complete[outcome] = pd.to_numeric(complete[outcome], errors="coerce")
+            complete = complete.dropna()
+            matrix = complete[outcomes]
+            p_outcomes = len(outcomes)
+            if not matrix.empty and np.linalg.matrix_rank(matrix.to_numpy() - matrix.mean().to_numpy()) < p_outcomes:
                 issues.append(ValidationIssue(
-                    code="extreme_manova_outcome_correlation", field="dependent_variables", severity=IssueSeverity.WARNING,
-                    message=f"因变量最大绝对相关达到 {max_corr:.3f}，存在严重冗余或数值不稳定风险",
-                    details={"max_abs_correlation": max_corr},
+                    code="rank_deficient_manova_outcomes", field="dependent_variables",
+                    message=f"{group_label}存在完全线性依赖，MANOVA 响应矩阵秩不足；请删除重复或线性组合变量",
+                    details={"dependent_group": outcome_task.name, "outcomes": outcomes},
                 ))
-        if plan.fixed_factors and not complete.empty:
-            cells = int(complete.groupby(plan.fixed_factors, observed=False).ngroups)
-            residual_df = int(len(complete) - cells)
-            if residual_df < p_outcomes:
-                issues.append(ValidationIssue(
-                    code="insufficient_manova_error_df", field="fixed_factors",
-                    message=f"完整析因模型残差自由度约 {residual_df}，小于因变量数 {p_outcomes}，多元误差矩阵无法稳定估计",
-                    details={"complete_cases": len(complete), "observed_cells": cells, "residual_df": residual_df, "outcomes": p_outcomes},
-                ))
-            elif residual_df < 2 * p_outcomes:
-                issues.append(ValidationIssue(
-                    code="low_manova_error_df", field="fixed_factors", severity=IssueSeverity.WARNING,
-                    message=f"MANOVA 残差自由度约 {residual_df}，相对 {p_outcomes} 个因变量偏少，近似检验和协方差诊断可能不稳定",
-                    details={"residual_df": residual_df, "outcomes": p_outcomes},
-                ))
+            if not matrix.empty:
+                corr = matrix.corr().abs().to_numpy(copy=True)
+                np.fill_diagonal(corr, 0.0)
+                max_corr = float(np.nanmax(corr)) if corr.size else 0.0
+                if max_corr >= 0.98:
+                    issues.append(ValidationIssue(
+                        code="extreme_manova_outcome_correlation", field="dependent_variables", severity=IssueSeverity.WARNING,
+                        message=f"{group_label}最大绝对相关达到 {max_corr:.3f}，存在严重冗余或数值不稳定风险",
+                        details={"dependent_group": outcome_task.name, "outcomes": outcomes, "max_abs_correlation": max_corr},
+                    ))
+            if plan.fixed_factors and not complete.empty:
+                cells = int(complete.groupby(plan.fixed_factors, observed=False).ngroups)
+                residual_df = int(len(complete) - cells)
+                if residual_df < p_outcomes:
+                    issues.append(ValidationIssue(
+                        code="insufficient_manova_error_df", field="fixed_factors",
+                        message=f"{group_label}的完整析因模型残差自由度约 {residual_df}，小于因变量数 {p_outcomes}，多元误差矩阵无法稳定估计",
+                        details={"dependent_group": outcome_task.name, "complete_cases": len(complete), "observed_cells": cells, "residual_df": residual_df, "outcomes": p_outcomes},
+                    ))
+                elif residual_df < 2 * p_outcomes:
+                    issues.append(ValidationIssue(
+                        code="low_manova_error_df", field="fixed_factors", severity=IssueSeverity.WARNING,
+                        message=f"{group_label}的 MANOVA 残差自由度约 {residual_df}，相对 {p_outcomes} 个因变量偏少，近似检验和协方差诊断可能不稳定",
+                        details={"dependent_group": outcome_task.name, "residual_df": residual_df, "outcomes": p_outcomes},
+                    ))
 
     posthoc_methods = plan.method_parameters.get("posthoc_methods", [])
     if isinstance(posthoc_methods, str):

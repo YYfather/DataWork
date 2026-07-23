@@ -13,13 +13,17 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-DEFAULT_LEGACY_PACKAGE = ROOT / "发布包" / f"DataWork-v{VERSION}-网站部署安装包.zip"
+DEFAULT_LEGACY_PACKAGE = ROOT / "发布包" / "DataWork-v1.0-网站部署版本"
 DEFAULT_OUTPUT = ROOT / "发布包" / f"DataWork-v{VERSION}-网站部署版本"
 DEFAULT_WEB_ROOT = Path(r"E:\studywork\Web")
 SKIP_WEB_PARTS = {".git", ".agents", ".jj", ".reasonix", "node_modules"}
 SKIP_RUNTIME_PARTS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
 SKIP_MANIFEST_PARTS = SKIP_RUNTIME_PARTS | {".git"}
-SCRIPT_NAMES = ("服务器环境准备.sh", "设置工作区密码.sh")
+SCRIPT_NAMES = ("服务器环境准备.sh", "设置工作区密码.sh", "设置服务器AI配置.sh")
+V15_HOTFIX_PACKAGES = (
+    "DataWork-v1.5-配对映射与联合因变量-服务器热补丁-20260723",
+    "DataWork-v1.5-配对功能测试公告-服务器热补丁-20260723",
+)
 TEXT_SUFFIXES = {
     ".css",
     ".conf",
@@ -46,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="生成未压缩 DataWork 网站部署目录")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--website-root", type=Path, default=DEFAULT_WEB_ROOT)
-    parser.add_argument("--legacy-package", type=Path, default=DEFAULT_LEGACY_PACKAGE)
+    parser.add_argument("--legacy-package", type=Path, default=DEFAULT_LEGACY_PACKAGE, help="既有网站部署目录或 ZIP")
     return parser.parse_args()
 
 
@@ -109,22 +113,31 @@ def main() -> int:
     legacy = args.legacy_package.expanduser().resolve()
     if not web_root.is_dir():
         raise SystemExit(f"个人主页目录不存在：{web_root}")
-    if not legacy.is_file():
+    if not legacy.exists() or not (legacy.is_dir() or legacy.is_file()):
         raise SystemExit(f"未找到旧网站部署包，无法保留既有宝塔配置：{legacy}")
     if output == ROOT or ROOT not in output.parents:
         raise SystemExit(f"拒绝写入工作区外或工作区根目录：{output}")
 
     with tempfile.TemporaryDirectory(prefix="datawork-web-deploy-") as raw_temp:
         staging_parent = Path(raw_temp)
-        with zipfile.ZipFile(legacy) as archive:
-            safe_extract(archive, staging_parent)
         extracted = staging_parent / f"DataWork-v{VERSION}-网站部署安装包"
-        if not extracted.is_dir():
-            raise RuntimeError("旧网站部署包目录结构不符合预期")
+        if legacy.is_dir():
+            copy_tree(legacy, extracted, skip_parts=SKIP_RUNTIME_PARTS)
+        else:
+            with zipfile.ZipFile(legacy) as archive:
+                safe_extract(archive, staging_parent)
+            candidates = [
+                path
+                for path in staging_parent.iterdir()
+                if path.is_dir() and (path / "DataWork服务").is_dir()
+            ]
+            if len(candidates) != 1:
+                raise RuntimeError("旧网站部署包目录结构不符合预期")
+            candidates[0].rename(extracted)
 
         service_old = extracted / "DataWork服务"
         preserved: dict[str, bytes] = {}
-        for name in (*SCRIPT_NAMES, "workspace_auth.json", "requirements.txt", "宝塔面板部署说明.txt"):
+        for name in (*SCRIPT_NAMES, "configure_server_ai.py", "workspace_auth.json", "requirements.txt", "宝塔面板部署说明.txt"):
             candidate = service_old / name
             if candidate.is_file():
                 preserved[name] = candidate.read_bytes()
@@ -145,20 +158,50 @@ def main() -> int:
         shutil.copy2(ROOT / "deploy" / "linux-server" / "bt_start.py", service / "bt_start.py")
         copy_tree(ROOT / "datawork", service / "datawork", skip_parts=SKIP_RUNTIME_PARTS)
 
-        for name in (*SCRIPT_NAMES, "workspace_auth.json", "宝塔面板部署说明.txt"):
+        for name in (*SCRIPT_NAMES, "configure_server_ai.py", "workspace_auth.json", "宝塔面板部署说明.txt"):
             if name in preserved:
                 (service / name).write_bytes(preserved[name])
-
-        patch_root = ROOT / "发布包" / f"DataWork-v{VERSION}-服务器AI共享与额度控制-热补丁"
-        for name in ("设置服务器AI配置.sh", "configure_server_ai.py"):
-            source = patch_root / name
-            if source.is_file():
-                shutil.copy2(source, service / name)
 
         homepage = extracted / "主页完整副本"
         if homepage.exists():
             shutil.rmtree(homepage)
         copy_tree(web_root, homepage, skip_parts=SKIP_WEB_PARTS)
+        hotfix_output = extracted / "热补丁"
+        hotfix_output.mkdir(exist_ok=True)
+        for package_name in V15_HOTFIX_PACKAGES:
+            for suffix in ("", ".zip", ".zip.sha256"):
+                source = ROOT / "发布包" / f"{package_name}{suffix}"
+                if not source.exists():
+                    raise RuntimeError(f"缺少 V1.5 热补丁资产：{source}")
+                destination = hotfix_output / source.name
+                if destination.is_dir():
+                    shutil.rmtree(destination)
+                elif destination.exists():
+                    destination.unlink()
+                if source.is_dir():
+                    copy_tree(source, destination, skip_parts=SKIP_RUNTIME_PARTS)
+                else:
+                    shutil.copy2(source, destination)
+
+        (extracted / "README.md").write_text(
+            f"""# DataWork {VERSION}（V1.5）· Web 部署分支
+
+本分支用于服务器/网站部署，不是通用开发源码。
+
+- `DataWork服务/`：V1.5 Linux/宝塔运行服务，包含配对映射、配对派生列、联合因变量任务和公告提示。
+- `主页完整副本/`：个人网站部署副本。
+- `主页增量覆盖/`：现有主页的 `/datework` 入口增量文件。
+- `宝塔配置/`：Nginx 反向代理和部署检查材料。
+- `热补丁/`：保留 V1.5 配对工作流主热补丁、配对功能测试公告热补丁及旧版本迁移补丁。
+- `SHA256SUMS.txt`：当前分支全部部署文件的 Linux 稳定 SHA-256 清单。
+
+生产工作区密码摘要、API 密钥、用户数据库、上传数据、报告和运行缓存不会进入本分支。
+部署后请在服务器本机配置密码及 AI，并按 `DataWork服务/宝塔面板部署说明.txt` 完成权限设置。
+""",
+            encoding="utf-8",
+            newline="\n",
+        )
+
         (extracted / "请先阅读.txt").write_text(
             f"""DataWork {VERSION} 网站部署版本（未压缩目录）
 ============================================
@@ -171,8 +214,10 @@ def main() -> int:
    AI 访客额度（10 次/24 小时）和服务器 AI 配置能力。
 4. 服务器不包含 API 密钥、用户数据库、上传数据或报告；请在服务器本机运行配置脚本。
 5. 宝塔部署顺序见 DataWork服务/宝塔面板部署说明.txt。
+6. 热补丁目录保留 V1.5 配对工作流和测试公告更新包，已有服务器可按需使用；
+   全新部署 DataWork服务 时不需要重复应用主热补丁。
 
-请直接上传本目录的相应子目录，不需要解压本目录。
+请直接上传本目录的相应子目录。
 文件清单与 SHA-256 位于 SHA256SUMS.txt。
 """,
             encoding="utf-8",

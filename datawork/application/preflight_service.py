@@ -1,7 +1,6 @@
 """分析执行前检查。"""
 from __future__ import annotations
 
-from itertools import combinations
 from typing import Any
 
 import numpy as np
@@ -13,6 +12,7 @@ from datawork.core.method_registry import get_method
 from datawork.core.plan import AnalysisPlan
 from datawork.core.splitting import SPLIT_TASK_HARD_LIMIT, SPLIT_TASK_WARNING_THRESHOLD, build_split_groups, projected_split_group_count
 from datawork.core.validation import validate_plan_dataframe
+from datawork.core.task_expansion import factor_tasks, outcome_tasks
 from datawork.application.analysis_service import AnalysisService
 
 
@@ -23,6 +23,8 @@ class PreflightReport(BaseModel):
     selections: dict[str, Any] = Field(default_factory=dict)
     data_summary: dict[str, Any] = Field(default_factory=dict)
     batch_summary: dict[str, Any] = Field(default_factory=dict)
+    pairing_summary: dict[str, Any] = Field(default_factory=dict)
+    task_hierarchy: dict[str, Any] = Field(default_factory=dict)
     design_review: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -68,6 +70,8 @@ class PreflightService:
             "split_by": list(dict.fromkeys([*_clean_list(raw_plan.get("split_by")), *[item for item in rule_columns if item]])),
             "split_rules": split_rules,
             "derived_columns": raw_plan.get("derived_columns") if isinstance(raw_plan.get("derived_columns"), list) else [],
+            "pairing": raw_plan.get("pairing") if isinstance(raw_plan.get("pairing"), dict) else None,
+            "dependent_variable_groups": raw_plan.get("dependent_variable_groups") if isinstance(raw_plan.get("dependent_variable_groups"), list) else [],
             "subject_id": _clean_scalar(raw_plan.get("subject_id")),
             "repeated_factor": _clean_scalar(raw_plan.get("repeated_factor")),
             "method_parameters": raw_plan.get("method_parameters") if isinstance(raw_plan.get("method_parameters"), dict) else {},
@@ -143,21 +147,22 @@ class PreflightService:
                     field = str(location[0]) if location else None
                     issues.append(ValidationIssue(code="invalid_plan_value", field=field, message=str(item.get("msg") or "分析计划配置无效"), details={"location": location}))
         inspection_frame = frame
+        transformation_log: list[dict[str, Any]] = []
         if plan is not None:
             try:
-                inspection_frame, _transformation_log, transformation_warnings = AnalysisService.prepare_frame(frame, plan)
+                inspection_frame, transformation_log, transformation_warnings = AnalysisService.prepare_frame(frame, plan)
                 for message in transformation_warnings:
                     issues.append(ValidationIssue(
-                        code="derived_column_invalid_values",
+                        code="transformation_invalid_values",
                         severity=IssueSeverity.WARNING,
-                        field="derived_columns",
+                        field="pairing" if plan.pairing else "derived_columns",
                         message=message,
                     ))
                 issues.extend(validate_plan_dataframe(plan, inspection_frame).issues)
             except (ValueError, RuntimeError) as exc:
                 issues.append(ValidationIssue(
-                    code="invalid_derived_column",
-                    field="derived_columns",
+                    code="invalid_transformation",
+                    field="pairing" if plan.pairing else "derived_columns",
                     message=str(exc),
                 ))
                 plan = None
@@ -181,48 +186,45 @@ class PreflightService:
             ([normalized["repeated_factor"]] if normalized["repeated_factor"] else [])
         ))
         design_review = _build_design_review(inspection_frame, plan, issues)
+        pairing_summary = _build_pairing_summary(plan, transformation_log)
+        task_hierarchy = _build_task_hierarchy(plan, batch_summary)
         return PreflightReport(
             ready=not any(issue.severity == IssueSeverity.ERROR for issue in issues),
             issues=issues, method=method_payload,
-            selections={key: normalized.get(key) for key in ["interface_mode", "dependent_variables", "fixed_factors", "covariates", "random_factors", "random_slopes", "subject_id", "repeated_factor", "split_by", "split_rules", "derived_columns", "alpha", "ss_type", "test_value", "method_parameters", "factor_combinations_enabled", "factor_combination_order", "factor_combination_min_order", "factor_combination_max_order", "factor_combination_labels", "cross_model_p_adjust", "combination_p_adjust", "estimate_marginal_means", "emm_factors", "contrast_correction", "diagnostic_plots", "calibration_enabled", "calibration_method", "calibration_columns", "calibration_baseline_column", "calibration_baseline_value"]},
+            selections={key: normalized.get(key) for key in ["interface_mode", "dependent_variables", "dependent_variable_groups", "fixed_factors", "covariates", "random_factors", "random_slopes", "subject_id", "repeated_factor", "split_by", "split_rules", "derived_columns", "pairing", "alpha", "ss_type", "test_value", "method_parameters", "factor_combinations_enabled", "factor_combination_order", "factor_combination_min_order", "factor_combination_max_order", "factor_combination_labels", "cross_model_p_adjust", "combination_p_adjust", "estimate_marginal_means", "emm_factors", "contrast_correction", "diagnostic_plots", "calibration_enabled", "calibration_method", "calibration_columns", "calibration_baseline_column", "calibration_baseline_value"]},
             data_summary={
                 "rows": int(inspection_frame.shape[0]), "columns": int(inspection_frame.shape[1]),
                 "complete_rows_for_plan": int(inspection_frame[selected_columns].dropna().shape[0]) if selected_columns and all(column in inspection_frame.columns for column in selected_columns) else int(len(inspection_frame)),
             },
             batch_summary=batch_summary,
+            pairing_summary=pairing_summary,
+            task_hierarchy=task_hierarchy,
             design_review=design_review,
         )
 
     @staticmethod
     def _batch_summary(frame: pd.DataFrame, plan: AnalysisPlan, issues: list[ValidationIssue]) -> dict[str, Any]:
         spec = get_method(plan.method)
-        if spec.dependent_mode == "none":
-            dependent_sets = [[]]
-        elif spec.dependent_mode == "joint":
-            dependent_sets = [plan.dependent_variables]
-        else:
-            dependent_sets = [[item] for item in plan.dependent_variables]
-        if plan.factor_combinations_enabled:
-            if plan.factor_combination_min_order is None or plan.factor_combination_max_order is None:
-                raise ValueError("因素组合阶数未完成规范化")
-            factor_sets = [list(items) for order in range(plan.factor_combination_min_order, plan.factor_combination_max_order + 1) for items in combinations(plan.fixed_factors, order)]
-        else:
-            factor_sets = [list(plan.fixed_factors)]
+        dependent_tasks = outcome_tasks(plan)
+        factor_sets = factor_tasks(plan)
         projected_split_count = projected_split_group_count(frame, plan)
         if projected_split_count > SPLIT_TASK_HARD_LIMIT:
             return {
                 "enabled": True, "split_by": plan.split_by,
                 "factor_combinations_enabled": plan.factor_combinations_enabled,
                 "factor_combination_count": len(factor_sets),
+                "outcome_group_count": len(dependent_tasks),
+                "split_group_count": projected_split_count,
+                "factor_model_count": len(factor_sets),
                 "p_adjust": plan.cross_model_p_adjust or plan.combination_p_adjust,
                 "dimensions": plan.split_by, "group_count": projected_split_count,
                 "ready_group_count": 0, "problem_group_count": projected_split_count,
                 "skipped_group_count": 0,
-                "expanded_task_count": len(dependent_sets) * len(factor_sets) * projected_split_count,
+                "expanded_task_count": len(dependent_tasks) * len(factor_sets) * projected_split_count,
                 "groups": [],
             }
         group_items = build_split_groups(frame, plan, include_empty=True)
-        expanded_task_count = len(dependent_sets) * len(factor_sets) * len(group_items)
+        expanded_task_count = len(dependent_tasks) * len(factor_sets) * len(group_items)
         issue_codes = {issue.code for issue in issues}
         if expanded_task_count > SPLIT_TASK_HARD_LIMIT and "expanded_task_limit_exceeded" not in issue_codes:
             issues.append(ValidationIssue(
@@ -240,12 +242,19 @@ class PreflightService:
         groups = []
         ready_count = 0
         task_id = 0
-        for dependent_set in dependent_sets:
+        for outcome_task in dependent_tasks:
+            dependent_set = list(outcome_task.variables)
             for factor_set in factor_sets:
                 for labels, raw_subset in group_items:
                     task_id += 1
                     labels = dict(labels)
-                    if spec.dependent_mode == "single" and len(dependent_sets) > 1:
+                    if outcome_task.name and plan.dependent_variable_groups:
+                        labels = {
+                            "dependent_group": outcome_task.name,
+                            "dependent_variables": " | ".join(dependent_set),
+                            **labels,
+                        }
+                    elif spec.dependent_mode == "single" and len(dependent_tasks) > 1:
                         labels = {"dependent_variable": dependent_set[0], **labels}
                     if plan.factor_combinations_enabled:
                         canonical_combination = " × ".join(factor_set)
@@ -290,8 +299,101 @@ class PreflightService:
             ["factor_combination", "combination_order"]
             + (["factor_columns"] if plan.factor_combinations_enabled and plan.factor_combination_labels else [])
             if plan.factor_combinations_enabled else []
-        ) + (["dependent_variable"] if spec.dependent_mode == "single" and len(dependent_sets) > 1 else []) + plan.split_by
-        return {"enabled": True, "split_by": plan.split_by, "factor_combinations_enabled": plan.factor_combinations_enabled, "factor_combination_count": len(factor_sets), "p_adjust": plan.cross_model_p_adjust or plan.combination_p_adjust, "dimensions": dimensions, "group_count": len(groups), "ready_group_count": ready_count, "problem_group_count": problem_count, "skipped_group_count": skipped_count, "expanded_task_count": expanded_task_count, "groups": groups[:200]}
+        )
+        if plan.dependent_variable_groups:
+            dimensions += ["dependent_group", "dependent_variables"]
+        elif spec.dependent_mode == "single" and len(dependent_tasks) > 1:
+            dimensions += ["dependent_variable"]
+        dimensions += plan.split_by
+        return {
+            "enabled": True,
+            "split_by": plan.split_by,
+            "factor_combinations_enabled": plan.factor_combinations_enabled,
+            "factor_combination_count": len(factor_sets),
+            "outcome_group_count": len(dependent_tasks),
+            "factor_model_count": len(factor_sets),
+            "split_group_count": len(group_items),
+            "p_adjust": plan.cross_model_p_adjust or plan.combination_p_adjust,
+            "dimensions": dimensions,
+            "group_count": len(groups),
+            "ready_group_count": ready_count,
+            "problem_group_count": problem_count,
+            "skipped_group_count": skipped_count,
+            "expanded_task_count": expanded_task_count,
+            "groups": groups[:200],
+        }
+
+
+def _build_pairing_summary(
+    plan: AnalysisPlan | None,
+    transformation_log: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if plan is None or plan.pairing is None:
+        return {"enabled": False}
+    audit = next(
+        (item for item in transformation_log if item.get("operation") == "pairing"),
+        None,
+    )
+    if audit is None:
+        return {
+            "enabled": True,
+            "status": "blocked",
+            "group_column": plan.pairing.group_column,
+        }
+    split_relationships = []
+    match_columns = set(plan.pairing.match_columns)
+    for column in plan.split_by:
+        if column == plan.pairing.group_column:
+            relationship = "配对分组并拆分"
+            detail = "配对分组列；配对后按处理水平拆分"
+        elif column in match_columns:
+            relationship = "参与匹配并拆分"
+            detail = "先作为标签参与配对，再按同一标签拆分"
+        else:
+            relationship = "仅配对后拆分"
+            detail = "与公式无关；配对完成后作用于整个分析任务"
+        split_relationships.append({
+            "column": column,
+            "relationship": relationship,
+            "detail": detail,
+            "recommend_add_to_match": False,
+        })
+    return {
+        "enabled": True,
+        "status": "ready",
+        **audit,
+        "split_relationships": split_relationships,
+    }
+
+
+def _build_task_hierarchy(
+    plan: AnalysisPlan | None,
+    batch_summary: dict[str, Any],
+) -> dict[str, Any]:
+    if plan is None:
+        return {"enabled": False, "task_count": 0}
+    outcomes = [
+        {
+            "name": task.name or (task.variables[0] if len(task.variables) == 1 else "全部联合因变量"),
+            "dependent_variables": list(task.variables),
+        }
+        for task in outcome_tasks(plan)
+    ]
+    factors = [
+        {
+            "name": plan.factor_combination_labels.get(" × ".join(items), " × ".join(items)),
+            "fixed_factors": items,
+        }
+        for items in factor_tasks(plan)
+    ]
+    return {
+        "enabled": True,
+        "outcome_groups": outcomes,
+        "factor_models": factors,
+        "split_dimensions": list(plan.split_by),
+        "task_count": int(batch_summary.get("expanded_task_count") or 1),
+        "tasks": [item.get("key", {}) for item in batch_summary.get("groups", [])],
+    }
 
 
 def _build_design_review(

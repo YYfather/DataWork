@@ -25,7 +25,7 @@ python -m pytest tests\integration\test_r_all_methods_reference.py -q
 python scripts\compare_r_reference.py --rscript "C:\Program Files\R\R-4.6.1\bin\Rscript.exe"
 ```
 
-V1.5 配对映射、联合因变量组和完整事后分支目前仍处于计划阶段。其后续 R/Python 验收范围、任务数量和发布门禁见 [`V1.5_UPDATE_PLAN.md`](V1.5_UPDATE_PLAN.md)；在计划完成实施和双重校对前，不得把这些能力描述为已发布。
+V1.5 配对映射、联合因变量组和完整事后分支已经纳入正式 Python 核心。2026-07-23 使用 R 4.6.1 完成验收：全部 47 种注册方法共比较 133 个字段，失败 0；农业参考数据得到 108 对，Python 与 R 对 36 个 Type III ANOVA 效应和 18 个 Wilks MANOVA 效应一致。联合因变量组、拆分与因素模型的任务展开由 Python 应用层验证，R 只提供独立统计值对照。
 
 每次运行自动生成：
 

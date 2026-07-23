@@ -60,6 +60,15 @@ def test_plan_derived_column_rounds_actual_values_to_eight_decimals():
     assert warnings == []
 
 
+@pytest.mark.parametrize("formula", ["[x] ** 2", "[x] % 2"])
+def test_plan_derived_column_rejects_non_basic_arithmetic(formula: str):
+    frame = pd.DataFrame({"x": [1.0, 2.0]})
+    with pytest.raises(UnsafeFormulaError, match="基础四则运算"):
+        apply_derived_columns(frame, [DerivedColumn(
+            name="bad", formula=formula, source_columns=["x"],
+        )])
+
+
 def test_plan_derived_column_rejects_non_numeric_and_chained_sources():
     frame = pd.DataFrame({"group": ["A", "B"], "x": [1.0, 2.0]})
     with pytest.raises(ValueError, match="数值型"):

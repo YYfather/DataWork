@@ -8,8 +8,11 @@ import AnalysisGuidanceCard from './components/AnalysisGuidanceCard.vue'
 import AnalysisResultView from './components/AnalysisResultView.vue'
 import PreflightDialog from './components/PreflightDialog.vue'
 import LoadingOverlay from './components/LoadingOverlay.vue'
+import PairingEditor from './components/PairingEditor.vue'
+import OutcomeGroupEditor from './components/OutcomeGroupEditor.vue'
 import ErrorNotice from './components/ErrorNotice.vue'
 import DerivedColumnEditor from './components/DerivedColumnEditor.vue'
+import ReleaseNoticeDialog from './components/ReleaseNoticeDialog.vue'
 
 type MethodSpec = {
   name: string
@@ -130,6 +133,11 @@ type SplitGroupDraft = {
 type SplitRuleDraft = { column: string; kind: 'categorical' | 'numeric'; groups: SplitGroupDraft[] }
 type DerivedColumnDraft = { name: string; formula: string; source_columns: string[] }
 
+type PairMappingDraft = { treatment: string; control: string }
+type PairDerivedColumnDraft = { id: string; name: string; source_column: string; formula: string; unit: string; decimal_places: number }
+type PairingDraft = { group_column: string; mappings: PairMappingDraft[]; match_columns: string[]; pair_id_column: string | null; derived_columns: PairDerivedColumnDraft[] }
+type OutcomeGroupDraft = { name: string; dependent_variables: string[] }
+
 const DEFAULT_INSTANT_METHOD = 'welch_ttest'
 const HIGH_ORDER_FACTORIAL_METHODS = new Set(['multifactor_anova', 'multifactor_manova'])
 
@@ -140,6 +148,8 @@ const profile = ref<ProfileResponse | null>(null)
 const sourceProfile = ref<ProfileResponse | null>(null)
 const derivedColumns = ref<DerivedColumnDraft[]>([])
 const derivedWarnings = ref<string[]>([])
+const pairingPlan = ref<PairingDraft | null>(null)
+const dependentVariableGroups = ref<OutcomeGroupDraft[]>([])
 const derivedPreviewLoading = ref(false)
 const selectedMethod = ref(DEFAULT_INSTANT_METHOD)
 const dependentVariables = ref<string[]>([])
@@ -202,6 +212,12 @@ let batchExportPollId = 0
 const workspaceResultInvalidated = ref(false)
 const workspaceResultInvalidatedReason = ref('')
 const health = ref<any>(null)
+const pairingTestNoticeOpen = ref(true)
+const releaseVersionLabel = computed(() => {
+  const version = String(health.value?.version ?? '1.5.0').trim().replace(/^v/i, '')
+  if (version === '1.5.0' || version === '1.5') return 'V1.5'
+  return `V${version}`
+})
 const sessionState = ref<SessionState | null>(null)
 const sessionAccessError = ref<any>(null)
 let sessionStatusTimer: number | undefined
@@ -239,6 +255,8 @@ const workspaceRepeatedFactor = ref('')
 const workspaceSplits = ref<string[]>([])
 const workspaceSplitRules = ref<SplitRuleDraft[]>([])
 const workspaceDerivedColumns = ref<DerivedColumnDraft[]>([])
+const workspacePairingPlan = ref<PairingDraft | null>(null)
+const workspaceDependentVariableGroups = ref<OutcomeGroupDraft[]>([])
 const workspaceDerivedProfile = ref<ProfileResponse['profile'] | null>(null)
 const workspaceDerivedWarnings = ref<string[]>([])
 const workspaceDerivedPreviewLoading = ref(false)
@@ -285,6 +303,7 @@ const factorOverflowPrompt = ref<FactorOverflowPrompt>({
 })
 
 const currentMethod = computed(() => methods.value.find((item) => item.name === selectedMethod.value))
+const supportsV15Workflow = computed(() => health.value?.features?.pairing_workflow === true && health.value?.features?.dependent_variable_groups === true)
 const isInstantHighOrderFactorial = computed(() => HIGH_ORDER_FACTORIAL_METHODS.has(selectedMethod.value))
 const instantFactorCombinationsAllowed = computed(() => instantExpertMode.value)
 const showInstantSplitRole = computed(() => Boolean(currentMethod.value?.supports_batch))
@@ -400,8 +419,47 @@ const workspaceDataset = computed(() => workspaceProject.value?.datasets.find((i
 const workspaceColumns = computed(() => workspaceDerivedProfile.value?.columns ?? workspaceDataset.value?.profile_json?.columns ?? [])
 const instantDerivedNames = computed(() => new Set(derivedColumns.value.map(column => column.name)))
 const workspaceDerivedNames = computed(() => new Set(workspaceDerivedColumns.value.map(column => column.name)))
+const instantPairNames = computed(() => new Set(pairingPlan.value?.derived_columns.map(column => column.name) ?? []))
+const workspacePairNames = computed(() => new Set(workspacePairingPlan.value?.derived_columns.map(column => column.name) ?? []))
+const instantGeneratedNames = computed(() => new Set([...instantDerivedNames.value, ...instantPairNames.value]))
+const workspaceGeneratedNames = computed(() => new Set([...workspaceDerivedNames.value, ...workspacePairNames.value]))
+function virtualNumericColumn(name: string, note: string): ColumnProfile {
+  return { name, dtype: 'float64', n_unique: 0, n_missing: 0, missing_rate: 0, unique_values: [], inferred_role: 'dependent', note }
+}
+const instantPairColumns = computed(() => (pairingPlan.value?.derived_columns ?? []).map(item => virtualNumericColumn(item.name, `配对计算：${item.formula}`)))
+const workspacePairColumns = computed(() => (workspacePairingPlan.value?.derived_columns ?? []).map(item => virtualNumericColumn(item.name, `配对计算：${item.formula}`)))
+const instantCustomSourceColumns = computed(() => {
+  const source = sourceProfile.value?.profile.columns ?? []
+  return [...source, ...instantPairColumns.value.filter(item => !source.some(column => column.name === item.name))]
+})
+const workspaceCustomSourceColumns = computed(() => {
+  const source = workspaceDataset.value?.profile_json.columns ?? []
+  return [...source, ...workspacePairColumns.value.filter(item => !source.some(column => column.name === item.name))]
+})
+const instantRoleColumns = computed(() => {
+  const source = profile.value?.profile.columns ?? []
+  const names = new Set(source.map(item => item.name))
+  const generated = [
+    ...instantPairColumns.value,
+    ...derivedColumns.value.map(item => virtualNumericColumn(item.name, `自定义计算：${item.formula}`)),
+  ]
+  return [...source, ...generated.filter(item => !names.has(item.name))]
+})
+const workspaceRoleColumns = computed(() => {
+  const source = workspaceColumns.value
+  const names = new Set(source.map(item => item.name))
+  const generated = [
+    ...workspacePairColumns.value,
+    ...workspaceDerivedColumns.value.map(item => virtualNumericColumn(item.name, `自定义计算：${item.formula}`)),
+  ]
+  return [...source, ...generated.filter(item => !names.has(item.name))]
+})
 const isInstantDerivedColumn = (column: string) => instantDerivedNames.value.has(column)
 const isWorkspaceDerivedColumn = (column: string) => workspaceDerivedNames.value.has(column)
+const isInstantPairColumn = (column: string) => instantPairNames.value.has(column)
+const isWorkspacePairColumn = (column: string) => workspacePairNames.value.has(column)
+const isInstantGeneratedColumn = (column: string) => instantGeneratedNames.value.has(column)
+const isWorkspaceGeneratedColumn = (column: string) => workspaceGeneratedNames.value.has(column)
 function inheritedSplitText(column: string, target: 'instant' | 'workspace') {
   const definition = (target === 'instant' ? derivedColumns.value : workspaceDerivedColumns.value).find(item => item.name === column)
   if (!definition) return ''
@@ -411,6 +469,51 @@ function inheritedSplitText(column: string, target: 'instant' | 'workspace') {
   const parts = sourceSplits.length ? [`继承来源拆分：${sourceSplits.join(' × ')}`] : ['来源列未拆分']
   if (unrelatedSplits.length) parts.push(`分析附加拆分：${unrelatedSplits.join(' × ')}`)
   return parts.join('；')
+}
+function pairingDraftIssues(plan: PairingDraft | null, splitColumns: string[], ordinaryNames: Set<string>) {
+  if (!plan) return []
+  const issues: string[] = []
+  if (!plan.group_column) issues.push('配对方案缺少分组列')
+  if (!plan.mappings.length) issues.push('配对方案至少需要一组处理—对照映射')
+  if (!plan.derived_columns.length) issues.push('配对方案至少需要一个计算列')
+  const treatments = plan.mappings.map(item => item.treatment).filter(Boolean)
+  const controls = plan.mappings.map(item => item.control).filter(Boolean)
+  if (treatments.length !== plan.mappings.length || controls.length !== plan.mappings.length) issues.push('配对映射尚未填写完整')
+  if (new Set(treatments).size !== treatments.length) issues.push('配对处理水平不能重复')
+  if (new Set(controls).size !== controls.length) issues.push('配对对照水平不能复用')
+  if (treatments.some(item => controls.includes(item))) issues.push('配对处理与对照水平不能重叠')
+  const pairNames = plan.derived_columns.map(item => item.name.trim()).filter(Boolean)
+  if (new Set(pairNames).size !== pairNames.length) issues.push('配对计算列名称不能重复')
+  if (pairNames.some(item => ordinaryNames.has(item))) issues.push('配对计算列不能与普通自定义列重名')
+  const splitSources = plan.derived_columns.map(item => item.source_column).filter(item => splitColumns.includes(item))
+  if (splitSources.length) issues.push(`配对来源指标不能用于拆分：${Array.from(new Set(splitSources)).join('、')}`)
+  return issues
+}
+
+function outcomeGroupDraftIssues(groups: OutcomeGroupDraft[], selected: string[], method?: MethodSpec) {
+  if (!groups.length) return []
+  if (method?.dependent_mode !== 'joint') return ['当前方法不是联合响应方法，不能设置联合因变量组']
+  const issues: string[] = []
+  const names = groups.map(item => item.name.trim()).filter(Boolean)
+  const assigned = groups.flatMap(item => item.dependent_variables)
+  if (names.length !== groups.length) issues.push('联合因变量组必须全部命名')
+  if (new Set(names).size !== names.length) issues.push('联合因变量组名称不能重复')
+  if (groups.some(item => item.dependent_variables.length < (method?.min_dependent_vars ?? 2))) issues.push(`每个联合因变量组至少需要 ${method?.min_dependent_vars ?? 2} 个因变量`)
+  if (new Set(assigned).size !== assigned.length) issues.push('同一因变量不能重复进入多个联合组')
+  const selectedSet = new Set(selected)
+  const assignedSet = new Set(assigned)
+  const missing = selected.filter(item => !assignedSet.has(item))
+  const unknown = assigned.filter(item => !selectedSet.has(item))
+  if (missing.length) issues.push(`这些因变量尚未分组：${missing.join('、')}`)
+  if (unknown.length) issues.push(`联合组包含未选择的因变量：${Array.from(new Set(unknown)).join('、')}`)
+  return issues
+}
+
+function pairSplitInheritanceText(column: string, target: 'instant' | 'workspace') {
+  const plan = target === 'instant' ? pairingPlan.value : workspacePairingPlan.value
+  if (!plan?.derived_columns.some(item => item.name === column)) return ''
+  const splits = target === 'instant' ? splitBy.value : workspaceSplits.value
+  return splits.length ? `继承整个配对任务拆分：${splits.join(' × ')}` : '当前配对任务未拆分'
 }
 const workspaceMissingSelections = computed(() => {
   const method = workspaceCurrentMethod.value
@@ -429,6 +532,8 @@ const workspaceMissingSelections = computed(() => {
   if (workspaceEstimateMarginalMeans.value && workspaceEmmCandidates.value.length && !workspaceEmmFactors.value.length) missing.push('EMM 因素')
   missing.push(...workspaceSplitRuleIssues.value)
   missing.push(...factorCombinationNameIssues('workspace'))
+  missing.push(...pairingDraftIssues(workspacePairingPlan.value, workspaceSplits.value, workspaceDerivedNames.value))
+  missing.push(...outcomeGroupDraftIssues(workspaceDependentVariableGroups.value, workspaceDvs.value, method))
   return missing
 })
 const canCreateWorkspacePlan = computed(() => Boolean(workspaceDataset.value && workspaceCurrentMethod.value?.runnable && workspaceMissingSelections.value.length === 0 && !interactionBusy.value))
@@ -467,6 +572,8 @@ const aiContext = computed(() => ({
   split_by: mode.value === 'instant' ? splitBy.value : workspaceSplits.value,
   split_rules: mode.value === 'instant' ? serializeInstantSplitRules() : serializeWorkspaceSplitRules(),
   derived_columns: mode.value === 'instant' ? derivedColumns.value : workspaceDerivedColumns.value,
+  pairing: mode.value === 'instant' ? pairingPlan.value : workspacePairingPlan.value,
+  dependent_variable_groups: mode.value === 'instant' ? dependentVariableGroups.value : workspaceDependentVariableGroups.value,
   method_parameters: mode.value === 'instant' ? methodParameters.value : workspaceMethodParameters.value,
   factor_combinations_enabled: mode.value === 'instant' ? (instantFactorCombinationsAllowed.value && factorCombinationsEnabled.value) : workspaceFactorCombinationsEnabled.value,
   factor_combination_order: mode.value === 'instant' ? factorCombinationMaxOrder.value : workspaceFactorCombinationMaxOrder.value,
@@ -600,6 +707,8 @@ const instantMissingSelections = computed(() => {
   if (estimateMarginalMeans.value && emmCandidates.value.length && !emmFactors.value.length) missing.push('EMM 因素')
   missing.push(...instantSplitRuleIssues.value)
   missing.push(...factorCombinationNameIssues('instant'))
+  missing.push(...pairingDraftIssues(pairingPlan.value, splitBy.value, instantDerivedNames.value))
+  missing.push(...outcomeGroupDraftIssues(dependentVariableGroups.value, dependentVariables.value, method))
   return missing
 })
 const instantWorkflowStep = computed(() => result.value ? 4 : preflightOpen.value ? 3 : profile.value ? 2 : file.value ? 1 : 0)
@@ -654,15 +763,17 @@ function invalidateWorkspaceResult(reason: string) {
 function setInstantExpertMode(expert: boolean) {
   if (instantExpertMode.value === expert) return
   if (!expert) {
-    const hasProfessionalData = derivedColumns.value.length > 0 || instantSplitRules.value.length > 0 || splitBy.value.some(column => fixedFactors.value.includes(column))
-    if (hasProfessionalData && !window.confirm('当前计划包含简洁模式不支持的自定义列或专业拆分配置。继续切换将自动整理这些设置，原始数据和历史结果不会被删除。是否继续？')) return
-    const derivedNames = new Set(derivedColumns.value.map(column => column.name))
-    dependentVariables.value = dependentVariables.value.filter(column => !derivedNames.has(column))
-    fixedFactors.value = fixedFactors.value.filter(column => !derivedNames.has(column))
-    covariates.value = covariates.value.filter(column => !derivedNames.has(column))
-    randomFactors.value = randomFactors.value.filter(column => !derivedNames.has(column))
-    randomSlopes.value = randomSlopes.value.filter(column => !derivedNames.has(column))
-    splitBy.value = splitBy.value.filter(column => !derivedNames.has(column) && !fixedFactors.value.includes(column))
+    const hasProfessionalData = derivedColumns.value.length > 0 || Boolean(pairingPlan.value) || dependentVariableGroups.value.length > 0 || instantSplitRules.value.length > 0 || splitBy.value.some(column => fixedFactors.value.includes(column))
+    if (hasProfessionalData && !window.confirm('当前计划包含简洁模式不支持的配对计算、自定义列、联合因变量组或专业拆分配置。继续切换将自动整理这些设置，原始数据和历史结果不会被删除。是否继续？')) return
+    const generatedNames = new Set([...instantGeneratedNames.value])
+    dependentVariables.value = dependentVariables.value.filter(column => !generatedNames.has(column))
+    fixedFactors.value = fixedFactors.value.filter(column => !generatedNames.has(column))
+    covariates.value = covariates.value.filter(column => !generatedNames.has(column))
+    randomFactors.value = randomFactors.value.filter(column => !generatedNames.has(column))
+    randomSlopes.value = randomSlopes.value.filter(column => !generatedNames.has(column))
+    splitBy.value = splitBy.value.filter(column => !generatedNames.has(column) && !fixedFactors.value.includes(column))
+    pairingPlan.value = null
+    dependentVariableGroups.value = []
     derivedColumns.value = []
     derivedWarnings.value = []
     if (sourceProfile.value) profile.value = structuredClone(toRaw(sourceProfile.value))
@@ -694,15 +805,17 @@ function setInstantExpertMode(expert: boolean) {
 function setWorkspaceExpertMode(expert: boolean) {
   if (workspaceExpertMode.value === expert) return
   if (!expert) {
-    const hasProfessionalData = workspaceDerivedColumns.value.length > 0 || workspaceSplitRules.value.length > 0 || workspaceSplits.value.some(column => workspaceFactors.value.includes(column))
-    if (hasProfessionalData && !window.confirm('当前计划包含简洁模式不支持的自定义列或专业拆分配置。继续切换将自动整理这些设置，原始数据和历史结果不会被删除。是否继续？')) return
-    const derivedNames = new Set(workspaceDerivedColumns.value.map(column => column.name))
-    workspaceDvs.value = workspaceDvs.value.filter(column => !derivedNames.has(column))
-    workspaceFactors.value = workspaceFactors.value.filter(column => !derivedNames.has(column))
-    workspaceCovariates.value = workspaceCovariates.value.filter(column => !derivedNames.has(column))
-    workspaceRandomFactors.value = workspaceRandomFactors.value.filter(column => !derivedNames.has(column))
-    workspaceRandomSlopes.value = workspaceRandomSlopes.value.filter(column => !derivedNames.has(column))
-    workspaceSplits.value = workspaceSplits.value.filter(column => !derivedNames.has(column) && !workspaceFactors.value.includes(column))
+    const hasProfessionalData = workspaceDerivedColumns.value.length > 0 || Boolean(workspacePairingPlan.value) || workspaceDependentVariableGroups.value.length > 0 || workspaceSplitRules.value.length > 0 || workspaceSplits.value.some(column => workspaceFactors.value.includes(column))
+    if (hasProfessionalData && !window.confirm('当前计划包含简洁模式不支持的配对计算、自定义列、联合因变量组或专业拆分配置。继续切换将自动整理这些设置，原始数据和历史结果不会被删除。是否继续？')) return
+    const generatedNames = new Set([...workspaceGeneratedNames.value])
+    workspaceDvs.value = workspaceDvs.value.filter(column => !generatedNames.has(column))
+    workspaceFactors.value = workspaceFactors.value.filter(column => !generatedNames.has(column))
+    workspaceCovariates.value = workspaceCovariates.value.filter(column => !generatedNames.has(column))
+    workspaceRandomFactors.value = workspaceRandomFactors.value.filter(column => !generatedNames.has(column))
+    workspaceRandomSlopes.value = workspaceRandomSlopes.value.filter(column => !generatedNames.has(column))
+    workspaceSplits.value = workspaceSplits.value.filter(column => !generatedNames.has(column) && !workspaceFactors.value.includes(column))
+    workspacePairingPlan.value = null
+    workspaceDependentVariableGroups.value = []
     workspaceDerivedColumns.value = []
     workspaceDerivedProfile.value = null
     workspaceDerivedWarnings.value = []
@@ -745,6 +858,8 @@ function startNewInstantAnalysis() {
   sourceProfile.value = null
   derivedColumns.value = []
   derivedWarnings.value = []
+  pairingPlan.value = null
+  dependentVariableGroups.value = []
   selectedMethod.value = DEFAULT_INSTANT_METHOD
   instantExpertMode.value = false
   dependentVariables.value = []
@@ -1013,6 +1128,7 @@ function resetFactorCombinationSettings(target: 'instant' | 'workspace') {
 watch(selectedMethod, () => {
   const method = currentMethod.value
   if (!method) return
+  if (method.dependent_mode !== 'joint') dependentVariableGroups.value = []
   invalidateInstantResult('分析方法已经改变，旧结果与旧报告已清除；请检查新方法的变量角色后重新执行分析。')
   methodParameters.value = defaultMethodParameters(method)
   factorCombinationsEnabled.value = false
@@ -1024,6 +1140,7 @@ watch(selectedMethod, () => {
 watch(workspaceMethod, () => {
   const method = workspaceCurrentMethod.value
   if (!method) return
+  if (method.dependent_mode !== 'joint') workspaceDependentVariableGroups.value = []
   invalidateWorkspaceResult('分析方法已经改变，旧运行结果与旧报告已清除；请按新方法保存并重新运行计划。')
   workspaceMethodParameters.value = defaultMethodParameters(method)
   workspaceFactorCombinationsEnabled.value = false
@@ -1044,10 +1161,57 @@ watch([workspaceFactors, workspaceCovariates, workspaceRepeatedFactor], () => {
   workspaceEmmFactors.value = workspaceEmmFactors.value.filter(item => workspaceEmmCandidates.value.includes(item))
 }, { deep: true })
 
+function replaceFormulaReference(formula: string, oldName: string, newName: string) {
+  return formula.split(`[${oldName}]`).join(`[${newName}]`)
+}
+
+function reconcilePairingChange(target: 'instant' | 'workspace', current: PairingDraft | null, previous: PairingDraft | null) {
+  const previousById = new Map((previous?.derived_columns ?? []).map(item => [item.id, item.name]))
+  const currentById = new Map((current?.derived_columns ?? []).map(item => [item.id, item.name]))
+  const renamed = new Map<string, string>()
+  const removed = new Set<string>()
+  for (const [id, oldName] of previousById) {
+    const newName = currentById.get(id)
+    if (!newName) removed.add(oldName)
+    else if (newName !== oldName) renamed.set(oldName, newName)
+  }
+  if (!renamed.size && !removed.size) return
+  const customColumns = target === 'instant' ? derivedColumns : workspaceDerivedColumns
+  customColumns.value = customColumns.value
+    .filter(definition => !definition.source_columns.some(column => removed.has(column)))
+    .map(definition => ({
+      ...definition,
+      source_columns: definition.source_columns.map(column => renamed.get(column) ?? column),
+      formula: Array.from(renamed).reduce((formula, [oldName, newName]) => replaceFormulaReference(formula, oldName, newName), definition.formula),
+    }))
+  const dvs = target === 'instant' ? dependentVariables : workspaceDvs
+  dvs.value = dvs.value.filter(column => !removed.has(column)).map(column => renamed.get(column) ?? column)
+  const groups = target === 'instant' ? dependentVariableGroups : workspaceDependentVariableGroups
+  groups.value = groups.value.map(group => ({
+    ...group,
+    dependent_variables: group.dependent_variables.filter(column => !removed.has(column)).map(column => renamed.get(column) ?? column),
+  }))
+  if (target === 'instant') removeUnavailableInstantRoles()
+  else removeUnavailableWorkspaceRoles()
+}
+
+watch(pairingPlan, (current, previous) => reconcilePairingChange('instant', current, previous), { deep: true })
+watch(workspacePairingPlan, (current, previous) => reconcilePairingChange('workspace', current, previous), { deep: true })
+watch(dependentVariables, selected => {
+  if (!dependentVariableGroups.value.length) return
+  const allowed = new Set(selected)
+  dependentVariableGroups.value = dependentVariableGroups.value.map(group => ({ ...group, dependent_variables: group.dependent_variables.filter(column => allowed.has(column)) }))
+}, { deep: true })
+watch(workspaceDvs, selected => {
+  if (!workspaceDependentVariableGroups.value.length) return
+  const allowed = new Set(selected)
+  workspaceDependentVariableGroups.value = workspaceDependentVariableGroups.value.map(group => ({ ...group, dependent_variables: group.dependent_variables.filter(column => allowed.has(column)) }))
+}, { deep: true })
+
 watch([
   workspaceDatasetId, workspaceDvs, workspaceFactors, workspaceCovariates, workspaceRandomFactors,
   workspaceRandomSlopes, workspaceSubjectId, workspaceRepeatedFactor, workspaceSplits,
-  workspaceSplitRules, workspaceDerivedColumns, workspaceCalibrationEnabled, workspaceCalibrationMethod,
+  workspaceSplitRules, workspacePairingPlan, workspaceDependentVariableGroups, workspaceDerivedColumns, workspaceCalibrationEnabled, workspaceCalibrationMethod,
   workspaceCalibrationColumns, workspaceCalibrationBaselineColumn, workspaceCalibrationBaselineValue,
   workspaceMethodParameters, workspaceFactorCombinationsEnabled, workspaceFactorCombinationMinOrder,
   workspaceFactorCombinationMaxOrder, workspaceFactorCombinationLabels, workspaceCombinationPAdjust, workspaceEstimateMarginalMeans,
@@ -1066,7 +1230,7 @@ watch(percentageScale, () => {
 watch([
   selectedMethod, dependentVariables, fixedFactors, covariates, randomFactors, randomSlopes,
   subjectId, repeatedFactor, splitBy, instantSplitRules, alpha, ssType, methodParameters, factorCombinationsEnabled,
-  derivedColumns, calibrationEnabled, calibrationMethod, calibrationColumns, calibrationBaselineColumn, calibrationBaselineValue,
+  pairingPlan, dependentVariableGroups, derivedColumns, calibrationEnabled, calibrationMethod, calibrationColumns, calibrationBaselineColumn, calibrationBaselineValue,
   factorCombinationMinOrder, factorCombinationMaxOrder, factorCombinationLabels, combinationPAdjust, estimateMarginalMeans,
   emmFactors, contrastCorrection, diagnosticPlots, testValue, expectedProportionsText,
 ], () => {
@@ -1384,6 +1548,8 @@ function buildInstantPlan() {
     repeated_factor: repeatedFactor.value || null,
     split_by: splitBy.value,
     split_rules: serializeInstantSplitRules(),
+    pairing: professional ? pairingPlan.value : null,
+    dependent_variable_groups: professional ? dependentVariableGroups.value : [],
     derived_columns: professional ? derivedColumns.value : [],
     test_value: testValue.value,
     expected_proportions: parseExpectedProportions(),
@@ -1479,6 +1645,7 @@ function locatePreflightField(field: string) {
     method: 'analysis-method', dependent_variables: 'analysis-roles', fixed_factors: 'analysis-roles',
     covariates: 'analysis-roles', random_factors: 'analysis-roles', random_slopes: 'phase3-options',
     subject_id: 'analysis-roles', repeated_factor: 'analysis-roles', split_by: 'analysis-roles', split_rules: 'analysis-roles',
+    pairing: 'data-preparation', dependent_variable_groups: 'analysis-roles', derived_columns: 'data-preparation',
     expected_proportions: 'advanced-parameters', method_parameters: 'advanced-parameters',
     emm_factors: 'phase3-options', columns: 'analysis-roles',
   }
@@ -1496,6 +1663,8 @@ function handleFile(event: Event) {
   sourceProfile.value = null
   derivedColumns.value = []
   derivedWarnings.value = []
+  pairingPlan.value = null
+  dependentVariableGroups.value = []
   result.value = null
   instantDetailedResults.value = false
   instantReportLinks.value = null
@@ -1556,17 +1725,18 @@ async function loadProfile() {
 }
 
 function removeUnavailableInstantRoles() {
-  const available = new Set(profile.value?.profile.columns.map(column => column.name) ?? [])
-  const derived = instantDerivedNames.value
+  const available = new Set(instantRoleColumns.value.map(column => column.name))
+  const generated = instantGeneratedNames.value
+  const pairingSources = new Set(pairingPlan.value?.derived_columns.map(column => column.source_column) ?? [])
   dependentVariables.value = dependentVariables.value.filter(column => available.has(column))
-  fixedFactors.value = fixedFactors.value.filter(column => available.has(column) && !derived.has(column))
-  covariates.value = covariates.value.filter(column => available.has(column) && !derived.has(column))
-  randomFactors.value = randomFactors.value.filter(column => available.has(column) && !derived.has(column))
-  randomSlopes.value = randomSlopes.value.filter(column => available.has(column) && !derived.has(column))
-  splitBy.value = splitBy.value.filter(column => available.has(column) && !derived.has(column))
-  instantSplitRules.value = instantSplitRules.value.filter(rule => available.has(rule.column) && !derived.has(rule.column))
-  if (!available.has(subjectId.value) || derived.has(subjectId.value)) subjectId.value = ''
-  if (!available.has(repeatedFactor.value) || derived.has(repeatedFactor.value)) repeatedFactor.value = ''
+  fixedFactors.value = fixedFactors.value.filter(column => available.has(column) && !generated.has(column))
+  covariates.value = covariates.value.filter(column => available.has(column) && !generated.has(column))
+  randomFactors.value = randomFactors.value.filter(column => available.has(column) && !generated.has(column))
+  randomSlopes.value = randomSlopes.value.filter(column => available.has(column) && !generated.has(column))
+  splitBy.value = splitBy.value.filter(column => available.has(column) && !generated.has(column) && !pairingSources.has(column))
+  instantSplitRules.value = instantSplitRules.value.filter(rule => available.has(rule.column) && !generated.has(rule.column) && !pairingSources.has(rule.column))
+  if (!available.has(subjectId.value) || generated.has(subjectId.value)) subjectId.value = ''
+  if (!available.has(repeatedFactor.value) || generated.has(repeatedFactor.value)) repeatedFactor.value = ''
 }
 
 async function refreshInstantDerivedPreview() {
@@ -1574,6 +1744,13 @@ async function refreshInstantDerivedPreview() {
   derivedPreviewLoading.value = true
   clearInstantError()
   try {
+    if (pairingPlan.value) {
+      profile.value = structuredClone(toRaw(sourceProfile.value))
+      derivedWarnings.value = derivedColumns.value.length ? ['普通自定义列将在处理—对照配对完成后计算；最终数值、继承拆分和引用关系会在执行前审核中验证。'] : []
+      removeUnavailableInstantRoles()
+      invalidateInstantResult('配对或自定义列已修改，旧结果已隐藏；请重新执行分析。')
+      return
+    }
     if (!derivedColumns.value.length) {
       profile.value = structuredClone(toRaw(sourceProfile.value))
       derivedWarnings.value = []
@@ -1617,7 +1794,8 @@ function clearColumnFromOtherRoles(column: string, keep: string) {
 
 function toggleSelection(target: 'dv' | 'factor' | 'covariate' | 'random' | 'subject' | 'repeated' | 'split', column: string) {
   const method = currentMethod.value
-  if (isInstantDerivedColumn(column) && target !== 'dv') return
+  if (isInstantGeneratedColumn(column) && target !== 'dv') return
+  if (target === 'split' && pairingPlan.value?.derived_columns.some(item => item.source_column === column)) return
   if (target === 'split' && !showInstantSplitRole.value) return
   if (target === 'subject') { subjectId.value = subjectId.value === column ? '' : column; if (subjectId.value) clearColumnFromOtherRoles(column, 'subject'); return }
   if (target === 'repeated') { repeatedFactor.value = repeatedFactor.value === column ? '' : column; if (repeatedFactor.value) clearColumnFromOtherRoles(column, 'repeated'); return }
@@ -1736,7 +1914,7 @@ function serializeWorkspaceSplitRules() {
 }
 
 function toggleRandomSlope(column: string) {
-  if (isInstantDerivedColumn(column)) return
+  if (isInstantGeneratedColumn(column)) return
   const allowed = fixedFactors.value.includes(column) || covariates.value.includes(column) || repeatedFactor.value === column
   if (!allowed) return
   if (randomSlopes.value.includes(column)) { randomSlopes.value = randomSlopes.value.filter(item => item !== column); return }
@@ -1751,6 +1929,15 @@ function toggleEmmFactor(column: string) {
 
 async function requestAnalysis() {
   if (!file.value || !profile.value || interactionBusy.value) return
+  if ((pairingPlan.value || dependentVariableGroups.value.length) && !supportsV15Workflow.value) {
+    applyInstantError(friendlyError({
+      error: {
+        code: 'v15_backend_required',
+        message: '当前后端不支持 V1.5 配对与联合因变量组。请完整更新并重启服务器后再执行，系统不会把这些字段静默忽略。',
+      },
+    }, '需要更新后端'))
+    return
+  }
   pendingAnalysisAction.value = 'instant'
   pendingWorkspacePlanId.value = ''
   preflightPriorRunCount.value = instantCompletedRunCount.value
@@ -2146,23 +2333,26 @@ function selectWorkspaceDataset(datasetId: string) {
   workspaceSplits.value = []
   workspaceSplitRules.value = []
   workspaceDerivedColumns.value = []
+  workspacePairingPlan.value = null
+  workspaceDependentVariableGroups.value = []
   workspaceDerivedProfile.value = null
   workspaceDerivedWarnings.value = []
   workspaceFactorCombinationLabels.value = {}
 }
 
 function removeUnavailableWorkspaceRoles() {
-  const available = new Set(workspaceColumns.value.map(column => column.name))
-  const derived = workspaceDerivedNames.value
+  const available = new Set(workspaceRoleColumns.value.map(column => column.name))
+  const generated = workspaceGeneratedNames.value
+  const pairingSources = new Set(workspacePairingPlan.value?.derived_columns.map(column => column.source_column) ?? [])
   workspaceDvs.value = workspaceDvs.value.filter(column => available.has(column))
-  workspaceFactors.value = workspaceFactors.value.filter(column => available.has(column) && !derived.has(column))
-  workspaceCovariates.value = workspaceCovariates.value.filter(column => available.has(column) && !derived.has(column))
-  workspaceRandomFactors.value = workspaceRandomFactors.value.filter(column => available.has(column) && !derived.has(column))
-  workspaceRandomSlopes.value = workspaceRandomSlopes.value.filter(column => available.has(column) && !derived.has(column))
-  workspaceSplits.value = workspaceSplits.value.filter(column => available.has(column) && !derived.has(column))
-  workspaceSplitRules.value = workspaceSplitRules.value.filter(rule => available.has(rule.column) && !derived.has(rule.column))
-  if (!available.has(workspaceSubjectId.value) || derived.has(workspaceSubjectId.value)) workspaceSubjectId.value = ''
-  if (!available.has(workspaceRepeatedFactor.value) || derived.has(workspaceRepeatedFactor.value)) workspaceRepeatedFactor.value = ''
+  workspaceFactors.value = workspaceFactors.value.filter(column => available.has(column) && !generated.has(column))
+  workspaceCovariates.value = workspaceCovariates.value.filter(column => available.has(column) && !generated.has(column))
+  workspaceRandomFactors.value = workspaceRandomFactors.value.filter(column => available.has(column) && !generated.has(column))
+  workspaceRandomSlopes.value = workspaceRandomSlopes.value.filter(column => available.has(column) && !generated.has(column))
+  workspaceSplits.value = workspaceSplits.value.filter(column => available.has(column) && !generated.has(column) && !pairingSources.has(column))
+  workspaceSplitRules.value = workspaceSplitRules.value.filter(rule => available.has(rule.column) && !generated.has(rule.column) && !pairingSources.has(rule.column))
+  if (!available.has(workspaceSubjectId.value) || generated.has(workspaceSubjectId.value)) workspaceSubjectId.value = ''
+  if (!available.has(workspaceRepeatedFactor.value) || generated.has(workspaceRepeatedFactor.value)) workspaceRepeatedFactor.value = ''
 }
 
 async function refreshWorkspaceDerivedPreview() {
@@ -2170,6 +2360,13 @@ async function refreshWorkspaceDerivedPreview() {
   workspaceDerivedPreviewLoading.value = true
   clearWorkspaceError()
   try {
+    if (workspacePairingPlan.value) {
+      workspaceDerivedProfile.value = null
+      workspaceDerivedWarnings.value = workspaceDerivedColumns.value.length ? ['普通自定义列将在处理—对照配对完成后计算；最终数值、继承拆分和引用关系会在执行前审核中验证。'] : []
+      removeUnavailableWorkspaceRoles()
+      invalidateWorkspaceResult('配对或自定义列已修改，当前结果已隐藏；请保存计划并重新运行。')
+      return
+    }
     if (!workspaceDerivedColumns.value.length) {
       workspaceDerivedProfile.value = null
       workspaceDerivedWarnings.value = []
@@ -2192,7 +2389,8 @@ async function refreshWorkspaceDerivedPreview() {
 }
 
 function toggleWorkspaceSelection(target: 'dv' | 'factor' | 'covariate' | 'random' | 'subject' | 'repeated' | 'split', column: string) {
-  if (isWorkspaceDerivedColumn(column) && target !== 'dv') return
+  if (isWorkspaceGeneratedColumn(column) && target !== 'dv') return
+  if (target === 'split' && workspacePairingPlan.value?.derived_columns.some(item => item.source_column === column)) return
   const scalar = target === 'subject' ? workspaceSubjectId : target === 'repeated' ? workspaceRepeatedFactor : null
   const lists = { dv: workspaceDvs, factor: workspaceFactors, covariate: workspaceCovariates, random: workspaceRandomFactors, split: workspaceSplits }
   const allLists = Object.entries(lists)
@@ -2235,7 +2433,7 @@ function toggleWorkspaceSelection(target: 'dv' | 'factor' | 'covariate' | 'rando
 }
 
 function toggleWorkspaceRandomSlope(column: string) {
-  if (isWorkspaceDerivedColumn(column)) return
+  if (isWorkspaceGeneratedColumn(column)) return
   const allowed = workspaceFactors.value.includes(column) || workspaceCovariates.value.includes(column) || workspaceRepeatedFactor.value === column
   if (!allowed) return
   if (workspaceRandomSlopes.value.includes(column)) { workspaceRandomSlopes.value = workspaceRandomSlopes.value.filter(item => item !== column); return }
@@ -2250,6 +2448,15 @@ function toggleWorkspaceEmmFactor(column: string) {
 
 async function createWorkspacePlan() {
   if (!workspaceProject.value || !workspaceDataset.value || workspaceLoading.value) return
+  if ((workspacePairingPlan.value || workspaceDependentVariableGroups.value.length) && !supportsV15Workflow.value) {
+    applyWorkspaceError(friendlyError({
+      error: {
+        code: 'v15_backend_required',
+        message: '当前后端不支持 V1.5 配对与联合因变量组。请完整更新并重启服务器后再保存计划。',
+      },
+    }, '需要更新后端'))
+    return
+  }
   workspaceLoading.value = true
   clearWorkspaceError()
   beginOperation('正在保存分析计划', '正在验证变量角色与高级参数，并保存可复现配置。')
@@ -2271,6 +2478,8 @@ async function createWorkspacePlan() {
           subject_id: workspaceSubjectId.value || null, repeated_factor: workspaceRepeatedFactor.value || null,
           split_by: workspaceSplits.value, method: workspaceMethod.value,
           split_rules: workspaceExpertMode.value ? serializeWorkspaceSplitRules() : [],
+          pairing: workspaceExpertMode.value ? workspacePairingPlan.value : null,
+          dependent_variable_groups: workspaceExpertMode.value ? workspaceDependentVariableGroups.value : [],
           derived_columns: workspaceExpertMode.value ? workspaceDerivedColumns.value : [],
           alpha: workspaceExpertMode.value ? alpha.value : 0.05,
           ss_type: workspaceExpertMode.value ? ssType.value : 3,
@@ -2301,6 +2510,16 @@ async function createWorkspacePlan() {
 async function runWorkspacePlan(planId?: string) {
   const selected = planId ?? workspaceSelectedPlanId.value
   if (!selected || interactionBusy.value) return
+  const selectedPlan = workspacePlanJson(selected)
+  if ((selectedPlan?.pairing || selectedPlan?.dependent_variable_groups?.length) && !supportsV15Workflow.value) {
+    applyWorkspaceError(friendlyError({
+      error: {
+        code: 'v15_backend_required',
+        message: '该计划使用 V1.5 配对或联合因变量组，但当前后端未声明支持；为防止静默降级，本次运行已阻止。',
+      },
+    }, '需要更新后端'))
+    return
+  }
   pendingAnalysisAction.value = 'workspace'
   pendingWorkspacePlanId.value = selected
   preflightPriorRunCount.value = workspaceProject.value?.runs.filter(run => run.plan_id === selected).length ?? 0
@@ -2383,6 +2602,10 @@ function formatBytes(value: unknown) {
 <template>
   <main class="shell">
     <LoadingOverlay :active="Boolean(operationTitle)" :title="operationTitle" :detail="operationDetail" />
+    <ReleaseNoticeDialog
+      :open="pairingTestNoticeOpen"
+      @acknowledge="pairingTestNoticeOpen = false"
+    />
     <div v-if="sessionAccessError" class="session-gate" role="alertdialog" aria-modal="true" aria-labelledby="session-gate-title">
       <div class="session-gate-card">
         <span class="session-gate-icon">👥</span>
@@ -2415,7 +2638,7 @@ function formatBytes(value: unknown) {
     </div>
     <header class="hero">
       <div>
-        <p class="eyebrow">DATAWORK {{ health?.version ?? '1.0.0' }}</p>
+        <p class="eyebrow">DATAWORK {{ releaseVersionLabel }}</p>
         <h1>实验统计分析平台</h1>
         <p class="hero-copy">同一套 Python 统计核心，可在 Windows、Linux、macOS 本地运行，也可部署为网页服务。</p>
       </div>
@@ -2614,12 +2837,17 @@ function formatBytes(value: unknown) {
           </div>
         </details>
 
-        <details class="advanced-method-panel calibration-panel" v-if="instantExpertMode">
-          <summary>数据准备与拆分 <small>{{ derivedColumns.length }} 个自定义列 · {{ splitBy.length }} 个拆分字段</small></summary>
+        <details id="data-preparation" class="advanced-method-panel calibration-panel" v-if="instantExpertMode">
+          <summary>数据准备与拆分 <small>{{ pairingPlan?.derived_columns.length ?? 0 }} 个配对列 · {{ derivedColumns.length }} 个自定义列 · {{ splitBy.length }} 个拆分字段</small></summary>
+          <div class="professional-subsection">
+            <h4>处理—对照配对计算</h4>
+            <p>先按映射、匹配标签和样本对应规则建立一行一对的数据域，再生成只能作为因变量使用的配对列。</p>
+            <PairingEditor v-model="pairingPlan" :columns="sourceProfile?.profile.columns ?? []" :ordinary-names="Array.from(instantDerivedNames)" :busy="derivedPreviewLoading" @changed="refreshInstantDerivedPreview" />
+          </div>
           <div class="professional-subsection">
             <h4>自定义计算列</h4>
-            <p>从原始数值列逐行计算，支持基础算术与括号；自定义列之间不能互相引用。</p>
-            <DerivedColumnEditor v-model="derivedColumns" :columns="sourceProfile?.profile.columns ?? []" :warnings="derivedWarnings" :busy="derivedPreviewLoading" @changed="refreshInstantDerivedPreview" />
+            <p>从可用基础数值列逐行计算；启用配对时，可引用原始处理侧列或配对列。普通自定义列之间不能互相引用。</p>
+            <DerivedColumnEditor v-model="derivedColumns" :columns="instantCustomSourceColumns" :warnings="derivedWarnings" :busy="derivedPreviewLoading" @changed="refreshInstantDerivedPreview" />
           </div>
           <div class="advanced-method-grid">
             <label class="combination-toggle"><input v-model="calibrationEnabled" type="checkbox" /><span><strong>启用数据校正</strong><small>消除数据源系统误差、对齐基准特征空间，或降低极值造成的预测偏移。</small></span></label>
@@ -2627,7 +2855,7 @@ function formatBytes(value: unknown) {
             <label class="field" v-if="calibrationEnabled && calibrationMethod === 'baseline_center'">基准列<select v-model="calibrationBaselineColumn"><option value="">请选择</option><option v-for="column in profile?.profile.columns ?? []" :key="`cal-base-${column.name}`" :value="column.name">{{ column.name }}</option></select></label>
             <label class="field" v-if="calibrationEnabled && calibrationMethod === 'baseline_center'">基准值<input v-model="calibrationBaselineValue" type="text" placeholder="例如：control" /></label>
           </div>
-          <div class="method-output" v-if="calibrationEnabled"><strong>校正列</strong><button v-for="column in [...dependentVariables, ...covariates]" :key="`cal-${column}`" type="button" class="choice" :class="{ active: calibrationColumns.includes(column) }" @click="calibrationColumns = calibrationColumns.includes(column) ? calibrationColumns.filter(item => item !== column) : [...calibrationColumns, column]">{{ column }}</button></div>
+          <div class="method-output" v-if="calibrationEnabled"><strong>校正列</strong><button v-for="column in [...dependentVariables, ...covariates].filter(item => !isInstantPairColumn(item))" :key="`cal-${column}`" type="button" class="choice" :class="{ active: calibrationColumns.includes(column) }" @click="calibrationColumns = calibrationColumns.includes(column) ? calibrationColumns.filter(item => item !== column) : [...calibrationColumns, column]">{{ column }}</button></div>
           <p class="setting-note">校正不是为了制造显著性，也不能替代数据质量控制；所有校正参数都会写入可复现日志。</p>
           <button type="button" class="text-button" @click="openHelp('calibration')">查看校正技术说明</button>
         </details>
@@ -2691,22 +2919,26 @@ function formatBytes(value: unknown) {
           <div class="role-head dynamic-role-head">
             <span>列名</span><span>推断</span><span v-if="showDependentRole">{{ dependentRoleLabel }}</span><span v-if="showFixedRole">分类因素</span><span v-if="showCovariateRole">连续自变量</span><span v-if="showRandomRole">随机分组</span><span v-if="showRandomSlopeRole">随机斜率</span><span v-if="showSubjectRole">对象 ID</span><span v-if="showRepeatedRole">重复/时间</span><span v-if="showInstantSplitRole">批量拆分</span>
           </div>
-          <div class="role-row dynamic-role-row" v-for="column in profile.profile.columns" :key="column.name">
-            <div><strong>{{ column.name }}</strong><small>{{ column.dtype }} · {{ column.n_unique }} 个值</small><small class="dual-role-note" v-if="fixedFactors.includes(column.name) && splitBy.includes(column.name)">分类因素 + 自定义拆分</small><small class="dual-role-note" v-if="isInstantDerivedColumn(column.name)">自定义因变量 · {{ inheritedSplitText(column.name, 'instant') }}</small></div>
+          <div class="role-row dynamic-role-row" v-for="column in instantRoleColumns" :key="column.name">
+            <div><strong>{{ column.name }}</strong><small>{{ column.dtype }} · {{ column.n_unique }} 个值</small><small class="dual-role-note" v-if="fixedFactors.includes(column.name) && splitBy.includes(column.name)">分类因素 + 自定义拆分</small><small class="dual-role-note" v-if="isInstantPairColumn(column.name)">配对因变量 · {{ pairSplitInheritanceText(column.name, 'instant') }}</small><small class="dual-role-note" v-else-if="isInstantDerivedColumn(column.name)">自定义因变量 · {{ inheritedSplitText(column.name, 'instant') }}</small></div>
             <span class="role-badge">{{ column.inferred_role }}</span>
             <button v-if="showDependentRole" class="choice" :aria-pressed="dependentVariables.includes(column.name)" :class="{ active: dependentVariables.includes(column.name) }" @click="toggleSelection('dv', column.name)">{{ dependentVariables.includes(column.name) ? '已选' : '选择' }}</button>
-            <button v-if="showFixedRole" class="choice" :disabled="isInstantDerivedColumn(column.name)" :aria-pressed="fixedFactors.includes(column.name)" :class="{ active: fixedFactors.includes(column.name) }" @click="toggleSelection('factor', column.name)">{{ isInstantDerivedColumn(column.name) ? '不可用' : fixedFactors.includes(column.name) ? '已选' : '选择' }}</button>
-            <button v-if="showCovariateRole" class="choice" :disabled="isInstantDerivedColumn(column.name)" :aria-pressed="covariates.includes(column.name)" :class="{ active: covariates.includes(column.name) }" @click="toggleSelection('covariate', column.name)">{{ isInstantDerivedColumn(column.name) ? '不可用' : covariates.includes(column.name) ? '已选' : '选择' }}</button>
-            <button v-if="showRandomRole" class="choice" :disabled="isInstantDerivedColumn(column.name)" :aria-pressed="randomFactors.includes(column.name)" :class="{ active: randomFactors.includes(column.name) }" @click="toggleSelection('random', column.name)">{{ isInstantDerivedColumn(column.name) ? '不可用' : randomFactors.includes(column.name) ? '已选' : '选择' }}</button>
-            <button v-if="showRandomSlopeRole" class="choice" :disabled="isInstantDerivedColumn(column.name) || !(fixedFactors.includes(column.name) || covariates.includes(column.name) || repeatedFactor === column.name)" :aria-pressed="randomSlopes.includes(column.name)" :class="{ active: randomSlopes.includes(column.name) }" @click="toggleRandomSlope(column.name)">{{ isInstantDerivedColumn(column.name) ? '不可用' : randomSlopes.includes(column.name) ? '已选' : '选择' }}</button>
-            <button v-if="showSubjectRole" class="choice" :disabled="isInstantDerivedColumn(column.name)" :aria-pressed="subjectId === column.name" :class="{ active: subjectId === column.name }" @click="toggleSelection('subject', column.name)">{{ isInstantDerivedColumn(column.name) ? '不可用' : subjectId === column.name ? '已选' : '选择' }}</button>
-            <button v-if="showRepeatedRole" class="choice" :disabled="isInstantDerivedColumn(column.name)" :aria-pressed="repeatedFactor === column.name" :class="{ active: repeatedFactor === column.name }" @click="toggleSelection('repeated', column.name)">{{ isInstantDerivedColumn(column.name) ? '不可用' : repeatedFactor === column.name ? '已选' : '选择' }}</button>
-            <button v-if="showInstantSplitRole" class="choice" :disabled="isInstantDerivedColumn(column.name)" :class="{ active: splitBy.includes(column.name) }" @click="toggleSelection('split', column.name)">{{ isInstantDerivedColumn(column.name) ? '继承' : splitBy.includes(column.name) ? '已选' : '选择' }}</button>
+            <button v-if="showFixedRole" class="choice" :disabled="isInstantGeneratedColumn(column.name)" :aria-pressed="fixedFactors.includes(column.name)" :class="{ active: fixedFactors.includes(column.name) }" @click="toggleSelection('factor', column.name)">{{ isInstantGeneratedColumn(column.name) ? '不可用' : fixedFactors.includes(column.name) ? '已选' : '选择' }}</button>
+            <button v-if="showCovariateRole" class="choice" :disabled="isInstantGeneratedColumn(column.name)" :aria-pressed="covariates.includes(column.name)" :class="{ active: covariates.includes(column.name) }" @click="toggleSelection('covariate', column.name)">{{ isInstantGeneratedColumn(column.name) ? '不可用' : covariates.includes(column.name) ? '已选' : '选择' }}</button>
+            <button v-if="showRandomRole" class="choice" :disabled="isInstantGeneratedColumn(column.name)" :aria-pressed="randomFactors.includes(column.name)" :class="{ active: randomFactors.includes(column.name) }" @click="toggleSelection('random', column.name)">{{ isInstantGeneratedColumn(column.name) ? '不可用' : randomFactors.includes(column.name) ? '已选' : '选择' }}</button>
+            <button v-if="showRandomSlopeRole" class="choice" :disabled="isInstantGeneratedColumn(column.name) || !(fixedFactors.includes(column.name) || covariates.includes(column.name) || repeatedFactor === column.name)" :aria-pressed="randomSlopes.includes(column.name)" :class="{ active: randomSlopes.includes(column.name) }" @click="toggleRandomSlope(column.name)">{{ isInstantGeneratedColumn(column.name) ? '不可用' : randomSlopes.includes(column.name) ? '已选' : '选择' }}</button>
+            <button v-if="showSubjectRole" class="choice" :disabled="isInstantGeneratedColumn(column.name)" :aria-pressed="subjectId === column.name" :class="{ active: subjectId === column.name }" @click="toggleSelection('subject', column.name)">{{ isInstantGeneratedColumn(column.name) ? '不可用' : subjectId === column.name ? '已选' : '选择' }}</button>
+            <button v-if="showRepeatedRole" class="choice" :disabled="isInstantGeneratedColumn(column.name)" :aria-pressed="repeatedFactor === column.name" :class="{ active: repeatedFactor === column.name }" @click="toggleSelection('repeated', column.name)">{{ isInstantGeneratedColumn(column.name) ? '不可用' : repeatedFactor === column.name ? '已选' : '选择' }}</button>
+            <button v-if="showInstantSplitRole" class="choice" :disabled="isInstantGeneratedColumn(column.name) || pairingPlan?.derived_columns.some(item => item.source_column === column.name)" :class="{ active: splitBy.includes(column.name) }" @click="toggleSelection('split', column.name)">{{ isInstantGeneratedColumn(column.name) ? '继承' : pairingPlan?.derived_columns.some(item => item.source_column === column.name) ? '配对来源' : splitBy.includes(column.name) ? '已选' : '选择' }}</button>
           </div>
         </div>
 
-        <div class="generic-batch-note" v-if="splitBy.length || dependentVariables.length > (currentMethod?.max_dependent_vars ?? 999) || factorCombinationsEnabled">
-          <div><strong>通用批量模式已启用</strong><p>程序会展开 {{ dependentVariables.length > 1 ? `${dependentVariables.length} 个因变量` : '当前因变量' }}{{ factorCombinationsEnabled ? ` × ${factorCombinationCount} 个因素组合` : '' }}{{ splitBy.length ? ` × ${splitBy.join(' × ')}` : '' }}，逐任务执行同一分析计划；网页可按批次切换，Excel 会生成总览和逐批子表。</p></div>
+        <div class="professional-subsection" v-if="instantExpertMode && currentMethod?.dependent_mode === 'joint'">
+          <OutcomeGroupEditor v-model="dependentVariableGroups" :dependent-variables="dependentVariables" :minimum-size="currentMethod.min_dependent_vars" :busy="interactionBusy" />
+        </div>
+
+        <div class="generic-batch-note" v-if="splitBy.length || dependentVariableGroups.length || dependentVariables.length > (currentMethod?.max_dependent_vars ?? 999) || factorCombinationsEnabled">
+          <div><strong>通用批量模式已启用</strong><p>程序会展开 {{ dependentVariableGroups.length ? `${dependentVariableGroups.length} 个联合因变量组` : dependentVariables.length > 1 ? `${dependentVariables.length} 个因变量` : '当前因变量' }}{{ factorCombinationsEnabled ? ` × ${factorCombinationCount} 个因素组合` : '' }}{{ splitBy.length ? ` × ${splitBy.join(' × ')}` : '' }}，逐任务执行同一分析计划；网页可按批次切换，Excel 会生成总览和逐批子表。</p></div>
           <button class="help-button" @click="openHelp('batch_workflow')">了解批量流程</button>
         </div>
 
@@ -2714,6 +2946,8 @@ function formatBytes(value: unknown) {
 
         <div id="instant-preflight-action" class="plan-summary plan-summary-expanded workflow-jump-target" :class="{ 'workflow-jump-highlight': workflowJumpTarget === 'instant-preflight-action' }">
           <div><span>{{ dependentRoleLabel }}</span><strong>{{ dependentVariables.join('、') || (currentMethod?.min_dependent_vars === 0 ? '该方法不需要' : '未选择') }}</strong></div>
+          <div v-if="pairingPlan"><span>处理—对照配对</span><strong>{{ pairingPlan.mappings.length }} 组映射 · {{ pairingPlan.derived_columns.length }} 个新列</strong><small>{{ pairingPlan.pair_id_column ? `显式 ID：${pairingPlan.pair_id_column}` : '匹配组内按原始行顺序' }}</small></div>
+          <div v-if="dependentVariableGroups.length"><span>联合因变量组</span><strong>{{ dependentVariableGroups.map(item => `${item.name}（${item.dependent_variables.join('、')}）`).join('；') }}</strong></div>
           <div><span>{{ factorCombinationsEnabled ? '候选分类因素' : '分类因素' }}</span><strong>{{ fixedFactors.join(' × ') || '未选择' }}</strong><small v-if="factorCombinationsEnabled">{{ factorCombinationCount }} 个组合 · {{ combinationPAdjust }}</small></div>
           <div v-if="showCovariateRole"><span>连续自变量</span><strong>{{ covariates.join('、') || '未选择' }}</strong></div>
           <div v-if="showRandomRole"><span>随机分组</span><strong>{{ randomFactors.join('、') || '未选择' }}</strong></div><div v-if="showRandomSlopeRole"><span>随机斜率</span><strong>{{ randomSlopes.join('、') || '随机截距' }}</strong></div><div v-if="estimateMarginalMeans"><span>EMM</span><strong>{{ emmFactors.join('、') || '等待选择因素' }}</strong></div>
@@ -2848,11 +3082,12 @@ function formatBytes(value: unknown) {
                 <div class="method-output" v-if="workspaceEstimateMarginalMeans && workspaceEmmCandidates.length"><strong>EMM 因素</strong><button v-for="column in workspaceEmmCandidates" :key="column" class="choice" :class="{ active: workspaceEmmFactors.includes(column) }" @click="toggleWorkspaceEmmFactor(column)">{{ column }}</button></div>
                 <p class="setting-note" v-if="!workspaceCurrentMethod?.supports_emm && !workspaceCurrentMethod?.supports_diagnostic_plots && !workspaceShowRandomSlopeRole">当前方法没有额外的模型比较或诊断选项。</p>
               </details>
-              <details class="advanced-method-panel calibration-panel" v-if="workspaceExpertMode">
-                <summary>数据准备与拆分 <small>{{ workspaceDerivedColumns.length }} 个自定义列 · {{ workspaceSplits.length }} 个拆分字段</small></summary>
-                <div class="professional-subsection"><h4>自定义计算列</h4><p>从当前数据集的原始数值列逐行计算，自定义列之间不能互相引用。</p><DerivedColumnEditor v-model="workspaceDerivedColumns" :columns="workspaceDataset?.profile_json.columns ?? []" :warnings="workspaceDerivedWarnings" :busy="workspaceDerivedPreviewLoading" @changed="refreshWorkspaceDerivedPreview" /></div>
+              <details id="workspace-data-preparation" class="advanced-method-panel calibration-panel" v-if="workspaceExpertMode">
+                <summary>数据准备与拆分 <small>{{ workspacePairingPlan?.derived_columns.length ?? 0 }} 个配对列 · {{ workspaceDerivedColumns.length }} 个自定义列 · {{ workspaceSplits.length }} 个拆分字段</small></summary>
+                <div class="professional-subsection"><h4>处理—对照配对计算</h4><p>先建立一行一对的处理侧数据域，再生成只能作为因变量使用的配对列。</p><PairingEditor v-model="workspacePairingPlan" :columns="workspaceDataset?.profile_json.columns ?? []" :ordinary-names="Array.from(workspaceDerivedNames)" :busy="workspaceDerivedPreviewLoading" @changed="refreshWorkspaceDerivedPreview" /></div>
+                <div class="professional-subsection"><h4>自定义计算列</h4><p>可使用原始处理侧数值列或配对列；普通自定义列之间不能互相引用。</p><DerivedColumnEditor v-model="workspaceDerivedColumns" :columns="workspaceCustomSourceColumns" :warnings="workspaceDerivedWarnings" :busy="workspaceDerivedPreviewLoading" @changed="refreshWorkspaceDerivedPreview" /></div>
                 <div class="advanced-method-grid"><label class="combination-toggle"><input v-model="workspaceCalibrationEnabled" type="checkbox" /><span><strong>启用数据校正</strong><small>用于消除系统误差、对齐 Baseline 或降低极值预测偏移。</small></span></label><label class="field" v-if="workspaceCalibrationEnabled">校正策略<select v-model="workspaceCalibrationMethod"><option value="zscore">标准化</option><option value="robust_zscore">稳健标准化</option><option value="baseline_center">基线中心化</option></select></label><label class="field" v-if="workspaceCalibrationEnabled && workspaceCalibrationMethod === 'baseline_center'">基准列<select v-model="workspaceCalibrationBaselineColumn"><option value="">请选择</option><option v-for="column in workspaceColumns" :key="`wcal-base-${column.name}`" :value="column.name">{{ column.name }}</option></select></label><label class="field" v-if="workspaceCalibrationEnabled && workspaceCalibrationMethod === 'baseline_center'">基准值<input v-model="workspaceCalibrationBaselineValue" type="text" /></label></div>
-                <div class="method-output" v-if="workspaceCalibrationEnabled"><strong>校正列</strong><button v-for="column in [...workspaceDvs, ...workspaceCovariates]" :key="`wcal-${column}`" type="button" class="choice" :class="{ active: workspaceCalibrationColumns.includes(column) }" @click="workspaceCalibrationColumns = workspaceCalibrationColumns.includes(column) ? workspaceCalibrationColumns.filter(item => item !== column) : [...workspaceCalibrationColumns, column]">{{ column }}</button></div>
+                <div class="method-output" v-if="workspaceCalibrationEnabled"><strong>校正列</strong><button v-for="column in [...workspaceDvs, ...workspaceCovariates].filter(item => !isWorkspacePairColumn(item))" :key="`wcal-${column}`" type="button" class="choice" :class="{ active: workspaceCalibrationColumns.includes(column) }" @click="workspaceCalibrationColumns = workspaceCalibrationColumns.includes(column) ? workspaceCalibrationColumns.filter(item => item !== column) : [...workspaceCalibrationColumns, column]">{{ column }}</button></div>
                 <button type="button" class="text-button" @click="openHelp('calibration')">查看校正技术说明</button>
               </details>
               <section class="split-group-panel" v-if="workspaceExpertMode && workspaceCurrentMethod?.supports_batch && workspaceSplits.length">
@@ -2878,20 +3113,23 @@ function formatBytes(value: unknown) {
               </section>
               <div class="role-table role-table-wide">
                 <div class="role-head dynamic-role-head"><span>列名</span><span>推断</span><span v-if="workspaceShowDependentRole">{{ workspaceDependentRoleLabel }}</span><span v-if="workspaceShowFixedRole">分类因素</span><span v-if="workspaceShowCovariateRole">连续自变量</span><span v-if="workspaceShowRandomRole">随机分组</span><span v-if="workspaceShowRandomSlopeRole">随机斜率</span><span v-if="workspaceShowSubjectRole">对象 ID</span><span v-if="workspaceShowRepeatedRole">重复/时间</span><span>批量拆分</span></div>
-                <div class="role-row dynamic-role-row" v-for="column in workspaceColumns" :key="column.name">
-                  <div><strong>{{ column.name }}</strong><small>{{ column.dtype }} · {{ column.n_unique }} 个值</small><small class="dual-role-note" v-if="workspaceFactors.includes(column.name) && workspaceSplits.includes(column.name)">分类因素 + 自定义拆分</small><small class="dual-role-note" v-if="isWorkspaceDerivedColumn(column.name)">自定义因变量 · {{ inheritedSplitText(column.name, 'workspace') }}</small></div><span class="role-badge">{{ column.inferred_role }}</span>
+                <div class="role-row dynamic-role-row" v-for="column in workspaceRoleColumns" :key="column.name">
+                  <div><strong>{{ column.name }}</strong><small>{{ column.dtype }} · {{ column.n_unique }} 个值</small><small class="dual-role-note" v-if="workspaceFactors.includes(column.name) && workspaceSplits.includes(column.name)">分类因素 + 自定义拆分</small><small class="dual-role-note" v-if="isWorkspacePairColumn(column.name)">配对因变量 · {{ pairSplitInheritanceText(column.name, 'workspace') }}</small><small class="dual-role-note" v-else-if="isWorkspaceDerivedColumn(column.name)">自定义因变量 · {{ inheritedSplitText(column.name, 'workspace') }}</small></div><span class="role-badge">{{ column.inferred_role }}</span>
                   <button v-if="workspaceShowDependentRole" class="choice" :aria-pressed="workspaceDvs.includes(column.name)" :class="{ active: workspaceDvs.includes(column.name) }" @click="toggleWorkspaceSelection('dv', column.name)">{{ workspaceDvs.includes(column.name) ? '已选' : '选择' }}</button>
-                  <button v-if="workspaceShowFixedRole" class="choice" :disabled="isWorkspaceDerivedColumn(column.name)" :aria-pressed="workspaceFactors.includes(column.name)" :class="{ active: workspaceFactors.includes(column.name) }" @click="toggleWorkspaceSelection('factor', column.name)">{{ isWorkspaceDerivedColumn(column.name) ? '不可用' : workspaceFactors.includes(column.name) ? '已选' : '选择' }}</button>
-                  <button v-if="workspaceShowCovariateRole" class="choice" :disabled="isWorkspaceDerivedColumn(column.name)" :aria-pressed="workspaceCovariates.includes(column.name)" :class="{ active: workspaceCovariates.includes(column.name) }" @click="toggleWorkspaceSelection('covariate', column.name)">{{ isWorkspaceDerivedColumn(column.name) ? '不可用' : workspaceCovariates.includes(column.name) ? '已选' : '选择' }}</button>
-                  <button v-if="workspaceShowRandomRole" class="choice" :disabled="isWorkspaceDerivedColumn(column.name)" :aria-pressed="workspaceRandomFactors.includes(column.name)" :class="{ active: workspaceRandomFactors.includes(column.name) }" @click="toggleWorkspaceSelection('random', column.name)">{{ isWorkspaceDerivedColumn(column.name) ? '不可用' : workspaceRandomFactors.includes(column.name) ? '已选' : '选择' }}</button>
-                  <button v-if="workspaceShowRandomSlopeRole" class="choice" :disabled="isWorkspaceDerivedColumn(column.name) || !(workspaceFactors.includes(column.name) || workspaceCovariates.includes(column.name) || workspaceRepeatedFactor === column.name)" :aria-pressed="workspaceRandomSlopes.includes(column.name)" :class="{ active: workspaceRandomSlopes.includes(column.name) }" @click="toggleWorkspaceRandomSlope(column.name)">{{ isWorkspaceDerivedColumn(column.name) ? '不可用' : workspaceRandomSlopes.includes(column.name) ? '已选' : '选择' }}</button>
-                  <button v-if="workspaceShowSubjectRole" class="choice" :disabled="isWorkspaceDerivedColumn(column.name)" :aria-pressed="workspaceSubjectId === column.name" :class="{ active: workspaceSubjectId === column.name }" @click="toggleWorkspaceSelection('subject', column.name)">{{ isWorkspaceDerivedColumn(column.name) ? '不可用' : workspaceSubjectId === column.name ? '已选' : '选择' }}</button>
-                  <button v-if="workspaceShowRepeatedRole" class="choice" :disabled="isWorkspaceDerivedColumn(column.name)" :aria-pressed="workspaceRepeatedFactor === column.name" :class="{ active: workspaceRepeatedFactor === column.name }" @click="toggleWorkspaceSelection('repeated', column.name)">{{ isWorkspaceDerivedColumn(column.name) ? '不可用' : workspaceRepeatedFactor === column.name ? '已选' : '选择' }}</button>
-                  <button class="choice" :disabled="!workspaceCurrentMethod?.supports_batch || isWorkspaceDerivedColumn(column.name)" :class="{ active: workspaceSplits.includes(column.name) }" @click="toggleWorkspaceSelection('split', column.name)">{{ isWorkspaceDerivedColumn(column.name) ? '继承' : '选择' }}</button>
+                  <button v-if="workspaceShowFixedRole" class="choice" :disabled="isWorkspaceGeneratedColumn(column.name)" :aria-pressed="workspaceFactors.includes(column.name)" :class="{ active: workspaceFactors.includes(column.name) }" @click="toggleWorkspaceSelection('factor', column.name)">{{ isWorkspaceGeneratedColumn(column.name) ? '不可用' : workspaceFactors.includes(column.name) ? '已选' : '选择' }}</button>
+                  <button v-if="workspaceShowCovariateRole" class="choice" :disabled="isWorkspaceGeneratedColumn(column.name)" :aria-pressed="workspaceCovariates.includes(column.name)" :class="{ active: workspaceCovariates.includes(column.name) }" @click="toggleWorkspaceSelection('covariate', column.name)">{{ isWorkspaceGeneratedColumn(column.name) ? '不可用' : workspaceCovariates.includes(column.name) ? '已选' : '选择' }}</button>
+                  <button v-if="workspaceShowRandomRole" class="choice" :disabled="isWorkspaceGeneratedColumn(column.name)" :aria-pressed="workspaceRandomFactors.includes(column.name)" :class="{ active: workspaceRandomFactors.includes(column.name) }" @click="toggleWorkspaceSelection('random', column.name)">{{ isWorkspaceGeneratedColumn(column.name) ? '不可用' : workspaceRandomFactors.includes(column.name) ? '已选' : '选择' }}</button>
+                  <button v-if="workspaceShowRandomSlopeRole" class="choice" :disabled="isWorkspaceGeneratedColumn(column.name) || !(workspaceFactors.includes(column.name) || workspaceCovariates.includes(column.name) || workspaceRepeatedFactor === column.name)" :aria-pressed="workspaceRandomSlopes.includes(column.name)" :class="{ active: workspaceRandomSlopes.includes(column.name) }" @click="toggleWorkspaceRandomSlope(column.name)">{{ isWorkspaceGeneratedColumn(column.name) ? '不可用' : workspaceRandomSlopes.includes(column.name) ? '已选' : '选择' }}</button>
+                  <button v-if="workspaceShowSubjectRole" class="choice" :disabled="isWorkspaceGeneratedColumn(column.name)" :aria-pressed="workspaceSubjectId === column.name" :class="{ active: workspaceSubjectId === column.name }" @click="toggleWorkspaceSelection('subject', column.name)">{{ isWorkspaceGeneratedColumn(column.name) ? '不可用' : workspaceSubjectId === column.name ? '已选' : '选择' }}</button>
+                  <button v-if="workspaceShowRepeatedRole" class="choice" :disabled="isWorkspaceGeneratedColumn(column.name)" :aria-pressed="workspaceRepeatedFactor === column.name" :class="{ active: workspaceRepeatedFactor === column.name }" @click="toggleWorkspaceSelection('repeated', column.name)">{{ isWorkspaceGeneratedColumn(column.name) ? '不可用' : workspaceRepeatedFactor === column.name ? '已选' : '选择' }}</button>
+                  <button class="choice" :disabled="!workspaceCurrentMethod?.supports_batch || isWorkspaceGeneratedColumn(column.name) || workspacePairingPlan?.derived_columns.some(item => item.source_column === column.name)" :class="{ active: workspaceSplits.includes(column.name) }" @click="toggleWorkspaceSelection('split', column.name)">{{ isWorkspaceGeneratedColumn(column.name) ? '继承' : workspacePairingPlan?.derived_columns.some(item => item.source_column === column.name) ? '配对来源' : workspaceSplits.includes(column.name) ? '已选' : '选择' }}</button>
                 </div>
               </div>
+              <div class="professional-subsection" v-if="workspaceExpertMode && workspaceCurrentMethod?.dependent_mode === 'joint'">
+                <OutcomeGroupEditor v-model="workspaceDependentVariableGroups" :dependent-variables="workspaceDvs" :minimum-size="workspaceCurrentMethod.min_dependent_vars" :busy="interactionBusy" />
+              </div>
               <AnalysisGuidanceCard :context="aiContext" />
-              <div class="plan-summary plan-summary-expanded"><div><span>{{ workspaceDependentRoleLabel }}</span><strong>{{ workspaceDvs.join('、') || (workspaceCurrentMethod?.min_dependent_vars === 0 ? '该方法不需要' : '未选择') }}</strong></div><div><span>{{ workspaceFactorCombinationsEnabled ? '候选分类因素' : '分类因素' }}</span><strong>{{ workspaceFactors.join(' × ') || '未选择' }}</strong><small v-if="workspaceFactorCombinationsEnabled">{{ workspaceFactorCombinationCount }} 个组合</small></div><div v-if="workspaceShowCovariateRole"><span>连续自变量</span><strong>{{ workspaceCovariates.join('、') || '未选择' }}</strong></div><div v-if="workspaceShowRandomRole"><span>随机分组</span><strong>{{ workspaceRandomFactors.join('、') || '未选择' }}</strong></div><div v-if="workspaceShowRandomSlopeRole"><span>随机斜率</span><strong>{{ workspaceRandomSlopes.join('、') || '随机截距' }}</strong></div><div v-if="workspaceEstimateMarginalMeans"><span>EMM</span><strong>{{ workspaceEmmFactors.join('、') || '等待选择因素' }}</strong></div><div v-if="workspaceShowSubjectRole"><span>对象 ID</span><strong>{{ workspaceSubjectId || '未选择' }}</strong></div><div v-if="workspaceShowRepeatedRole"><span>重复/时间</span><strong>{{ workspaceRepeatedFactor || '未选择' }}</strong></div><div><span>拆分</span><strong>{{ workspaceSplits.join('、') || '不拆分' }}</strong></div><div class="plan-save-action"><small v-if="workspaceMissingSelections.length" class="selection-warning">还需选择：{{ workspaceMissingSelections.join('；') }}</small><button class="primary" :disabled="!canCreateWorkspacePlan || workspaceLoading" @click="createWorkspacePlan">保存计划</button></div></div>
+              <div class="plan-summary plan-summary-expanded"><div><span>{{ workspaceDependentRoleLabel }}</span><strong>{{ workspaceDvs.join('、') || (workspaceCurrentMethod?.min_dependent_vars === 0 ? '该方法不需要' : '未选择') }}</strong></div><div v-if="workspacePairingPlan"><span>处理—对照配对</span><strong>{{ workspacePairingPlan.mappings.length }} 组映射 · {{ workspacePairingPlan.derived_columns.length }} 个新列</strong></div><div v-if="workspaceDependentVariableGroups.length"><span>联合因变量组</span><strong>{{ workspaceDependentVariableGroups.map(item => `${item.name}（${item.dependent_variables.join('、')}）`).join('；') }}</strong></div><div><span>{{ workspaceFactorCombinationsEnabled ? '候选分类因素' : '分类因素' }}</span><strong>{{ workspaceFactors.join(' × ') || '未选择' }}</strong><small v-if="workspaceFactorCombinationsEnabled">{{ workspaceFactorCombinationCount }} 个组合</small></div><div v-if="workspaceShowCovariateRole"><span>连续自变量</span><strong>{{ workspaceCovariates.join('、') || '未选择' }}</strong></div><div v-if="workspaceShowRandomRole"><span>随机分组</span><strong>{{ workspaceRandomFactors.join('、') || '未选择' }}</strong></div><div v-if="workspaceShowRandomSlopeRole"><span>随机斜率</span><strong>{{ workspaceRandomSlopes.join('、') || '随机截距' }}</strong></div><div v-if="workspaceEstimateMarginalMeans"><span>EMM</span><strong>{{ workspaceEmmFactors.join('、') || '等待选择因素' }}</strong></div><div v-if="workspaceShowSubjectRole"><span>对象 ID</span><strong>{{ workspaceSubjectId || '未选择' }}</strong></div><div v-if="workspaceShowRepeatedRole"><span>重复/时间</span><strong>{{ workspaceRepeatedFactor || '未选择' }}</strong></div><div><span>拆分</span><strong>{{ workspaceSplits.join('、') || '不拆分' }}</strong></div><div class="plan-save-action"><small v-if="workspaceMissingSelections.length" class="selection-warning">还需选择：{{ workspaceMissingSelections.join('；') }}</small><button class="primary" :disabled="!canCreateWorkspacePlan || workspaceLoading" @click="createWorkspacePlan">保存计划</button></div></div>
             </section>
 
             <section id="workspace-run-plans" class="panel workflow-jump-target" :class="{ 'workflow-jump-highlight': workflowJumpTarget === 'workspace-run-plans' }" v-if="workspaceProject.plans.length">

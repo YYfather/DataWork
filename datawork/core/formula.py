@@ -46,6 +46,7 @@ def evaluate_formula(
     *,
     allowed_columns: list[str] | None = None,
     require_brackets: bool = False,
+    basic_arithmetic_only: bool = False,
 ) -> pd.Series:
     """仅允许列名、数值常量、括号和基本算术运算。"""
     if not formula or not formula.strip():
@@ -82,7 +83,7 @@ def evaluate_formula(
         raise ValueError(f"公式语法错误: {exc.msg}") from exc
 
     with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-        result = _evaluate_node(tree.body, env)
+        result = _evaluate_node(tree.body, env, basic_arithmetic_only=basic_arithmetic_only)
     if isinstance(result, pd.Series):
         return result.reindex(df.index)
     if isinstance(result, (int, float)):
@@ -137,6 +138,7 @@ def apply_derived_columns(
             definition.formula,
             allowed_columns=definition.source_columns,
             require_brackets=True,
+            basic_arithmetic_only=True,
         )
         computed = (
             pd.to_numeric(computed, errors="coerce")
@@ -164,7 +166,12 @@ def apply_derived_columns(
     return result, logs, warnings
 
 
-def _evaluate_node(node: ast.AST, env: dict[str, pd.Series]):
+def _evaluate_node(
+    node: ast.AST,
+    env: dict[str, pd.Series],
+    *,
+    basic_arithmetic_only: bool = False,
+):
     if isinstance(node, ast.Constant):
         if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
             raise UnsafeFormulaError("只允许数值常量")
@@ -176,18 +183,22 @@ def _evaluate_node(node: ast.AST, env: dict[str, pd.Series]):
         return env[node.id]
 
     if isinstance(node, ast.BinOp):
+        if basic_arithmetic_only and type(node.op) not in {ast.Add, ast.Sub, ast.Mult, ast.Div}:
+            raise UnsafeFormulaError(f"公式仅允许基础四则运算，不支持运算符: {type(node.op).__name__}")
         op = _BINARY_OPERATORS.get(type(node.op))
         if op is None:
             raise UnsafeFormulaError(f"不允许的运算符: {type(node.op).__name__}")
-        left = _evaluate_node(node.left, env)
-        right = _evaluate_node(node.right, env)
+        left = _evaluate_node(node.left, env, basic_arithmetic_only=basic_arithmetic_only)
+        right = _evaluate_node(node.right, env, basic_arithmetic_only=basic_arithmetic_only)
         return op(left, right)
 
     if isinstance(node, ast.UnaryOp):
         op = _UNARY_OPERATORS.get(type(node.op))
         if op is None:
             raise UnsafeFormulaError(f"不允许的一元运算符: {type(node.op).__name__}")
-        return op(_evaluate_node(node.operand, env))
+        return op(
+            _evaluate_node(node.operand, env, basic_arithmetic_only=basic_arithmetic_only)
+        )
 
     # 明确拒绝函数调用、属性访问、下标、推导式和导入等全部其他语法。
     raise UnsafeFormulaError(f"公式中不允许使用 {type(node).__name__}")

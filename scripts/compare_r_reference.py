@@ -45,44 +45,73 @@ def _assert_close(label: str, actual, expected, tolerance: float = 1e-8) -> None
         raise AssertionError(f"{label}: Python={actual!r}, R={expected!r}")
 
 
-def _prepare_agronomy_frame(source: Path) -> pd.DataFrame:
+def _load_agronomy_source(source: Path) -> pd.DataFrame:
     raw = pd.read_csv(source).iloc[:, :7].copy()
     raw.columns = ["year", "variety", "spray", "mode", "DR7", "DR14", "DR21"]
     for column in ("DR7", "DR14", "DR21"):
         raw[column] = pd.to_numeric(raw[column].astype(str).str.replace("%", "", regex=False), errors="coerce") / 100
     for column in ("year", "variety", "spray", "mode"):
         raw[column] = raw[column].astype(str).str.strip()
-    raw = raw.dropna(subset=["DR7", "DR14", "DR21"])
+    return raw.dropna(subset=["DR7", "DR14", "DR21"]).reset_index(drop=True)
 
-    control = raw.loc[raw["spray"].str.startswith("CK")].copy()
-    treatment = raw.loc[raw["spray"].str.startswith("T")].copy()
-    pairing = ["year", "variety", "mode", "spray"]
-    control["rep_id"] = control.groupby(pairing, sort=False).cumcount() + 1
-    treatment["rep_id"] = treatment.groupby(pairing, sort=False).cumcount() + 1
-    treatment["ck_id"] = treatment["spray"].str.replace(r"^T", "CK", regex=True)
-    control["ck_id"] = control["spray"]
-    control = control[["year", "variety", "mode", "ck_id", "rep_id", "DR7", "DR14", "DR21"]].rename(
-        columns={column: f"CK_{column}" for column in ("DR7", "DR14", "DR21")}
-    )
-    merged = treatment.merge(
-        control, on=["year", "variety", "mode", "ck_id", "rep_id"],
-        how="inner", validate="one_to_one",
-    )
-    if len(merged) != len(treatment):
-        raise AssertionError(f"CK/T 配对不完整: treatment={len(treatment)}, paired={len(merged)}")
-    definitions = []
+
+def _agronomy_pair_columns() -> list[dict[str, object]]:
+    definitions: list[dict[str, object]] = []
     for day in ("7", "14", "21"):
         definitions.extend([
-            DerivedColumn(name=f"NDR{day}", formula=f"[CK_DR{day}]", source_columns=[f"CK_DR{day}"]),
-            DerivedColumn(
-                name=f"Delta{day}", formula=f"[DR{day}] - [CK_DR{day}]",
-                source_columns=[f"DR{day}", f"CK_DR{day}"],
-            ),
+            {"id": f"ndr-{day}", "name": f"NDR{day}", "source_column": f"DR{day}", "formula": "[对照值]", "unit": "比例", "decimal_places": 8},
+            {"id": f"delta-{day}", "name": f"Delta{day}", "source_column": f"DR{day}", "formula": "[处理值] - [对照值]", "unit": "百分点差", "decimal_places": 8},
         ])
-    derived, _log, warnings = apply_derived_columns(merged, definitions)
+    return definitions
+
+
+def _agronomy_plan(method: str) -> AnalysisPlan:
+    outcomes = [f"{kind}{day}" for day in ("7", "14", "21") for kind in ("NDR", "Delta")]
+    is_manova = method == "twoway_manova"
+    return AnalysisPlan(
+        interface_mode="professional",
+        method=method,
+        dependent_variables=outcomes,
+        dependent_variable_groups=(
+            [{"name": f"{day}d", "dependent_variables": [f"NDR{day}", f"Delta{day}"]} for day in ("7", "14", "21")]
+            if is_manova else []
+        ),
+        fixed_factors=["variety", "spray"],
+        split_by=["year"],
+        pairing={
+            "group_column": "spray",
+            "mappings": [
+                {"treatment": "T1", "control": "CK1"},
+                {"treatment": "T2", "control": "CK2"},
+                {"treatment": "T3", "control": "CK3"},
+            ],
+            "match_columns": ["year", "variety", "mode"],
+            "pair_id_column": None,
+            "derived_columns": _agronomy_pair_columns(),
+        },
+        ss_type=3,
+        method_parameters=(
+            {
+                "multivariate_test": "wilks", "primary_multivariate_test": "wilks",
+                "follow_up_mode": "none", "posthoc_scope": "branch_all",
+                "covariance_test": False, "normality_test": False,
+                "correlation_diagnostics": False,
+            }
+            if is_manova else {"posthoc_methods": ["none"]}
+        ),
+        diagnostic_plots=False,
+    )
+
+
+def _prepare_agronomy_frame(source: Path) -> pd.DataFrame:
+    paired, audit, warnings = AnalysisService.prepare_frame(
+        _load_agronomy_source(source), _agronomy_plan("twoway_anova")
+    )
     if warnings:
         raise AssertionError(f"测试数据2不应产生无效派生值: {warnings}")
-    return derived
+    if not audit or audit[0].get("successful_pairs") != 108:
+        raise AssertionError(f"V1.5 配对审计不正确: {audit}")
+    return paired.rename(columns={"__dw_pair_sequence": "rep_id"})
 
 
 def _normalized_effect(value: str) -> str:
@@ -91,6 +120,7 @@ def _normalized_effect(value: str) -> str:
 
 def _compare_agronomy(rscript: Path) -> None:
     source = REFERENCE / "agronomy_example_2.csv"
+    source_frame = _load_agronomy_source(source)
     frame = _prepare_agronomy_frame(source)
     outcomes = [f"{kind}{day}" for day in ("7", "14", "21") for kind in ("NDR", "Delta")]
 
@@ -112,12 +142,7 @@ def _compare_agronomy(rscript: Path) -> None:
         ):
             raise AssertionError("农业数据 NDR/Delta 派生值与 R 不一致")
 
-        anova_plan = AnalysisPlan(
-            interface_mode="professional", method="twoway_anova",
-            dependent_variables=outcomes, fixed_factors=["variety", "spray"], split_by=["year"],
-            ss_type=3, method_parameters={"posthoc_methods": ["none"]}, diagnostic_plots=False,
-        )
-        anova_execution = AnalysisService().execute(frame, anova_plan)
+        anova_execution = AnalysisService().execute(source_frame, _agronomy_plan("twoway_anova"))
         r_anova = pd.read_csv(output / "agronomy_anova.csv", dtype={"year": str})
         r_anova["effect_key"] = r_anova["effect"].map(_normalized_effect)
         r_anova = r_anova.set_index(["year", "outcome", "effect_key"])
@@ -142,32 +167,23 @@ def _compare_agronomy(rscript: Path) -> None:
         r_manova["effect_key"] = r_manova["effect"].map(_normalized_effect)
         r_manova = r_manova.set_index(["year", "day", "effect_key"])
         compared_manova = 0
-        for day in ("7", "14", "21"):
-            plan = AnalysisPlan(
-                interface_mode="professional", method="twoway_manova",
-                dependent_variables=[f"NDR{day}", f"Delta{day}"],
-                fixed_factors=["variety", "spray"], split_by=["year"],
-                method_parameters={
-                    "multivariate_test": "wilks", "primary_multivariate_test": "wilks",
-                    "follow_up_mode": "none", "covariance_test": False,
-                    "normality_test": False, "correlation_diagnostics": False,
-                },
-                diagnostic_plots=False,
-            )
-            execution = AnalysisService().execute(frame, plan)
-            for item in execution.result.results:
-                if item.error or item.result is None:
-                    raise AssertionError(f"Python MANOVA 批次失败: {item.error}")
-                year = str(item.subset_info["year"])
-                for test in item.result.omnibus_tests:
-                    expected = r_manova.loc[(year, f"{day}d", _normalized_effect(test.effect))]
-                    label = f"MANOVA {year}/{day}d/{test.effect}"
-                    _assert_close(f"{label} Wilks", test.statistic_value, expected["statistic_value"], 1e-7)
-                    _assert_close(f"{label} df_num", test.df_num, expected["df_num"], 1e-7)
-                    _assert_close(f"{label} df_den", test.df_den, expected["df_den"], 1e-7)
-                    _assert_close(f"{label} F", test.f_value, expected["f_value"], 1e-7)
-                    _assert_close(f"{label} p", test.p_value, expected["p_value"], 1e-7)
-                    compared_manova += 1
+        execution = AnalysisService().execute(source_frame, _agronomy_plan("twoway_manova"))
+        if len(execution.result.results) != 6:
+            raise AssertionError(f"预期 3 个联合因变量组 × 2 个年份 = 6 个任务，实际 {len(execution.result.results)}")
+        for item in execution.result.results:
+            if item.error or item.result is None:
+                raise AssertionError(f"Python MANOVA 批次失败: {item.error}")
+            year = str(item.subset_info["year"])
+            day_label = str(item.subset_info["dependent_group"])
+            for test in item.result.omnibus_tests:
+                expected = r_manova.loc[(year, day_label, _normalized_effect(test.effect))]
+                label = f"MANOVA {year}/{day_label}/{test.effect}"
+                _assert_close(f"{label} Wilks", test.statistic_value, expected["statistic_value"], 1e-7)
+                _assert_close(f"{label} df_num", test.df_num, expected["df_num"], 1e-7)
+                _assert_close(f"{label} df_den", test.df_den, expected["df_den"], 1e-7)
+                _assert_close(f"{label} F", test.f_value, expected["f_value"], 1e-7)
+                _assert_close(f"{label} p", test.p_value, expected["p_value"], 1e-7)
+                compared_manova += 1
         if compared_manova != 18:
             raise AssertionError(f"预期比较 18 个 MANOVA 效应，实际 {compared_manova}")
 
