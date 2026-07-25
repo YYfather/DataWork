@@ -32,47 +32,14 @@ from package_server_v15_hotfix import (  # noqa: E402
 
 
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-PATCH_ID = "datawork_v1.7_core_audit_manova_combinations_20260724"
-PACKAGE_NAME = "DataWork-v1.7-计算核心与MANOVA因变量组合-服务器热补丁-20260724"
-DEFAULT_OUTPUT = ROOT / "发布包" / PACKAGE_NAME
-BASELINES = (
-    (
-        "0.4.9-original",
-        ROOT / "web主页本地部分" / "datawork",
-    ),
-    (
-        "0.4.9-derived-hotfix",
-        ROOT
-        / "发布包"
-        / "DataWork-v0.4.9-自定义列与拆分继承-服务器热补丁-20260723"
-        / "payload",
-    ),
-    (
-        "1.0.0-website-package",
-        ROOT / "发布包" / "DataWork-v1.0-网站部署版本" / "DataWork服务",
-    ),
-    (
-        "1.5.0-pairing-hotfix",
-        ROOT
-        / "发布包"
-        / "DataWork-v1.5-配对映射与联合因变量-服务器热补丁-20260723"
-        / "payload",
-    ),
-    (
-        "1.5.0-website-package",
-        ROOT / "发布包" / "DataWork-v1.5.0-网站部署版本" / "DataWork服务",
-    ),
-)
-ACCEPTED_BASELINE_VERSIONS = ("0.4.9", "1.0.0", "1.5.0")
+PATCH_ID = "datawork_v1.5.0_to_v1.7.0_core_audit_manova_combinations"
+PACKAGE_NAME = "DataWork-v1.5.0-v1.7.0-计算核心与MANOVA因变量组合-服务器热补丁"
+BUILD_ROOT = ROOT.parent / ".build-artifacts"
+DEFAULT_OUTPUT = BUILD_ROOT / PACKAGE_NAME
+ACCEPTED_BASELINE_VERSIONS = ("1.5.0",)
 EXPECTED_DELETE_PATHS = {
-    "datawork/ui.py",
-    "datawork/web/static/assets/index-BkO9JSkG.css",
-    "datawork/web/static/assets/index-C9-Qod4X.js",
-    "datawork/web/static/assets/index-CPsr4TFv.js",
     "datawork/web/static/assets/index-Cnt-pWU9.js",
-    "datawork/web/static/assets/index-DALge41P.js",
     "datawork/web/static/assets/index-exXYDQAE.css",
-    "datawork/web/static/assets/index-mCJiNXhg.css",
 }
 
 
@@ -374,12 +341,7 @@ def instructions() -> str:
 
 默认目标路径：/www/wwwroot/1490473838.cn/datework
 
-支持并已模拟验证的基线：
-1. 原始 DataWork 0.4.9 服务器源码；
-2. 已安装“自定义列与拆分继承”热补丁的 0.4.9；
-3. DataWork 1.0.0 网站部署版本；
-4. DataWork 1.5 配对映射与联合因变量热补丁 payload；
-5. DataWork 1.5.0 网站部署版本。
+支持并已模拟验证的基线：显式提供且通过审核的 DataWork 1.5.0 服务器目录。
 
 不支持未经留档的 V1.6 服务器副本；如服务器曾被人工修改或部署过其他
 版本，脚本会在覆盖前停止。只有管理员人工审核差异后，才能使用文末的
@@ -398,22 +360,22 @@ def instructions() -> str:
 - 版本与 Vue 生产静态资源更新到 1.7.0。
 
 安全边界：
-- 复用服务器现有 .venv；正式运行依赖与五套基线一致，不下载 Python，
+- 复用服务器现有 .venv；正式运行依赖与 1.5.0 基线一致，不下载 Python，
   不执行 pip install；
 - 不读取或覆盖 data/、数据库、上传文件、报告、工作区密码、AI 密钥、
   宝塔脚本和进程守护配置；
-- 安装前校验 ZIP 及包内 SHA-256，并匹配五套已审核基线之一；
+- 安装前校验包内 SHA-256，并匹配显式提供的 1.5.0 基线；
 - 覆盖前完整备份 datawork 目录和根版本文件；
 - 覆盖后先校验目标哈希，再在现有虚拟环境运行 47 方法状态与 6 组合
   MANOVA 离线烟雾测试；
 - 支持一条命令回滚，备份目录保留供审计。
 
-上传和安装：
-1. 将以下两个文件上传到 /www/wwwroot/1490473838.cn/datework/updates/：
+当前状态：未发布，仅保留目录源码。正式发布获批后使用 `--release-zip`
+生成以下两个临时交付文件，再上传到 /www/wwwroot/1490473838.cn/datework/updates/：
    - {PACKAGE_NAME}.zip
    - {PACKAGE_NAME}.zip.sha256
 
-2. 服务器执行：
+服务器执行：
 
    cd /www/wwwroot/1490473838.cn/datework/updates
    sha256sum -c {PACKAGE_NAME}.zip.sha256
@@ -422,7 +384,7 @@ def instructions() -> str:
    chmod +x 应用热补丁.sh 回滚本次热补丁.sh
    ./应用热补丁.sh
 
-3. 若脚本返回代码 2，表示文件、哈希和离线测试已完成，但没有自动识别
+若脚本返回代码 2，表示文件、哈希和离线测试已完成，但没有自动识别
    宝塔进程守护名称。请在宝塔面板手动重启 DataWork，然后验证：
 
    curl -fsS http://127.0.0.1:8765/api/health
@@ -464,11 +426,17 @@ def verify_sensitive_boundaries(payload: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="生成 DataWork V1.7 多基线服务器热补丁")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--baseline", type=Path, required=True, help="显式指定 1.5.0 服务器根目录")
+    parser.add_argument(
+        "--release-zip",
+        action="store_true",
+        help="仅在批准正式发布后生成 ZIP 和 .zip.sha256",
+    )
     args = parser.parse_args()
     output = args.output.expanduser().resolve()
-    release_root = (ROOT / "发布包").resolve()
-    if release_root not in output.parents:
-        raise SystemExit(f"输出目录必须位于发布包目录：{release_root}")
+    build_root = BUILD_ROOT.resolve()
+    if output == build_root or build_root not in output.parents:
+        raise SystemExit(f"输出目录必须位于临时构建目录：{build_root}")
     if VERSION != "1.7.0":
         raise SystemExit(f"当前源码版本必须是 1.7.0，实际为：{VERSION}")
     required = (
@@ -479,12 +447,13 @@ def main() -> int:
     if not all(path.is_file() for path in required):
         raise SystemExit("当前源码缺少 V1.7 组合任务、批量导出或生产前端")
 
-    baselines: list[tuple[str, Path, dict[str, str]]] = []
-    for name, path in BASELINES:
-        resolved = path.resolve()
-        if not (resolved / "datawork" / "core" / "plan.py").is_file():
-            raise SystemExit(f"服务器基线不完整：{name} -> {resolved}")
-        baselines.append((name, resolved, runtime_map(resolved)))
+    resolved = args.baseline.expanduser().resolve()
+    if not (resolved / "datawork" / "core" / "plan.py").is_file():
+        raise SystemExit(f"服务器基线不完整：1.5.0-server -> {resolved}")
+    baseline_version = (resolved / "VERSION").read_text(encoding="utf-8").strip()
+    if baseline_version != "1.5.0":
+        raise SystemExit(f"V1.7 热补丁只接受 1.5.0 基线，实际为：{baseline_version}")
+    baselines = [("1.5.0-server", resolved, runtime_map(resolved))]
     verify_runtime_dependency_compatibility(baselines)
 
     if output.exists():
@@ -563,6 +532,8 @@ def main() -> int:
             "no Python download; no pip install"
         ),
         "simulated_apply_and_rollback": simulation,
+        "release_status": "unreleased",
+        "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release",
     }
     (output / "PATCH_INFO.json").write_text(
         json.dumps(patch_info, ensure_ascii=False, indent=2) + "\n",
@@ -596,9 +567,9 @@ def main() -> int:
                     "installer verifies version, 47 implemented methods, "
                     "and 6 MANOVA outcome-combination tasks"
                 ),
-                "status": (
-                    "generated; SHA256SUMS and ZIP are verified before delivery"
-                ),
+                "status": "source directory verified; release ZIP not generated",
+                "release_status": "unreleased",
+                "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release",
             },
             ensure_ascii=False,
             indent=2,
@@ -608,12 +579,17 @@ def main() -> int:
         newline="\n",
     )
     write_sha_manifest(output)
-    archive = build_zip(output)
-    package_verification = verify_package(output, archive)
 
     print(f"热补丁目录：{output}")
-    print(f"热补丁 ZIP：{archive}")
-    print(f"ZIP SHA-256：{package_verification['zip_sha256']}")
+    package_entries = sum(1 for line in (output / "SHA256SUMS.txt").read_text(encoding="utf-8").splitlines() if line)
+    if args.release_zip:
+        archive = build_zip(output)
+        package_verification = verify_package(output, archive)
+        print(f"热补丁 ZIP：{archive}")
+        print(f"ZIP SHA-256：{package_verification['zip_sha256']}")
+        package_entries = int(package_verification["sha256_entries"])
+    else:
+        print("发布状态：未发布；未生成 ZIP 或侧车校验文件")
     print(
         "基线模拟："
         + "；".join(
@@ -623,7 +599,7 @@ def main() -> int:
     )
     print(
         f"目标运行文件={len(target_map)}，删除旧文件={len(delete_paths)}，"
-        f"包内校验项={package_verification['sha256_entries']}"
+        f"包内校验项={package_entries}"
     )
     return 0
 

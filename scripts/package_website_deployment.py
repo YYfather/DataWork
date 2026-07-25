@@ -13,17 +13,14 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-DEFAULT_LEGACY_PACKAGE = ROOT / "发布包" / "DataWork-v1.0-网站部署版本"
-DEFAULT_OUTPUT = ROOT / "发布包" / f"DataWork-v{VERSION}-网站部署版本"
+BUILD_ROOT = ROOT.parent / ".build-artifacts"
+DEFAULT_LEGACY_PACKAGE = ROOT.parent / "DataWork-Web-inspect"
+DEFAULT_OUTPUT = BUILD_ROOT / f"DataWork-v{VERSION}-网站部署版本"
 DEFAULT_WEB_ROOT = Path(r"E:\studywork\Web")
 SKIP_WEB_PARTS = {".git", ".agents", ".jj", ".reasonix", "node_modules"}
 SKIP_RUNTIME_PARTS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
 SKIP_MANIFEST_PARTS = SKIP_RUNTIME_PARTS | {".git"}
 SCRIPT_NAMES = ("服务器环境准备.sh", "设置工作区密码.sh", "设置服务器AI配置.sh")
-V15_HOTFIX_PACKAGES = (
-    "DataWork-v1.5-配对映射与联合因变量-服务器热补丁-20260723",
-    "DataWork-v1.5-配对功能测试公告-服务器热补丁-20260723",
-)
 TEXT_SUFFIXES = {
     ".css",
     ".conf",
@@ -93,6 +90,18 @@ def copy_tree(source: Path, destination: Path, *, skip_parts: set[str]) -> None:
     shutil.copytree(source, destination, ignore=ignore)
 
 
+def copy_hotfix_sources(source_root: Path, destination_root: Path) -> None:
+    """Copy auditable hotfix directories without unpublished archives."""
+    if not source_root.is_dir():
+        raise RuntimeError(f"服务器工作树缺少热补丁目录：{source_root}")
+    destination_root.mkdir()
+    for source in sorted(source_root.iterdir()):
+        if source.is_dir():
+            copy_tree(source, destination_root / source.name, skip_parts=SKIP_RUNTIME_PARTS)
+        elif source.name == "README.md":
+            shutil.copy2(source, destination_root / source.name)
+
+
 def write_manifest(root: Path) -> None:
     lines = []
     for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
@@ -115,14 +124,15 @@ def main() -> int:
         raise SystemExit(f"个人主页目录不存在：{web_root}")
     if not legacy.exists() or not (legacy.is_dir() or legacy.is_file()):
         raise SystemExit(f"未找到旧网站部署包，无法保留既有宝塔配置：{legacy}")
-    if output == ROOT or ROOT not in output.parents:
-        raise SystemExit(f"拒绝写入工作区外或工作区根目录：{output}")
+    build_root = BUILD_ROOT.resolve()
+    if output == build_root or build_root not in output.parents:
+        raise SystemExit(f"输出目录必须位于临时构建目录：{build_root}")
 
     with tempfile.TemporaryDirectory(prefix="datawork-web-deploy-") as raw_temp:
         staging_parent = Path(raw_temp)
         extracted = staging_parent / f"DataWork-v{VERSION}-网站部署安装包"
         if legacy.is_dir():
-            copy_tree(legacy, extracted, skip_parts=SKIP_RUNTIME_PARTS)
+            copy_tree(legacy, extracted, skip_parts=SKIP_RUNTIME_PARTS | {".git"})
         else:
             with zipfile.ZipFile(legacy) as archive:
                 safe_extract(archive, staging_parent)
@@ -167,21 +177,11 @@ def main() -> int:
             shutil.rmtree(homepage)
         copy_tree(web_root, homepage, skip_parts=SKIP_WEB_PARTS)
         hotfix_output = extracted / "热补丁"
-        hotfix_output.mkdir(exist_ok=True)
-        for package_name in V15_HOTFIX_PACKAGES:
-            for suffix in ("", ".zip", ".zip.sha256"):
-                source = ROOT / "发布包" / f"{package_name}{suffix}"
-                if not source.exists():
-                    raise RuntimeError(f"缺少 V1.5 热补丁资产：{source}")
-                destination = hotfix_output / source.name
-                if destination.is_dir():
-                    shutil.rmtree(destination)
-                elif destination.exists():
-                    destination.unlink()
-                if source.is_dir():
-                    copy_tree(source, destination, skip_parts=SKIP_RUNTIME_PARTS)
-                else:
-                    shutil.copy2(source, destination)
+        hotfix_source = staging_parent / "hotfix-source"
+        if not hotfix_output.is_dir():
+            raise RuntimeError(f"服务器部署来源缺少热补丁目录：{hotfix_output}")
+        hotfix_output.rename(hotfix_source)
+        copy_hotfix_sources(hotfix_source, hotfix_output)
 
         (extracted / "README.md").write_text(
             f"""# DataWork {VERSION}（V1.7）· Web 部署分支
@@ -192,7 +192,7 @@ def main() -> int:
 - `主页完整副本/`：个人网站部署副本。
 - `主页增量覆盖/`：现有主页的 `/datework` 入口增量文件。
 - `宝塔配置/`：Nginx 反向代理和部署检查材料。
-- `热补丁/`：保留 V1.5 配对工作流主热补丁、配对功能测试公告热补丁及旧版本迁移补丁。
+- `热补丁/`：保留各版本热补丁的可审计源码目录；ZIP 仅在批准正式发布时生成。
 - `SHA256SUMS.txt`：当前分支全部部署文件的 Linux 稳定 SHA-256 清单。
 
 生产工作区密码摘要、API 密钥、用户数据库、上传数据、报告和运行缓存不会进入本分支。
@@ -214,8 +214,9 @@ def main() -> int:
    AI 访客额度（10 次/24 小时）和服务器 AI 配置能力。
 4. 服务器不包含 API 密钥、用户数据库、上传数据或报告；请在服务器本机运行配置脚本。
 5. 宝塔部署顺序见 DataWork服务/宝塔面板部署说明.txt。
-6. 热补丁目录保留 V1.5 配对工作流和测试公告更新包，已有服务器可按需使用；
+6. 热补丁目录保留各版本更新源码目录，已有服务器可按需使用；
    全新部署 DataWork服务 时不需要重复应用主热补丁。
+7. 当前状态未发布，不包含 ZIP 或 `.zip.sha256`；正式发布时另行生成并验证。
 
 请直接上传本目录的相应子目录。
 文件清单与 SHA-256 位于 SHA256SUMS.txt。

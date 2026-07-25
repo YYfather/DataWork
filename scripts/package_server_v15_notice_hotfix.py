@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -13,8 +15,9 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE_NAME = "DataWork-v1.5-配对功能测试公告-服务器热补丁-20260723"
-DEFAULT_OUTPUT = ROOT / "发布包" / PACKAGE_NAME
+PACKAGE_NAME = "DataWork-v1.5.0-v1.5.0-配对功能测试公告-服务器热补丁"
+BUILD_ROOT = ROOT.parent / ".build-artifacts"
+DEFAULT_OUTPUT = BUILD_ROOT / PACKAGE_NAME
 STATIC_SOURCE = ROOT / "datawork" / "web" / "static"
 PATCH_ID = "datawork_v1.5_pairing_test_notice_20260723"
 OLD_ASSETS = (
@@ -201,7 +204,8 @@ def readme_text(zip_name: str) -> str:
 - 不修改 Python 核心、虚拟环境、数据库、上传数据、报告或用户配置；
 - 不需要重启 Python 服务。
 
-ZIP 的最终 SHA-256 请以同目录的 `{zip_name}.sha256` 文件为准。
+当前状态未发布，仅保留目录源码。正式发布获批后使用 `--release-zip`
+生成 ZIP；届时 SHA-256 以同目录的 `{zip_name}.sha256` 文件为准。
 
 安装：
 
@@ -234,12 +238,16 @@ def deterministic_zip(output: Path, archive: Path) -> None:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="生成 DataWork V1.5 配对功能测试公告热补丁")
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--release-zip", action="store_true", help="批准正式发布后生成 ZIP")
+    args = parser.parse_args()
     if (ROOT / "VERSION").read_text(encoding="utf-8").strip() != "1.5.0":
         raise SystemExit("当前源码版本必须是 1.5.0")
-    output = DEFAULT_OUTPUT.resolve()
-    release_root = (ROOT / "发布包").resolve()
-    if release_root not in output.parents:
-        raise SystemExit("输出目录必须位于发布包目录")
+    output = args.output.expanduser().resolve()
+    build_root = BUILD_ROOT.resolve()
+    if output == build_root or build_root not in output.parents:
+        raise SystemExit(f"输出目录必须位于临时构建目录：{build_root}")
 
     files = referenced_static_files()
     target = {
@@ -279,6 +287,42 @@ def main() -> int:
         readme_text(f"{PACKAGE_NAME}.zip"),
         encoding="utf-8",
     )
+    common_status = {
+        "release_status": "unreleased",
+        "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release",
+    }
+    (output / "PATCH_INFO.json").write_text(
+        json.dumps(
+            {
+                "patch_id": PATCH_ID,
+                "version": "1.5.0",
+                "package_name": PACKAGE_NAME,
+                "accepted_versions": ["1.5.0"],
+                "scope": "web-static-only pairing test notice",
+                **common_status,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    (output / "PACKAGE_VERIFICATION.json").write_text(
+        json.dumps(
+            {
+                "baseline_static_files": len(BASELINE_SHA256),
+                "target_static_files": len(target),
+                "status": "source directory verified; release ZIP not generated",
+                **common_status,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
     checksums = {
         path.relative_to(output).as_posix(): sha256(path)
@@ -291,22 +335,24 @@ def main() -> int:
         newline="\n",
     )
 
-    archive = output.parent / f"{PACKAGE_NAME}.zip"
-    if archive.exists():
-        archive.unlink()
-    deterministic_zip(output, archive)
-    archive_digest = sha256(archive)
-    checksum_file = archive.with_suffix(".zip.sha256")
-    checksum_file.write_text(
-        f"{archive_digest}  {archive.name}\n",
-        encoding="utf-8",
-        newline="\n",
-    )
-
     print(f"package={output}")
-    print(f"zip={archive}")
-    print(f"sha256={archive_digest}")
-    print(f"size={archive.stat().st_size}")
+    if args.release_zip:
+        archive = output.parent / f"{PACKAGE_NAME}.zip"
+        if archive.exists():
+            archive.unlink()
+        deterministic_zip(output, archive)
+        archive_digest = sha256(archive)
+        checksum_file = archive.with_suffix(".zip.sha256")
+        checksum_file.write_text(
+            f"{archive_digest}  {archive.name}\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        print(f"zip={archive}")
+        print(f"sha256={archive_digest}")
+        print(f"size={archive.stat().st_size}")
+    else:
+        print("release_status=unreleased; zip=not-generated")
     return 0
 
 

@@ -17,7 +17,8 @@ VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 PATCH_ID = "datawork_0.4.9_derived_split_20260723"
 DEFAULT_BASELINE = ROOT / "web主页本地部分" / "datawork"
 DEFAULT_LATEST = ROOT.parent / "DataWork-Web-inspect" / "DataWork服务"
-DEFAULT_OUTPUT = ROOT / "发布包" / "DataWork-v0.4.9-自定义列与拆分继承-服务器热补丁-20260723"
+BUILD_ROOT = ROOT.parent / ".build-artifacts"
+DEFAULT_OUTPUT = BUILD_ROOT / "DataWork-v0.4.9-v0.4.9-自定义列与拆分继承-服务器热补丁"
 
 ROOT_FILES = (
     "README.md",
@@ -380,18 +381,19 @@ def instructions() -> str:
 - 安装前校验补丁 SHA-256 和服务器旧基线；
 - 安装前完整备份当前 datawork 程序目录及被覆盖的根文件。
 
-上传与执行：
-1. 将 ZIP 上传到 /www/wwwroot/1490473838.cn/datework/updates/。
-2. 登录服务器后执行：
+当前状态：未发布，仅保留目录源码。正式发布获批后使用 `--release-zip`
+生成 ZIP，再上传到 /www/wwwroot/1490473838.cn/datework/updates/。
+
+登录服务器后执行：
 
    cd /www/wwwroot/1490473838.cn/datework/updates
-   unzip DataWork-v0.4.9-自定义列与拆分继承-服务器热补丁-20260723.zip
-   cd DataWork-v0.4.9-自定义列与拆分继承-服务器热补丁-20260723
+   unzip DataWork-v0.4.9-v0.4.9-自定义列与拆分继承-服务器热补丁.zip
+   cd DataWork-v0.4.9-v0.4.9-自定义列与拆分继承-服务器热补丁
    chmod +x 应用热补丁.sh 回滚本次热补丁.sh
    sudo ./应用热补丁.sh
 
-3. 若脚本提示无法自动识别 Supervisor 名称，请在宝塔进程守护管理器中手动重启 DataWork。
-4. 手动验证：
+若脚本提示无法自动识别 Supervisor 名称，请在宝塔进程守护管理器中手动重启 DataWork。
+手动验证：
 
    curl -fsS http://127.0.0.1:8765/api/health
    curl -fsS http://127.0.0.1:8765/openapi.json | grep derived-preview
@@ -439,13 +441,14 @@ def main() -> int:
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--latest", type=Path, default=DEFAULT_LATEST)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--release-zip", action="store_true", help="批准正式发布后生成 ZIP")
     args = parser.parse_args()
     baseline = args.baseline.expanduser().resolve()
     latest = args.latest.expanduser().resolve()
     output = args.output.expanduser().resolve()
-    release_root = (ROOT / "发布包").resolve()
-    if release_root not in output.parents:
-        raise SystemExit(f"输出目录必须位于发布包目录内：{output}")
+    build_root = BUILD_ROOT.resolve()
+    if output == build_root or build_root not in output.parents:
+        raise SystemExit(f"输出目录必须位于临时构建目录：{build_root}")
     for label, path in (("服务器基线", baseline), ("最新 Web 源码", latest)):
         if not (path / "datawork" / "core" / "plan.py").is_file():
             raise SystemExit(f"{label}不完整：{path}")
@@ -487,17 +490,39 @@ def main() -> int:
         "deleted": deleted,
         "excluded": [".venv/", "data/", "updates/", "*.sqlite3", "*.db", "API keys", "password hashes", "reports", "uploads"],
         "python_runtime_action": "reuse existing .venv; no Python download; no pip install",
+        "release_status": "unreleased",
+        "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release",
     }
     (output / "PATCH_INFO.json").write_text(
         json.dumps(patch_info, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n",
+    )
+    (output / "PACKAGE_VERIFICATION.json").write_text(
+        json.dumps(
+            {
+                "baseline_guards_verified": len(BASELINE_GUARDS),
+                "target_guards_verified": len(TARGET_GUARDS),
+                "reviewed_delete_paths": len(DELETE_PATHS),
+                "status": "source directory verified; release ZIP not generated",
+                "release_status": "unreleased",
+                "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     (output / "应用热补丁.sh").write_text(installer_script(), encoding="utf-8", newline="\n")
     (output / "回滚本次热补丁.sh").write_text(rollback_script(), encoding="utf-8", newline="\n")
     (output / "热补丁说明.txt").write_text(instructions(), encoding="utf-8", newline="\n")
     write_sha_manifest(output)
-    archive = build_zip(output)
     print(f"热补丁目录：{output}")
-    print(f"热补丁 ZIP：{archive}")
+    if args.release_zip:
+        archive = build_zip(output)
+        print(f"热补丁 ZIP：{archive}")
+    else:
+        print("发布状态：未发布；未生成 ZIP 或侧车校验文件")
     print(f"新增={len(added)}，修改={len(modified)}，删除={len(deleted)}")
     return 0
 

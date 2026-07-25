@@ -24,12 +24,6 @@ REPRODUCIBLE_DEPENDENCY_DIRS = (
     "desktop/node_modules",
     "desktop/src-tauri/target",
 )
-PRESERVED_RELEASE_PREFIXES = (
-    "DataWork-v1.0-网站部署版本",
-    "DataWork-v0.4.9-自定义列与拆分继承-服务器热补丁-20260723",
-)
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true", help="execute deletion; default is dry-run")
@@ -41,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--old-releases",
         action="store_true",
-        help="remove superseded local release artifacts while preserving v1.0 server deployment and its upgrade hotfix",
+        help="remove the complete superseded local 发布包 directory",
     )
     return parser.parse_args()
 
@@ -83,10 +77,7 @@ def artifact_targets(*, include_dependencies: bool = False, include_old_releases
     if include_old_releases:
         release_root = ROOT / "发布包"
         if release_root.is_dir():
-            targets.update(
-                child for child in release_root.iterdir()
-                if not child.name.startswith(PRESERVED_RELEASE_PREFIXES)
-            )
+            targets.add(release_root)
     return sorted(targets, key=lambda item: (len(item.parts), item.as_posix()), reverse=True)
 
 
