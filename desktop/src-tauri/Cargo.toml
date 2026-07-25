@@ -1,6 +1,6 @@
 [package]
 name = "datawork-desktop"
-version = "1.7.0"
+version = "1.7.1"
 description = "DataWork cross-platform desktop shell"
 authors = ["DataWork"]
 edition = "2021"

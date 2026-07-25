@@ -1,0 +1,3 @@
+# Keep deterministic validation fixtures byte-identical on every checkout.
+golden_datasets/data/*.csv text eol=lf
+golden_datasets/manifest.json text eol=lf

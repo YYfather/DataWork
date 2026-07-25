@@ -184,7 +184,7 @@ def main() -> None:
             health = page.evaluate(
                 """async () => await (await fetch('/api/health')).json()"""
             )
-            assert health["version"] == "1.7.0"
+            assert health["version"] == "1.7.1"
             assert health["features"]["dependent_variable_combinations"] is True
             verify_instant(page, csv_path)
             verify_workspace(page, csv_path)

@@ -36,7 +36,7 @@ def main() -> None:
         health = page.evaluate(
             """async () => await (await fetch('/api/health')).json()"""
         )
-        assert health["version"] == "1.7.0"
+        assert health["version"] == "1.7.1"
         features = health["features"]
         assert features["pairing_workflow"] is True
         assert features["dependent_variable_groups"] is True

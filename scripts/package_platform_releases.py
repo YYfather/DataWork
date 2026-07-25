@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 from pathlib import Path
 import shutil
 import stat
+import sys
 import zipfile
 
 from package_source import included_files
@@ -21,6 +23,14 @@ IGNORED_PARTS = {
     ".venv", "venv", "dist", "build", "node_modules",
 }
 IGNORED_SUFFIXES = {".pyc", ".pyo", ".log", ".tmp"}
+
+# GitHub's Windows runners use a legacy console encoding by default.  The
+# package names and status messages are intentionally Chinese, so make the
+# subprocess output deterministic without changing the user's global locale.
+if os.name == "nt":
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 def sha256_bytes(payload: bytes) -> str:

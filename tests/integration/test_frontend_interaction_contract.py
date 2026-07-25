@@ -567,7 +567,7 @@ def test_v16_pairing_semantics_notice_is_mandatory_on_each_page_load():
     assert "const pairingTestNoticeOpen = ref(true)" in APP
     assert "<ReleaseNoticeDialog" in APP
     assert '@acknowledge="pairingTestNoticeOpen = false"' in APP
-    assert "version === '1.7.0' || version === '1.7'" in APP
+    assert "health.value?.version ?? '1.7.1'" in APP
     assert "return 'V1.7'" in APP
     assert "DATAWORK {{ releaseVersionLabel }}" in APP
     assert 'role="alertdialog"' in RELEASE_NOTICE

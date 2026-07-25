@@ -1,6 +1,6 @@
 {
   "suite_version": "1.0",
-  "datawork_target_version": "1.7.0",
+  "datawork_target_version": "1.7.1",
   "generated_with": {
     "python": "3.13",
     "numpy": "2.3.5",

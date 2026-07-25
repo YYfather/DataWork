@@ -219,7 +219,7 @@ const workspaceResultInvalidatedReason = ref('')
 const health = ref<any>(null)
 const pairingTestNoticeOpen = ref(true)
 const releaseVersionLabel = computed(() => {
-  const version = String(health.value?.version ?? '1.7.0').trim().replace(/^v/i, '')
+  const version = String(health.value?.version ?? '1.7.1').trim().replace(/^v/i, '')
   if (version === '1.7.0' || version === '1.7') return 'V1.7'
   return `V${version}`
 })
