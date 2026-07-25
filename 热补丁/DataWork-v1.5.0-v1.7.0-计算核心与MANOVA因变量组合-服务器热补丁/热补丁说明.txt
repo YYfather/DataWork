@@ -1,0 +1,67 @@
+DataWork 1.5.0 → 1.7.0 计算核心审计与 MANOVA 因变量组合服务器热补丁
+================================================================
+
+默认目标路径：/www/wwwroot/1490473838.cn/datework
+
+当前安装基线：
+1. DataWork 1.5.0 网站部署版本（本分支 `DataWork服务/` 的对应服务器基线）。
+
+不支持未经留档的 V1.6 服务器副本；如服务器曾被人工修改或部署过其他
+版本，脚本会在覆盖前停止。只有管理员人工审核差异后，才能使用文末的
+显式覆盖开关。
+
+主要更新：
+- 全部 47 个用户可见计算核心完成审计，当前均为正式实现；
+- 单、双、三和 4–8 因素 ANOVA/MANOVA 全链路加固；
+- 专业模式 MANOVA 支持 2–N 个因变量的无序组合批量计算；
+- 因变量组合 × 因素模型 × 实际拆分组统一展开；
+- 超过 200 个任务强警告，超过 1000 个任务阻止执行；
+- 跨模型校正默认 Holm；
+- 页面、Excel、Markdown、JSON、ZIP 与 AI 使用一致组合标识；
+- MANOVA 常数响应、响应/设计矩阵秩不足和无残差自由度返回明确错误；
+- 保留 V1.5/V1.6 计划及配对 abs(...) 兼容语义；
+- 版本与 Vue 生产静态资源更新到 1.7.0。
+
+安全边界：
+- 复用服务器现有 .venv；正式运行依赖与 1.5.0 基线一致，不下载 Python，
+  不执行 pip install；
+- 不读取或覆盖 data/、数据库、上传文件、报告、工作区密码、AI 密钥、
+  宝塔脚本和进程守护配置；
+- 安装前校验包内 SHA-256，并匹配当前 1.5.0 网站部署基线；
+- 覆盖前完整备份 datawork 目录和根版本文件；
+- 覆盖后先校验目标哈希，再在现有虚拟环境运行 47 方法状态与 6 组合
+  MANOVA 离线烟雾测试；
+- 支持一条命令回滚，备份目录保留供审计。
+
+当前状态：未发布，只保留可审计的解压源码目录，不存在最终 ZIP。
+可将整个目录上传到 /www/wwwroot/1490473838.cn/datework/updates/ 后执行；
+正式发布获批时才生成以下 ZIP 与侧车校验文件：
+   - DataWork-v1.5.0-v1.7.0-计算核心与MANOVA因变量组合-服务器热补丁.zip
+   - DataWork-v1.5.0-v1.7.0-计算核心与MANOVA因变量组合-服务器热补丁.zip.sha256
+
+服务器执行：
+
+   cd /www/wwwroot/1490473838.cn/datework/updates/DataWork-v1.5.0-v1.7.0-计算核心与MANOVA因变量组合-服务器热补丁
+   sha256sum -c SHA256SUMS.txt
+   chmod +x 应用热补丁.sh 回滚本次热补丁.sh
+   ./应用热补丁.sh
+
+若脚本返回代码 2，表示文件、哈希和离线测试已完成，但没有自动识别
+   宝塔进程守护名称。请在宝塔面板手动重启 DataWork，然后验证：
+
+   curl -fsS http://127.0.0.1:8765/api/health
+
+正常结果应包含 version=1.7.0，以及：
+- pairing_workflow=true
+- pairing_abs=true
+- dependent_variable_groups=true
+- dependent_variable_combinations=true
+
+回滚：
+
+   cd /www/wwwroot/1490473838.cn/datework/updates/DataWork-v1.5.0-v1.7.0-计算核心与MANOVA因变量组合-服务器热补丁
+   ./回滚本次热补丁.sh
+
+只有在确认服务器代码曾被人工修改、并已人工审核差异后，才允许：
+
+   DATAWORK_ALLOW_BASELINE_MISMATCH=1 ./应用热补丁.sh

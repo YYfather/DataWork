@@ -1,0 +1,11 @@
+{
+  "patch_id": "datawork_v1.5_pairing_test_notice_20260723",
+  "version": "1.5.0",
+  "package_name": "DataWork-v1.5.0-v1.5.0-配对功能测试公告-服务器热补丁",
+  "accepted_versions": [
+    "1.5.0"
+  ],
+  "scope": "web-static-only pairing test notice",
+  "release_status": "unreleased",
+  "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release"
+}

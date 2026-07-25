@@ -1,0 +1,64 @@
+{
+  "patch_id": "datawork_v1.5.0_to_v1.7.0_core_audit_manova_combinations",
+  "version": "1.7.0",
+  "package_name": "DataWork-v1.5.0-v1.7.0-计算核心与MANOVA因变量组合-服务器热补丁",
+  "created_date": "2026-07-25",
+  "site_root": "/www/wwwroot/1490473838.cn",
+  "app_dir": "/www/wwwroot/1490473838.cn/datework",
+  "accepted_versions": [
+    "1.5.0"
+  ],
+  "supported_baselines": [
+    "1.5.0-website-package"
+  ],
+  "source_branch": "main",
+  "source_commit": "cc2d895ad65c3a400734ea6a9b83e15b5315861f",
+  "source_has_uncommitted_changes": false,
+  "source_state_note": "validated V1.7 source tree; directory integrity is locked by TARGET_SHA256.txt and SHA256SUMS.txt",
+  "baseline_diff": {
+    "baseline": "1.5.0-website-package",
+    "version": "1.5.0",
+    "baseline_files": 75,
+    "target_files": 75,
+    "added": [
+      "datawork/web/static/assets/index-CJxTXdQg.css",
+      "datawork/web/static/assets/index-r6ESB_j7.js"
+    ],
+    "modified_count": 21,
+    "deleted": [
+      "datawork/web/static/assets/index-Cnt-pWU9.js",
+      "datawork/web/static/assets/index-exXYDQAE.css"
+    ]
+  },
+  "features": [
+    "47 implemented calculation methods aligned with the V1.7 audited source",
+    "MANOVA dependent-variable combinations",
+    "factor-model and split-group task expansion",
+    "calculation audit fields propagated through page, Excel, Markdown, JSON, ZIP and AI contexts",
+    "rank, constant-response and residual-degrees-of-freedom guards"
+  ],
+  "excluded": [
+    ".venv/",
+    "data/",
+    "updates/",
+    "*.sqlite3",
+    "*.db",
+    "API keys",
+    "password hashes",
+    "reports",
+    "uploads",
+    "server process configuration"
+  ],
+  "python_runtime_action": "reuse existing .venv; dependencies verified unchanged; no Python download; no pip install",
+  "simulated_apply_and_rollback": [
+    {
+      "baseline": "1.5.0-website-package",
+      "apply": "passed",
+      "rollback": "passed",
+      "baseline_files": 75,
+      "target_files": 75
+    }
+  ],
+  "release_status": "unreleased",
+  "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release"
+}

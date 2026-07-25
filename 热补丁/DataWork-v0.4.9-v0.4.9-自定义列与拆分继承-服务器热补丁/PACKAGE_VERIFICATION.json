@@ -1,0 +1,8 @@
+{
+  "baseline_guards_verified": 11,
+  "target_guards_verified": 8,
+  "reviewed_delete_paths": 3,
+  "status": "source directory verified; release ZIP not generated",
+  "release_status": "unreleased",
+  "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release"
+}

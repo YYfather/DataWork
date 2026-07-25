@@ -1,0 +1,20 @@
+{
+  "simulated_apply_and_rollback": [
+    {
+      "baseline": "1.5.0-website-package",
+      "apply": "passed",
+      "rollback": "passed",
+      "baseline_files": 75,
+      "target_files": 75
+    }
+  ],
+  "target_runtime_files": 75,
+  "reviewed_delete_paths": 2,
+  "runtime_dependencies_unchanged": true,
+  "install_baseline": "1.5.0-website-package",
+  "sensitive_runtime_files_excluded": true,
+  "offline_smoke": "installer verifies version, 47 implemented methods, and 6 MANOVA outcome-combination tasks",
+  "status": "source directory verified; release ZIP not generated",
+  "release_status": "unreleased",
+  "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release"
+}

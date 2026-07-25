@@ -1,0 +1,30 @@
+{
+  "simulated_apply_and_rollback": [
+    {
+      "baseline": "0.4.9-original",
+      "apply": "passed",
+      "rollback": "passed",
+      "baseline_files": 73,
+      "target_files": 75
+    },
+    {
+      "baseline": "0.4.9-derived-hotfix",
+      "apply": "passed",
+      "rollback": "passed",
+      "baseline_files": 72,
+      "target_files": 75
+    },
+    {
+      "baseline": "1.0.0-website-package",
+      "apply": "passed",
+      "rollback": "passed",
+      "baseline_files": 72,
+      "target_files": 75
+    }
+  ],
+  "target_runtime_files": 75,
+  "reviewed_delete_paths": 6,
+  "status": "source directory verified; release ZIP not generated",
+  "release_status": "unreleased",
+  "artifact_policy": "source-directory-only; ZIP and sidecar are generated only for an approved release"
+}

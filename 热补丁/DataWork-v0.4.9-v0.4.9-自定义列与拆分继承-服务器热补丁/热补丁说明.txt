@@ -1,0 +1,40 @@
+DataWork 0.4.9 自定义列与拆分继承服务器热补丁
+====================================================
+
+适用路径：/www/wwwroot/1490473838.cn/datework
+主页根目录：/www/wwwroot/1490473838.cn
+来源 Web 提交：a94140932ea65f9ba6877ff9dab708101369aa6f
+
+本补丁包含：
+1. 自定义列最多 10 个、每列最多引用 10 个原始数值列；
+2. 基础算术与括号、实际 8 位小数；
+3. 自定义列只能作为因变量，并继承来源列及全局拆分；
+4. 空组合跳过、任务数量保护、旧方案自动整理；
+5. 最新 Vue 静态前端；
+6. 删除旧 Streamlit UI 和旧哈希静态资源。
+
+安全边界：
+- 使用服务器现有 .venv/bin/python，不下载或重建 Python；
+- 不执行 pip install，本功能没有新增 Python 运行依赖；
+- 不读取、覆盖或打包 data/、数据库、上传文件、报告、密码或 AI 密钥；
+- 安装前校验补丁 SHA-256 和服务器旧基线；
+- 安装前完整备份当前 datawork 程序目录及被覆盖的根文件。
+
+当前状态未发布，只保留可审计的解压源码目录，不存在最终 ZIP。
+将整个目录上传到 /www/wwwroot/1490473838.cn/datework/updates/ 后执行：
+
+   cd /www/wwwroot/1490473838.cn/datework/updates/DataWork-v0.4.9-v0.4.9-自定义列与拆分继承-服务器热补丁
+   sha256sum -c SHA256SUMS.txt
+   chmod +x 应用热补丁.sh 回滚本次热补丁.sh
+   sudo ./应用热补丁.sh
+
+若脚本提示无法自动识别 Supervisor 名称，请在宝塔进程守护管理器中手动重启 DataWork。
+手动验证：
+
+   curl -fsS http://127.0.0.1:8765/api/health
+   curl -fsS http://127.0.0.1:8765/openapi.json | grep derived-preview
+
+回滚：sudo ./回滚本次热补丁.sh
+
+如服务器代码曾被人工修改，基线保护会停止安装。只有完成差异审核后，才能显式使用：
+DATAWORK_ALLOW_BASELINE_MISMATCH=1 sudo -E ./应用热补丁.sh
